@@ -45,6 +45,7 @@ Limitations:
 
 Enable these capabilities for the app target:
 
+- AlarmKit permission is requested inside the app on iOS 26+.
 - Push Notifications, when APNs delivery is added.
 - Background Modes -> Remote notifications, when APNs delivery is added.
 - App Groups, if sharing data with Screen Time extensions.
@@ -52,12 +53,29 @@ Enable these capabilities for the app target:
 
 Critical Alerts are not part of the MVP. They require Apple approval and should be treated as an entitlement-dependent upgrade.
 
+## Real Alarms On iOS 26+
+
+Antirot uses AlarmKit when the app is built with an iOS 26 SDK and running on iOS 26 or newer. AlarmKit is the real iOS alarm path: it can present prominent system alarms instead of ordinary notification-only reminders.
+
+The app falls back to local notifications when AlarmKit is unavailable, such as older iOS versions, older Xcode/iOS SDK builds, or sideloaded builds that were produced without the AlarmKit framework.
+
+In the app:
+
+```text
+Request real alarm permission
+Schedule normal test alarm
+Schedule loud test alarm
+```
+
+If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SDK version that includes AlarmKit.
+
 ## MVP Features
 
 - Configure Antirot VPS URL and API token.
 - Register device with the VPS.
 - Request notification permission.
 - Schedule normal and loud local alarm notifications.
+- Schedule real AlarmKit alarms on iOS 26+ when available.
 - Handle Stop, Snooze, and Need More Time actions.
 - Send acknowledgement callbacks to the VPS.
 - Request Screen Time authorization when entitlement is available.

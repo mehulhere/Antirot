@@ -19,6 +19,8 @@
     </dict>
     <key>NSUserNotificationsUsageDescription</key>
     <string>Antirot uses notifications to run wake alarms, focus reminders, and overdue-task escalations.</string>
+    <key>NSAlarmKitUsageDescription</key>
+    <string>Antirot uses real system alarms for wakeups, overdue routines, and strict accountability escalation.</string>
     <key>NSFamilyControlsUsageDescription</key>
     <string>Antirot can use Screen Time permission to summarize recent distracting app usage when you explicitly authorize it.</string>
 </dict>

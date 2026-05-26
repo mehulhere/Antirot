@@ -26,6 +26,10 @@ struct ContentView: View {
                     Button("Request notification permission") {
                         Task { await alarmCenter.requestNotificationPermission() }
                     }
+                    LabeledContent("AlarmKit", value: alarmCenter.alarmKitStatus)
+                    Button("Request real alarm permission") {
+                        Task { await alarmCenter.requestAlarmKitPermission() }
+                    }
                     LabeledContent("Screen Time", value: screenTimeMessage)
                     Button("Request Screen Time permission") {
                         Task {
@@ -51,7 +55,7 @@ struct ContentView: View {
 
                 Section("Scheduled") {
                     if alarmCenter.scheduledAlarms.isEmpty {
-                        Text("No local alarms scheduled")
+                        Text("No alarms scheduled")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(alarmCenter.scheduledAlarms) { alarm in

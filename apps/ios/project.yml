@@ -27,6 +27,7 @@ targets:
         UILaunchScreen:
           UIColorName: LaunchBackground
         NSUserNotificationsUsageDescription: Antirot uses notifications to run wake alarms, focus reminders, and overdue-task escalations.
+        NSAlarmKitUsageDescription: Antirot uses real system alarms for wakeups, overdue routines, and strict accountability escalation.
         NSFamilyControlsUsageDescription: Antirot can use Screen Time permission to summarize recent distracting app usage when you explicitly authorize it.
     entitlements:
       path: AntirotAlarm/Resources/AntirotAlarm.entitlements

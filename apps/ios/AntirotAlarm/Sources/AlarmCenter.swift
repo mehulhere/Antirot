@@ -4,6 +4,7 @@ import UserNotifications
 @MainActor
 final class AlarmCenter: ObservableObject {
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @Published var alarmKitStatus: String = "unknown"
     @Published var scheduledAlarms: [AlarmJob] = []
     @Published var lastMessage: String = "No alarms scheduled"
 
@@ -12,6 +13,7 @@ final class AlarmCenter: ObservableObject {
     func configure(settings: SettingsStore) async {
         self.settings = settings
         await refreshAuthorizationStatus()
+        alarmKitStatus = AlarmKitCenter.authorizationLabel()
     }
 
     func requestNotificationPermission() async {
@@ -22,6 +24,11 @@ final class AlarmCenter: ObservableObject {
         } catch {
             lastMessage = "Notification permission failed: \(error.localizedDescription)"
         }
+    }
+
+    func requestAlarmKitPermission() async {
+        alarmKitStatus = await AlarmKitCenter.requestAuthorization()
+        lastMessage = alarmKitStatus
     }
 
     func registerDevice() async {
@@ -67,6 +74,14 @@ final class AlarmCenter: ObservableObject {
     }
 
     func schedule(_ alarm: AlarmJob) async throws {
+        let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm)
+        if scheduledWithAlarmKit {
+            scheduledAlarms.append(alarm)
+            alarmKitStatus = AlarmKitCenter.authorizationLabel()
+            lastMessage = "Real AlarmKit alarm scheduled"
+            return
+        }
+
         let content = UNMutableNotificationContent()
         content.title = alarm.title
         content.body = alarm.message
@@ -79,7 +94,7 @@ final class AlarmCenter: ObservableObject {
         let request = UNNotificationRequest(identifier: alarm.id, content: content, trigger: trigger)
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
-        lastMessage = "Alarm scheduled"
+        lastMessage = "AlarmKit unavailable; scheduled notification fallback"
     }
 
     func refreshAuthorizationStatus() async {
