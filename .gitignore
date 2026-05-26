@@ -1,0 +1,17 @@
+node_modules/
+.antirot/
+.env
+*.log
+.firecrawl/
+test-workspace/
+
+# Personal Antirot runtime memory. Keep these in a configured workspace,
+# not in the public plugin repository.
+behavior.md
+longterm.md
+shortterm.md
+short.md
+tasks.md
+work.md
+sleep.md
+miscellaneous_todo.md

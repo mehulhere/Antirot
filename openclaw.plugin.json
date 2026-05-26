@@ -1,0 +1,115 @@
+{
+    "id": "antirot",
+    "name": "Antirot",
+    "description": "Strict coach accountability system with deterministic state, reminders, and behavioral memory.",
+    "activation": {
+        "onStartup": true
+    },
+    "commandAliases": [
+        {
+            "name": "override",
+            "kind": "runtime-slash"
+        },
+        {
+            "name": "vacation",
+            "kind": "runtime-slash"
+        }
+    ],
+    "contracts": {
+        "tools": [
+            "start_routine",
+            "start_session",
+            "end_session",
+            "set_state_timer",
+            "start_sleep",
+            "log_wake",
+            "get_sleep_report",
+            "list_active_triggers",
+            "clear_active_trigger",
+            "reschedule_trigger",
+            "add_to_misc_queue",
+            "list_misc_queue",
+            "pop_misc_task",
+            "log_behavior_note",
+            "run_nightly_rollover",
+            "write_nightly_summary",
+            "trigger_normal_alarm",
+            "trigger_loud_alarm",
+            "get_linear_plan",
+            "log_strategy_result",
+            "toggle_vacation_mode",
+            "log_override",
+            "request_protected_edit"
+        ]
+    },
+    "skills": [
+        "./skills"
+    ],
+    "configSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "workspaceDir": {
+                "type": "string",
+                "minLength": 1
+            },
+            "openclawCommand": {
+                "type": "string",
+                "minLength": 1,
+                "default": "openclaw"
+            },
+            "alarmCommand": {
+                "type": "string",
+                "minLength": 1
+            },
+            "normalAlarmCommand": {
+                "type": "string",
+                "minLength": 1
+            },
+            "enableCron": {
+                "type": "boolean",
+                "default": true
+            },
+            "bestStrategiesCount": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 2
+            },
+            "randomStrategiesCount": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 1
+            }
+        }
+    },
+    "uiHints": {
+        "workspaceDir": {
+            "label": "Antirot Workspace Directory",
+            "help": "Directory where Antirot writes longterm.md, shortterm.md, tasks.md, work.md, and .antirot state files."
+        },
+        "openclawCommand": {
+            "label": "OpenClaw CLI Command",
+            "help": "Command used for best-effort cron scheduling. Defaults to openclaw."
+        },
+        "alarmCommand": {
+            "label": "Loud Alarm Command",
+            "help": "Optional local shell command for maximum-intensity alarm playback."
+        },
+        "normalAlarmCommand": {
+            "label": "Normal Alarm Command",
+            "help": "Optional local shell command for normal wake alarm playback before loud escalation."
+        },
+        "enableCron": {
+            "label": "Enable Cron Scheduling",
+            "help": "When true, Antirot tools attempt to schedule reminders through OpenClaw cron."
+        },
+        "bestStrategiesCount": {
+            "label": "Best Strategies Count",
+            "help": "Number of top-performing behavioral strategies to inject daily."
+        },
+        "randomStrategiesCount": {
+            "label": "Random Strategies Count",
+            "help": "Number of random/exploratory behavioral strategies to inject daily."
+        }
+    }
+}
