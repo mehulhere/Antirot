@@ -23,9 +23,9 @@ const protectedMarkdownFiles = [
 ] as const;
 
 const defaultMarkdown: Record<(typeof protectedMarkdownFiles)[number], string> = {
-    "longterm.md": "# Long-Term Goals\n\n## Level 1 Goals\n- Define the goals that Antirot must protect.\n\n## Standards\n- High standards, honest recovery, no fake praise.\n",
-    "shortterm.md": "# Short-Term State\n\n## Current Priorities\n- Add today's active priorities here.\n\n## Constraints\n- Sleep, travel, health, relationship time, and vacation mode belong here.\n",
-    "behavior.md": "# Behavior Memory\n\n## Recurring Patterns\n- Add stable focus patterns here.\n\n## Drift Tendencies\n- Add known drift loops here.\n\n## Accountability Styles\n- Add tactics that work or fail here.\n",
+    "longterm.md": "# Long-Term Goals\n\n## Direction\n- Onboarding will ask what the user is trying to build or become, then Antirot will summarize durable goals here.\n\n## Standards\n- High standards, honest recovery, no fake praise.\n",
+    "shortterm.md": "# Short-Term State\n\n## Current Priorities\n- Onboarding will ask what the user is working on now, then Antirot will summarize near-term priorities here.\n\n## Constraints\n- Sleep, travel, health, relationship time, and vacation mode belong here.\n",
+    "behavior.md": "# Behavior Memory\n\n## Recurring Patterns\n- Onboarding will ask what helps or derails the user, then Antirot will summarize stable patterns here.\n\n## Drift Tendencies\n- Known drift loops go here.\n\n## Accountability Styles\n- Tactics that work or fail go here.\n",
     "sleep.md": "# Sleep Ledger\n\n## Rules\n- Planning tomorrow and going to sleep are different states.\n- Sleep recovery is calculated from recent sleep debt and tiredness.\n\n",
     "tasks.md": "# Task Pipeline\n\n[ ] 1.0h - Define the first serious task\n",
     "work.md": "# Work Ledger\n\n",

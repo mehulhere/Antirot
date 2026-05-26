@@ -53,7 +53,7 @@ Daily runtime triggers are tracked in `.antirot/triggers.json`. The agent should
 
 Behavior memory is kept in `behavior.md` and injected into the compact prompt context. Use `log_behavior_note` for stable drift patterns or accountability tactics, and use the misc queue tools (`add_to_misc_queue`, `list_misc_queue`, `pop_misc_task`) to park intrusive thoughts without derailing focus.
 
-Onboarding should happen in chat. The agent should call `get_onboarding_status`, ask one focused question at a time, and save answers through `save_onboarding_answers` instead of telling the user to manually edit `longterm.md`, `shortterm.md`, or `behavior.md`. The same flow is used later for periodic goal reviews or when priorities change.
+Onboarding should happen in chat. The agent should call `get_onboarding_status`, ask simple questions in user language, and save answers through `save_onboarding_answers` instead of telling the user to manually edit `longterm.md`, `shortterm.md`, or `behavior.md`. The user should not have to classify answers as long-term, short-term, or behavior; the agent does that split. The same flow is used later for periodic goal reviews or when priorities change.
 
 Night cleanup should use `run_nightly_rollover` and `write_nightly_summary` so completed tasks are cleared, unfinished tasks carry forward, and summaries land in `work.md`/`behavior.md` without manual file rewrites.
 

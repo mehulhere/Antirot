@@ -109,26 +109,26 @@ async function getOnboardingStatus(workspaceDir, state) {
         readTextIfExists(path.join(workspaceDir, "behavior.md"))
     ]);
     const missing = [];
-    if (!hasSubstantialUserContent(longterm, ["Define the goals that Antirot must protect"])) {
+    if (!hasSubstantialUserContent(longterm, ["Onboarding will ask what the user is trying to build or become"])) {
         missing.push("longterm");
     }
-    if (!hasSubstantialUserContent(shortterm, ["Add today's active priorities here"])) {
+    if (!hasSubstantialUserContent(shortterm, ["Onboarding will ask what the user is working on now"])) {
         missing.push("shortterm");
     }
-    if (!hasSubstantialUserContent(behavior, ["Add stable focus patterns here", "Add known drift loops here", "Add tactics that work or fail here"])) {
+    if (!hasSubstantialUserContent(behavior, ["Onboarding will ask what helps or derails the user", "Known drift loops go here", "Tactics that work or fail go here"])) {
         missing.push("behavior");
     }
     const lastReviewAt = currentState.lastGoalReviewAt ?? currentState.onboardingCompletedAt;
     const reviewDue = missing.length === 0 && (!lastReviewAt ||
         Date.now() - Date.parse(lastReviewAt) > goalReviewIntervalDays * 24 * 60 * 60 * 1000);
     const nextQuestion = missing.includes("longterm")
-        ? "Ask for the user's Level 1 long-term goals, standards, and what the coach must protect."
+        ? "Ask clearly: What are the main outcomes you want Antirot to help you achieve in the next 3-12 months? Ask for projects, career/learning goals, health/consistency goals, and anything the user refuses to compromise on. The agent should later split the answer into durable goals and standards."
         : missing.includes("shortterm")
-            ? "Ask for the user's current sprint priorities, near-term deadlines, and constraints."
+            ? "Ask simply: What are you working on right now or this week, and what deadlines or constraints matter? The agent should later split the answer into short-term priorities and constraints."
             : missing.includes("behavior")
-                ? "Ask what focus patterns, drift risks, and accountability style work for the user."
+                ? "Ask simply: What usually helps you focus, what usually derails you, and what kind of accountability actually works on you? The agent should later split the answer into behavior patterns, drift risks, and accountability style."
                 : reviewDue
-                    ? "Ask whether any long-term goals, current priorities, or accountability rules need updating."
+                    ? "Ask simply: Has anything changed in what you are trying to do, what you are working on now, or what kind of accountability works on you?"
                     : "No onboarding question is due.";
     return { missing, reviewDue, nextQuestion };
 }
@@ -278,8 +278,9 @@ function buildPersonaContext() {
         "- The only explicit chat commands are /override and /vacation. Neither command requires a reason.",
         "- Normal natural chat can still negotiate tasks, breaks, routines, and protected edits.",
         "- Ask for explanation when the user wants low-value tasks, break extensions, or protected personality/goal edits.",
-        "- During onboarding, ask one goal/profile question at a time in chat, then save the answer with save_onboarding_answers.",
-        "- If onboarding is incomplete or goal review is due, do not dump a form. Ask the next focused question and keep moving.",
+        "- During onboarding, keep questions simple. Do not ask the user to classify long-term vs short-term vs behavior.",
+        "- Ask what outcomes the user wants over the next 3-12 months, what they are working on now, and what helps or derails them. You split and save the answer with save_onboarding_answers.",
+        "- If onboarding is incomplete or goal review is due, do not dump a form or mention internal file names. Ask the next simple question and keep moving.",
         "- Capture intrusive thoughts and low-priority side quests into miscellaneous_todo.md instead of letting them hijack focus.",
         "- Use behavior.md as stable behavioral memory: focus patterns, drift loops, emotional triggers, and accountability tactics.",
         "- At night, use nightly rollover tools to clear completed tasks, carry unfinished tasks, and append summary evidence.",
@@ -318,7 +319,7 @@ async function buildStateContext(workspaceDir, config) {
         `- overridesToday: ${stats.overrides[day] ?? 0}`,
         `- productiveMinsToday: ${stats.productiveMins[day] ?? 0}`,
         `- onTableWastedMinsToday: ${stats.onTableWastedMins[day] ?? 0}`,
-        "Level 1 / long-term excerpt:",
+        "Long-term direction excerpt:",
         longterm.slice(0, 1200).trim() || "(empty)",
         "Short-term excerpt:",
         shortterm.slice(0, 1000).trim() || "(empty)",

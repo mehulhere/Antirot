@@ -5,4 +5,4 @@
 - Manually verify `list_active_triggers`, early completion clearing, early wake clearing, stale callback ignoring, and `reschedule_trigger` for "I need more time" in a linked OpenClaw gateway.
 - Manually verify behavior context injection, misc queue add/list/pop, nightly rollover cleanup, and nightly summary extraction in a linked OpenClaw gateway.
 - Programmatically verify Scenarios A through M using the `test-scenarios` script to validate all 13 behavioral coaching loops.
-- Manually verify onboarding asks one focused question at a time, saves answers through `save_onboarding_answers`, and later revisits goals through `get_onboarding_status`.
+- Manually verify onboarding asks simple user-facing questions, internally splits answers into long-term/short-term/behavior memory through `save_onboarding_answers`, and later revisits goals through `get_onboarding_status`.
