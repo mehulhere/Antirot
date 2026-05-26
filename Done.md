@@ -5,4 +5,7 @@
 - Manually verify `list_active_triggers`, early completion clearing, early wake clearing, stale callback ignoring, and `reschedule_trigger` for "I need more time" in a linked OpenClaw gateway.
 - Manually verify behavior context injection, misc queue add/list/pop, nightly rollover cleanup, and nightly summary extraction in a linked OpenClaw gateway.
 - Programmatically verify Scenarios A through M using the `test-scenarios` script to validate all 13 behavioral coaching loops.
-- Manually verify onboarding asks simple user-facing questions, internally splits answers into long-term/short-term/behavior memory through `save_onboarding_answers`, and later revisits goals through `get_onboarding_status`.
+- Manually verify onboarding asks for goals/projects, divides them into levels 1-4, prompts the user for confirmation, and writes them to memory files via `save_onboarding_answers`.
+- Manually verify the simplified humorous coach-style onboarding prompt and confirmation flow in a linked OpenClaw gateway.
+- Build and run `apps/ios` on a real iPhone to verify Antirot registration, notification permission, normal/loud test alarms, alarm actions, and Screen Time authorization.
+- Run the GitHub Actions `Build iOS IPA` workflow and install the uploaded unsigned IPA through SideStore/AltStore for no-Mac iPhone testing.

@@ -27,7 +27,7 @@ import {
     ensureWorkspace
 } from "../dist/storage.js";
 import { triggerAlarmCommand } from "../dist/runtime.js";
-import { selectDailyStrategies } from "../dist/index.js";
+import { selectDailyStrategies, getOnboardingStatus } from "../dist/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const testWorkspaceDir = path.resolve(__dirname, "../test-workspace");
@@ -58,9 +58,42 @@ async function runTests() {
         await ensureWorkspace(testWorkspaceDir);
 
         // ----------------------------------------------------
-        // Scenario A: The Midnight Task Planning Loop (00:00 – 06:00)
+        // Scenario A: Onboarding Answers Saving Flow
         // ----------------------------------------------------
-        console.log("⏳ Testing Scenario A: Midnight Planning Loop & Linear Plan...");
+        console.log("⏳ Testing Scenario A: Onboarding Answers Saving Flow...");
+
+        // 1. Initialize files to baseline template (placeholder content)
+        await fs.writeFile(path.join(testWorkspaceDir, "longterm.md"), "# Long-Term Goals\n\n## Direction\n- Onboarding will ask what the user is trying to build or become\n", "utf8");
+        await fs.writeFile(path.join(testWorkspaceDir, "shortterm.md"), "# Short-Term State\n\n## Current Priorities\n- Onboarding will ask what the user is working on now\n", "utf8");
+        await fs.writeFile(path.join(testWorkspaceDir, "behavior.md"), "# Behavior Memory\n\n## Recurring Patterns\n- Onboarding will ask what helps or derails the user\n- Known drift loops go here\n- Tactics that work or fail go here\n", "utf8");
+
+        // 2. Check initial onboarding status: missing goals (longterm & shortterm)
+        const initialOnboard = await getOnboardingStatus(testWorkspaceDir);
+        assert.deepStrictEqual(initialOnboard.missing, ["longterm", "shortterm"], "Should initially miss longterm and shortterm files");
+        assert.ok(initialOnboard.nextQuestion.includes("complete mental rot"), "Greeting should match the cool-but-rude prompt");
+
+        // 3. User responds to goals collection prompt -> we append answers to both files
+        const dayKey = new Date().toISOString().slice(0, 10);
+        await fs.appendFile(path.join(testWorkspaceDir, "longterm.md"), `\n## Profile Update - ${dayKey}\n\n### Level 1 Goals\n- Finish coding this cool behavioral OS\n- Build high-performance AI tools\n`, "utf8");
+        await fs.appendFile(path.join(testWorkspaceDir, "shortterm.md"), `\n## Profile Update - ${dayKey}\n\n### Level 3 Goals\n- Finish task-scenarios onboarding tests\n- Fix any linter complaints\n`, "utf8");
+
+        // Write complete state just like save_onboarding_answers does to prevent immediate review trigger
+        const finalState = await readState(testWorkspaceDir);
+        finalState.onboardingCompletedAt = new Date().toISOString();
+        finalState.lastGoalReviewAt = new Date().toISOString();
+        await writeState(testWorkspaceDir, finalState);
+
+        // 4. Verify onboarding is completely finished
+        const finalOnboard = await getOnboardingStatus(testWorkspaceDir);
+        assert.deepStrictEqual(finalOnboard.missing, [], "Onboarding should be completely finished");
+        assert.strictEqual(finalOnboard.nextQuestion, "No onboarding question is due.", "No further questions should be due");
+
+        console.log("✅ Scenario A Passed!");
+
+        // ----------------------------------------------------
+        // Scenario B: The Midnight Task Planning Loop (00:00 – 06:00)
+        // ----------------------------------------------------
+        console.log("\n⏳ Testing Scenario B: Midnight Planning Loop & Linear Plan...");
         
         // 1. Demands next day's tasks if vacation=False in stats config
         await readStats(testWorkspaceDir);
@@ -93,12 +126,12 @@ async function runTests() {
         assert.strictEqual(plan.totalHours, 3.5, "Total hours of plan should be 3.5h");
         assert.strictEqual(plan.skippedCompleted, 1, "Should skip 1 completed task");
 
-        console.log("✅ Scenario A Passed!");
+        console.log("✅ Scenario B Passed!");
 
         // ----------------------------------------------------
-        // Scenario B: The Evening Strategy Shift
+        // Scenario C: The Evening Strategy Shift
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario B: Evening Strategy Shift (RL Probability Math)...");
+        console.log("\n⏳ Testing Scenario C: Evening Strategy Shift (RL Probability Math)...");
         
         // Populate strategy performance history
         const initialPerformance = await readStrategyPerformance(testWorkspaceDir);
@@ -127,12 +160,12 @@ async function runTests() {
         assert.ok(stateWithStrategies.currentStrategies.includes("strict_deadline_pressure"), "Should contain second top strategy");
         
         console.log(`🧠 Selected daily strategies: ${stateWithStrategies.currentStrategies.join(", ")}`);
-        console.log("✅ Scenario B Passed!");
+        console.log("✅ Scenario C Passed!");
 
         // ----------------------------------------------------
-        // Scenario C: Morning Initialization
+        // Scenario D: Morning Initialization
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario C: Morning Initialization (GM Wake Detection)...");
+        console.log("\n⏳ Testing Scenario D: Morning Initialization (GM Wake Detection)...");
         
         // Put system in sleep mode first
         const beforeSleepState = await readState(testWorkspaceDir);
@@ -178,12 +211,12 @@ async function runTests() {
         assert.strictEqual(afterWakeState.mode, "idle", "Mode should transition back to idle upon waking");
         assert.strictEqual(afterWakeState.activeBlock, undefined, "Active block should be cleared");
 
-        console.log("✅ Scenario C Passed!");
+        console.log("✅ Scenario D Passed!");
 
         // ----------------------------------------------------
-        // Scenario D & I: Starting a Deep-Work Session & Two-Hour Alignment
+        // Scenario E & J: Starting a Deep-Work Session & Two-Hour Alignment
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario D & I: Starting Deep-Work & Two-Hour Alignment check...");
+        console.log("\n⏳ Testing Scenario E & J: Starting Deep-Work & Two-Hour Alignment check...");
         
         // Simulate start_session tool call behavior
         const targetDuration = 45; // 45-minute focus session
@@ -235,12 +268,12 @@ async function runTests() {
         assert.ok(registeredAlignment, "Alignment check trigger should be active");
         assert.strictEqual(registeredAlignment.requestedDelayMins, 120, "Alignment check should be exactly 120 mins");
 
-        console.log("✅ Scenario D & I Passed!");
+        console.log("✅ Scenario E & J Passed!");
 
         // ----------------------------------------------------
-        // Scenario E: Closing a Deep-Work Session
+        // Scenario F: Closing a Deep-Work Session
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario E: Closing Deep-Work Session...");
+        console.log("\n⏳ Testing Scenario F: Closing Deep-Work Session...");
         
         // Log end of session
         const statsBeforeEnd = await readStats(testWorkspaceDir);
@@ -277,12 +310,12 @@ async function runTests() {
         assert.strictEqual((statsAfterEnd.onTableWastedMins[today] ?? 0) - (statsBeforeEnd.onTableWastedMins[today] ?? 0), 15, "Wasted minutes should increase by 15");
         assert.strictEqual((statsAfterEnd.sessionsCompleted[today] ?? 0) - (statsBeforeEnd.sessionsCompleted[today] ?? 0), 1, "Completed sessions count should increase by 1");
 
-        console.log("✅ Scenario E Passed!");
+        console.log("✅ Scenario F Passed!");
 
         // ----------------------------------------------------
-        // Scenario F & H: Declaring Off-Table Routine / Mindful Break Jitter
+        // Scenario G & I: Declaring Off-Table Routine / Mindful Break Jitter
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario F & H: Declaring Off-Table Routine & Jitter Calculation...");
+        console.log("\n⏳ Testing Scenario G & I: Declaring Off-Table Routine & Jitter Calculation...");
 
         // Scenario F: Breakfast block duration = 30 minutes, 10% jitter = 3 minutes. Total delay = 33 minutes
         // Scenario H: Meditation block duration = 20 minutes, 8% jitter = 1.6 minutes. Total delay = 21.6 minutes -> rounds to 22
@@ -344,24 +377,24 @@ async function runTests() {
             });
         }
 
-        console.log("✅ Scenario F & H Passed!");
+        console.log("✅ Scenario G & I Passed!");
 
         // ----------------------------------------------------
-        // Scenario G: Low-Value Break Redirection
+        // Scenario H: Low-Value Break Redirection
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario G: Low-Value Break Redirection Targets...");
+        console.log("\n⏳ Testing Scenario H: Low-Value Break Redirection Targets...");
         
         // Ensure miscellaneous_todo.md exists and is populated
         const miscTodoText = await fs.readFile(path.join(testWorkspaceDir, "miscellaneous_todo.md"), "utf8");
         assert.ok(miscTodoText.includes("Miscellaneous Todo"), "Default miscellaneous_todo.md should be populated");
         assert.ok(miscTodoText.includes("Clear one tiny admin task"), "Should contain simple administrative redirections");
         
-        console.log("✅ Scenario G Passed!");
+        console.log("✅ Scenario H Passed!");
 
         // ----------------------------------------------------
-        // Scenario J & K: Drop-Dead Trigger & Overdue Nag Loop
+        // Scenario K & L: Drop-Dead Trigger & Overdue Nag Loop
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario J & K: Trigger Rescheduling (Extension / Nag Loop)...");
+        console.log("\n⏳ Testing Scenario K & L: Trigger Rescheduling (Extension / Nag Loop)...");
         
         // 1. Add a routine trigger
         const initialRoutineTrigger = await createAntirotTrigger({
@@ -399,12 +432,12 @@ async function runTests() {
             });
         }
 
-        console.log("✅ Scenario J & K Passed!");
+        console.log("✅ Scenario K & L Passed!");
 
         // ----------------------------------------------------
-        // Scenario L: Maximum Intervention (Loud Alarm Skill)
+        // Scenario M: Maximum Intervention (Loud Alarm Skill)
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario L: Maximum Intervention (Loud Alarm)...");
+        console.log("\n⏳ Testing Scenario M: Maximum Intervention (Loud Alarm)...");
         
         const statsBeforeAlarm = await readStats(testWorkspaceDir);
         
@@ -420,18 +453,18 @@ async function runTests() {
         const statsFinal = await readStats(testWorkspaceDir);
         assert.strictEqual((statsFinal.loudAlarmsTriggered[today] ?? 0) - (statsBeforeAlarm.loudAlarmsTriggered[today] ?? 0), 1, "Loud alarms count should increase by 1");
 
-        console.log("✅ Scenario L Passed!");
+        console.log("✅ Scenario M Passed!");
 
         // ----------------------------------------------------
-        // Scenario M: Pre-Sleep De-escalation
+        // Scenario N: Pre-Sleep De-escalation
         // ----------------------------------------------------
-        console.log("\n⏳ Testing Scenario M: Pre-Sleep De-escalation (Sleep Summary & Debt)...");
+        console.log("\n⏳ Testing Scenario N: Pre-Sleep De-escalation (Sleep Summary & Debt)...");
         
         const sleepSummaryText = await getSleepSummary(testWorkspaceDir);
         assert.ok(sleepSummaryText.includes("Sleep debt:"), "Sleep summary should report debt");
         assert.ok(sleepSummaryText.includes("Recommended sleep now:"), "Sleep summary should report recommendations");
 
-        console.log("✅ Scenario M Passed!");
+        console.log("✅ Scenario N Passed!");
 
         console.log("\n🎉 All scenarios successfully verified programmatically!");
 

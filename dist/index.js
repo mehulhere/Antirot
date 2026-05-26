@@ -101,12 +101,11 @@ function hasSubstantialUserContent(text, placeholders) {
         .filter((line) => !placeholders.some((placeholder) => line.includes(placeholder)));
     return compact.length >= 2;
 }
-async function getOnboardingStatus(workspaceDir, state) {
-    const [currentState, longterm, shortterm, behavior] = await Promise.all([
+export async function getOnboardingStatus(workspaceDir, state) {
+    const [currentState, longterm, shortterm] = await Promise.all([
         state ? Promise.resolve(state) : readState(workspaceDir),
         readTextIfExists(path.join(workspaceDir, "longterm.md")),
-        readTextIfExists(path.join(workspaceDir, "shortterm.md")),
-        readTextIfExists(path.join(workspaceDir, "behavior.md"))
+        readTextIfExists(path.join(workspaceDir, "shortterm.md"))
     ]);
     const missing = [];
     if (!hasSubstantialUserContent(longterm, ["Onboarding will ask what the user is trying to build or become"])) {
@@ -115,21 +114,14 @@ async function getOnboardingStatus(workspaceDir, state) {
     if (!hasSubstantialUserContent(shortterm, ["Onboarding will ask what the user is working on now"])) {
         missing.push("shortterm");
     }
-    if (!hasSubstantialUserContent(behavior, ["Onboarding will ask what helps or derails the user", "Known drift loops go here", "Tactics that work or fail go here"])) {
-        missing.push("behavior");
-    }
     const lastReviewAt = currentState.lastGoalReviewAt ?? currentState.onboardingCompletedAt;
     const reviewDue = missing.length === 0 && (!lastReviewAt ||
         Date.now() - Date.parse(lastReviewAt) > goalReviewIntervalDays * 24 * 60 * 60 * 1000);
-    const nextQuestion = missing.includes("longterm")
-        ? "Ask clearly: What are the main outcomes you want Antirot to help you achieve in the next 3-12 months? Ask for projects, career/learning goals, health/consistency goals, and anything the user refuses to compromise on. The agent should later split the answer into durable goals and standards."
-        : missing.includes("shortterm")
-            ? "Ask simply: What are you working on right now or this week, and what deadlines or constraints matter? The agent should later split the answer into short-term priorities and constraints."
-            : missing.includes("behavior")
-                ? "Ask simply: What usually helps you focus, what usually derails you, and what kind of accountability actually works on you? The agent should later split the answer into behavior patterns, drift risks, and accountability style."
-                : reviewDue
-                    ? "Ask simply: Has anything changed in what you are trying to do, what you are working on now, or what kind of accountability works on you?"
-                    : "No onboarding question is due.";
+    const nextQuestion = (missing.includes("longterm") || missing.includes("shortterm"))
+        ? "Hii. I'm Antirot—the only coach standing between you and complete mental rot. Have you been lazy? Let's get one thing straight: I'm here to make you do actual work. To guide you properly, I need to know your goals and projects. What are we building here?"
+        : reviewDue
+            ? "Time for a reality check. Let's review your goals. What goals and projects are you focused on now?"
+            : "No onboarding question is due.";
     return { missing, reviewDue, nextQuestion };
 }
 function resolveWorkspace(api, ctx) {
@@ -278,9 +270,9 @@ function buildPersonaContext() {
         "- The only explicit chat commands are /override and /vacation. Neither command requires a reason.",
         "- Normal natural chat can still negotiate tasks, breaks, routines, and protected edits.",
         "- Ask for explanation when the user wants low-value tasks, break extensions, or protected personality/goal edits.",
-        "- During onboarding, keep questions simple. Do not ask the user to classify long-term vs short-term vs behavior.",
-        "- Ask what outcomes the user wants over the next 3-12 months, what they are working on now, and what helps or derails them. You split and save the answer with save_onboarding_answers.",
-        "- If onboarding is incomplete or goal review is due, do not dump a form or mention internal file names. Ask the next simple question and keep moving.",
+        "- During onboarding, ask the user only for their goals and projects. Do not ask them to classify or ask multiple questions.",
+        "- Divide the user's goals into Long-term (Level 1: Existential/Critical, Level 2: Major Strategic) and Short-term (Level 3: Important, Level 4: Optional). Present this structure to the user and ask: 'Does this look right to you?'",
+        "- Once the user confirms/approves, call save_onboarding_answers with the grouped levels. If onboarding is incomplete or goal review is due, do not dump a form or mention internal file names. Ask for goals and projects and keep moving.",
         "- Capture intrusive thoughts and low-priority side quests into miscellaneous_todo.md instead of letting them hijack focus.",
         "- Use behavior.md as stable behavioral memory: focus patterns, drift loops, emotional triggers, and accountability tactics.",
         "- At night, use nightly rollover tools to clear completed tasks, carry unfinished tasks, and append summary evidence.",
@@ -396,8 +388,12 @@ function registerTools(api) {
     api.registerTool((ctx) => ({
         name: "save_onboarding_answers",
         label: "Save Onboarding Answers",
-        description: "Save user-provided long-term goals, short-term goals, and behavior profile answers into Antirot memory files.",
+        description: "Save user-provided long-term goals (Level 1 and Level 2) and short-term goals (Level 3 and Level 4) into Antirot memory files.",
         parameters: Type.Object({
+            longterm_level1: Type.Optional(Type.Array(Type.String())),
+            longterm_level2: Type.Optional(Type.Array(Type.String())),
+            shortterm_level3: Type.Optional(Type.Array(Type.String())),
+            shortterm_level4: Type.Optional(Type.Array(Type.String())),
             longterm_goals: Type.Optional(Type.Array(Type.String())),
             standards: Type.Optional(Type.Array(Type.String())),
             motivation_style: Type.Optional(Type.Array(Type.String())),
@@ -412,6 +408,10 @@ function registerTools(api) {
             const workspaceDir = resolveWorkspace(api, ctx);
             await ensureWorkspace(workspaceDir);
             const day = today();
+            const longtermLevel1 = readOptionalStringArray(values, "longterm_level1");
+            const longtermLevel2 = readOptionalStringArray(values, "longterm_level2");
+            const shorttermLevel3 = readOptionalStringArray(values, "shortterm_level3");
+            const shorttermLevel4 = readOptionalStringArray(values, "shortterm_level4");
             const longtermGoals = readOptionalStringArray(values, "longterm_goals");
             const standards = readOptionalStringArray(values, "standards");
             const motivationStyle = readOptionalStringArray(values, "motivation_style");
@@ -421,19 +421,30 @@ function registerTools(api) {
             const driftRisks = readOptionalStringArray(values, "drift_risks");
             const accountabilityStyle = readOptionalStringArray(values, "accountability_style");
             const wrote = [];
-            if (bulletList(longtermGoals).length > 0 || bulletList(standards).length > 0 || bulletList(motivationStyle).length > 0) {
+            if (bulletList(longtermLevel1).length > 0 ||
+                bulletList(longtermLevel2).length > 0 ||
+                bulletList(longtermGoals).length > 0 ||
+                bulletList(standards).length > 0 ||
+                bulletList(motivationStyle).length > 0) {
                 await appendLongtermEntry(workspaceDir, [
                     `\n## Profile Update - ${day}`,
-                    bulletList(longtermGoals).length > 0 ? "\n### Level 1 Goals\n" + formatBullets(longtermGoals) : "",
+                    bulletList(longtermLevel1).length > 0 ? "\n### Level 1 Goals\n" + formatBullets(longtermLevel1) : "",
+                    bulletList(longtermLevel2).length > 0 ? "\n### Level 2 Goals\n" + formatBullets(longtermLevel2) : "",
+                    bulletList(longtermGoals).length > 0 ? "\n### Direction\n" + formatBullets(longtermGoals) : "",
                     bulletList(standards).length > 0 ? "\n### Standards\n" + formatBullets(standards) : "",
                     bulletList(motivationStyle).length > 0 ? "\n### Motivation Style\n" + formatBullets(motivationStyle) : "",
                     ""
                 ].filter(Boolean).join("\n"));
                 wrote.push("longterm.md");
             }
-            if (bulletList(shorttermPriorities).length > 0 || bulletList(constraints).length > 0) {
+            if (bulletList(shorttermLevel3).length > 0 ||
+                bulletList(shorttermLevel4).length > 0 ||
+                bulletList(shorttermPriorities).length > 0 ||
+                bulletList(constraints).length > 0) {
                 await appendShorttermEntry(workspaceDir, [
                     `\n## Profile Update - ${day}`,
+                    bulletList(shorttermLevel3).length > 0 ? "\n### Level 3 Goals\n" + formatBullets(shorttermLevel3) : "",
+                    bulletList(shorttermLevel4).length > 0 ? "\n### Level 4 Goals\n" + formatBullets(shorttermLevel4) : "",
                     bulletList(shorttermPriorities).length > 0 ? "\n### Current Priorities\n" + formatBullets(shorttermPriorities) : "",
                     bulletList(constraints).length > 0 ? "\n### Constraints\n" + formatBullets(constraints) : "",
                     ""

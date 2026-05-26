@@ -19,6 +19,28 @@ In Xcode:
 2. Change the bundle identifier from `com.mehulhere.Antirot` if needed.
 3. Run on a real device for notification and Screen Time behavior.
 
+## Build An IPA Without A Mac
+
+Use the GitHub Actions workflow:
+
+```text
+Actions -> Build iOS IPA -> Run workflow
+```
+
+The workflow uploads:
+
+```text
+Antirot-unsigned-ipa
+```
+
+Download the artifact, unzip it if GitHub wraps it, then install the IPA through SideStore or AltStore. The workflow intentionally creates an unsigned IPA because free Apple-ID sideloading tools sign it on your behalf.
+
+Limitations:
+
+- Free Apple-ID sideloads expire unless refreshed.
+- Screen Time and push-notification entitlements will not work through ordinary free sideloading.
+- Local notification test alarms should still be the first thing to verify.
+
 ## Capabilities
 
 Enable these capabilities for the app target:

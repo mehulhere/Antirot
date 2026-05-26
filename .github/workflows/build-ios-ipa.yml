@@ -1,0 +1,66 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/build-ios-ipa.yml"
+
+jobs:
+  build-unsigned-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app for iPhoneOS
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Antirot.xcodeproj \
+            -scheme Antirot \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name 'Antirot.app' -type d | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Antirot.app was not produced"
+            exit 1
+          fi
+          rm -rf Payload Antirot-unsigned.ipa
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/Antirot.app
+          /usr/bin/zip -qry Antirot-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Antirot-unsigned-ipa
+          path: apps/ios/Antirot-unsigned.ipa
+          if-no-files-found: error
