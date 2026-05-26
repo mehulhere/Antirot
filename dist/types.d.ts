@@ -26,6 +26,9 @@ export type AntirotState = {
     lastPlanSubmittedAt?: string;
     lastRolloverDate?: string;
     lastNightlySummaryDate?: string;
+    lastOnboardingPromptAt?: string;
+    onboardingCompletedAt?: string;
+    lastGoalReviewAt?: string;
     updatedAt: string;
 };
 export type BehavioralStats = {

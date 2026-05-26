@@ -17,6 +17,8 @@
     ],
     "contracts": {
         "tools": [
+            "get_onboarding_status",
+            "save_onboarding_answers",
             "start_routine",
             "start_session",
             "end_session",

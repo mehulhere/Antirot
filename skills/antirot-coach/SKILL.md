@@ -17,6 +17,7 @@ Use this skill whenever the user is working with Antirot accountability, daily p
 - Treat "I am going to sleep" as sleep mode, not next-day planning.
 - Treat "good morning", "gm", "woke up", and similar variants as wake confirmation.
 - Keep the user in natural chat. Do not force command syntax except for the two explicit commands below.
+- Onboarding and later profile updates should happen through chat questions. Ask one focused question at a time, then save the answer with `save_onboarding_answers`.
 
 ## Explicit commands
 
@@ -29,6 +30,7 @@ Do not ask for a reason for `/override` or `/vacation`.
 
 Call deterministic Antirot tools instead of manually editing state when the user:
 
+- Is new, has empty goal files, asks to set up goals, or needs a periodic profile review: call `get_onboarding_status`, ask the next focused question, then call `save_onboarding_answers` after they answer.
 - Starts breakfast, shower, commute, meditation, or another non-work routine: call `start_routine`.
 - Starts a work block: call `start_session`.
 - Finishes a work block or reports output: call `end_session`.
@@ -79,3 +81,16 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - `.antirot/*.json` stores machine-readable state and metrics.
 
 Never rely on chat memory for these facts when a tool or file can provide them.
+
+## Onboarding flow
+
+Do not tell the user to SSH into the workspace to create goal files unless they specifically ask for manual setup. The normal path is conversational:
+
+1. Call `get_onboarding_status`.
+2. Ask only the next missing question:
+   - Long-term: "What are the Level 1 goals I am supposed to protect, and what standards should I hold you to?"
+   - Short-term: "What are your current sprint priorities, deadlines, and constraints?"
+   - Behavior: "What focus patterns, drift risks, and accountability style actually work on you?"
+3. When the user answers, call `save_onboarding_answers` with structured bullets.
+4. If anything is still missing, ask the next question.
+5. After onboarding is complete, revisit the profile when `get_onboarding_status` says goal review is due or when the user says their goals/priorities have changed.

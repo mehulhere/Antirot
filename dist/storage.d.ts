@@ -31,6 +31,8 @@ export declare function writeProtectedIntents(workspaceDir: string, intents: Pro
 export declare function appendEvent(workspaceDir: string, event: Omit<AntirotEvent, "at">): Promise<void>;
 export declare function appendWorkEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function appendBehaviorEntry(workspaceDir: string, markdown: string): Promise<void>;
+export declare function appendLongtermEntry(workspaceDir: string, markdown: string): Promise<void>;
+export declare function appendShorttermEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function appendSleepEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function writeWorkspaceTextFile(workspaceDir: string, relativePath: string, text: string): Promise<void>;
 export declare function readTextIfExists(filePath: string): Promise<string>;

@@ -32,6 +32,8 @@ import {
     addProtectedIntent,
     appendBehaviorEntry,
     appendEvent,
+    appendLongtermEntry,
+    appendShorttermEntry,
     appendWorkEntry,
     ensureWorkspace,
     hasFreshProtectedIntent,
@@ -51,6 +53,7 @@ import {
 import type { AntirotConfig, AntirotState } from "./types.js";
 
 const ordinaryRoutineCapMins = 30;
+const goalReviewIntervalDays = 14;
 const fallbackStrategies = [
     "strict_deadline_pressure",
     "rare_identity_praise",
@@ -142,6 +145,62 @@ function readOptionalStringArray(params: ToolParams, key: string): string[] | un
         throw new Error(`${key} must be an array of strings.`);
     }
     return value.map((item) => item.trim()).filter(Boolean);
+}
+
+function bulletList(items: string[] | undefined): string[] {
+    return (items ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function formatBullets(items: string[] | undefined): string {
+    const clean = bulletList(items);
+    return clean.length > 0 ? clean.map((item) => `- ${item}`).join("\n") : "";
+}
+
+function hasSubstantialUserContent(text: string, placeholders: readonly string[]): boolean {
+    const compact = text
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"))
+        .filter((line) => !placeholders.some((placeholder) => line.includes(placeholder)));
+    return compact.length >= 2;
+}
+
+async function getOnboardingStatus(workspaceDir: string, state?: AntirotState): Promise<{
+    missing: string[];
+    reviewDue: boolean;
+    nextQuestion: string;
+}> {
+    const [currentState, longterm, shortterm, behavior] = await Promise.all([
+        state ? Promise.resolve(state) : readState(workspaceDir),
+        readTextIfExists(path.join(workspaceDir, "longterm.md")),
+        readTextIfExists(path.join(workspaceDir, "shortterm.md")),
+        readTextIfExists(path.join(workspaceDir, "behavior.md"))
+    ]);
+    const missing: string[] = [];
+    if (!hasSubstantialUserContent(longterm, ["Define the goals that Antirot must protect"])) {
+        missing.push("longterm");
+    }
+    if (!hasSubstantialUserContent(shortterm, ["Add today's active priorities here"])) {
+        missing.push("shortterm");
+    }
+    if (!hasSubstantialUserContent(behavior, ["Add stable focus patterns here", "Add known drift loops here", "Add tactics that work or fail here"])) {
+        missing.push("behavior");
+    }
+    const lastReviewAt = currentState.lastGoalReviewAt ?? currentState.onboardingCompletedAt;
+    const reviewDue = missing.length === 0 && (
+        !lastReviewAt ||
+        Date.now() - Date.parse(lastReviewAt) > goalReviewIntervalDays * 24 * 60 * 60 * 1000
+    );
+    const nextQuestion = missing.includes("longterm")
+        ? "Ask for the user's Level 1 long-term goals, standards, and what the coach must protect."
+        : missing.includes("shortterm")
+            ? "Ask for the user's current sprint priorities, near-term deadlines, and constraints."
+            : missing.includes("behavior")
+                ? "Ask what focus patterns, drift risks, and accountability style work for the user."
+                : reviewDue
+                    ? "Ask whether any long-term goals, current priorities, or accountability rules need updating."
+                    : "No onboarding question is due.";
+    return { missing, reviewDue, nextQuestion };
 }
 
 function resolveWorkspace(api: OpenClawPluginApi, ctx?: OpenClawPluginToolContext | PluginCommandContext): string {
@@ -304,6 +363,8 @@ function buildPersonaContext(): string {
         "- The only explicit chat commands are /override and /vacation. Neither command requires a reason.",
         "- Normal natural chat can still negotiate tasks, breaks, routines, and protected edits.",
         "- Ask for explanation when the user wants low-value tasks, break extensions, or protected personality/goal edits.",
+        "- During onboarding, ask one goal/profile question at a time in chat, then save the answer with save_onboarding_answers.",
+        "- If onboarding is incomplete or goal review is due, do not dump a form. Ask the next focused question and keep moving.",
         "- Capture intrusive thoughts and low-priority side quests into miscellaneous_todo.md instead of letting them hijack focus.",
         "- Use behavior.md as stable behavioral memory: focus patterns, drift loops, emotional triggers, and accountability tactics.",
         "- At night, use nightly rollover tools to clear completed tasks, carry unfinished tasks, and append summary evidence.",
@@ -328,6 +389,7 @@ async function buildStateContext(workspaceDir: string, config: AntirotConfig): P
         listActiveTriggers(workspaceDir)
     ]);
     const state = await selectDailyStrategies(workspaceDir, rawState, config);
+    const onboarding = await getOnboardingStatus(workspaceDir, state);
     const day = today();
     const recentWork = work.split(/\r?\n/u).slice(-24).join("\n").trim();
     return [
@@ -336,6 +398,9 @@ async function buildStateContext(workspaceDir: string, config: AntirotConfig): P
         `- vacation: ${state.vacation}`,
         `- activeBlock: ${state.activeBlock ? `${state.activeBlock.kind}:${state.activeBlock.name}` : "none"}`,
         `- currentStrategies: ${state.currentStrategies.length ? state.currentStrategies.join(", ") : "none"}`,
+        `- onboardingMissing: ${onboarding.missing.length ? onboarding.missing.join(", ") : "none"}`,
+        `- goalReviewDue: ${onboarding.reviewDue}`,
+        `- nextProfileQuestion: ${onboarding.nextQuestion}`,
         `- overridesToday: ${stats.overrides[day] ?? 0}`,
         `- productiveMinsToday: ${stats.productiveMins[day] ?? 0}`,
         `- onTableWastedMinsToday: ${stats.onTableWastedMins[day] ?? 0}`,
@@ -394,6 +459,109 @@ function registerCommands(api: OpenClawPluginApi): void {
 }
 
 function registerTools(api: OpenClawPluginApi): void {
+    api.registerTool((ctx) => ({
+        name: "get_onboarding_status",
+        label: "Get Onboarding Status",
+        description: "Check which Antirot profile sections are missing and what the agent should ask next.",
+        parameters: Type.Object({}),
+        async execute() {
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const state = await readState(workspaceDir);
+            const status = await getOnboardingStatus(workspaceDir, state);
+            await writeState(workspaceDir, { ...state, lastOnboardingPromptAt: nowIso() });
+            await appendEvent(workspaceDir, {
+                type: "onboarding_status_checked",
+                details: status
+            });
+            return textResult([
+                `Missing profile sections: ${status.missing.length ? status.missing.join(", ") : "none"}.`,
+                `Goal review due: ${status.reviewDue}.`,
+                `Next question: ${status.nextQuestion}`
+            ].join("\n"));
+        }
+    }), { name: "get_onboarding_status" });
+
+    api.registerTool((ctx) => ({
+        name: "save_onboarding_answers",
+        label: "Save Onboarding Answers",
+        description: "Save user-provided long-term goals, short-term goals, and behavior profile answers into Antirot memory files.",
+        parameters: Type.Object({
+            longterm_goals: Type.Optional(Type.Array(Type.String())),
+            standards: Type.Optional(Type.Array(Type.String())),
+            motivation_style: Type.Optional(Type.Array(Type.String())),
+            shortterm_priorities: Type.Optional(Type.Array(Type.String())),
+            constraints: Type.Optional(Type.Array(Type.String())),
+            behavior_patterns: Type.Optional(Type.Array(Type.String())),
+            drift_risks: Type.Optional(Type.Array(Type.String())),
+            accountability_style: Type.Optional(Type.Array(Type.String()))
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const day = today();
+            const longtermGoals = readOptionalStringArray(values, "longterm_goals");
+            const standards = readOptionalStringArray(values, "standards");
+            const motivationStyle = readOptionalStringArray(values, "motivation_style");
+            const shorttermPriorities = readOptionalStringArray(values, "shortterm_priorities");
+            const constraints = readOptionalStringArray(values, "constraints");
+            const behaviorPatterns = readOptionalStringArray(values, "behavior_patterns");
+            const driftRisks = readOptionalStringArray(values, "drift_risks");
+            const accountabilityStyle = readOptionalStringArray(values, "accountability_style");
+            const wrote: string[] = [];
+
+            if (bulletList(longtermGoals).length > 0 || bulletList(standards).length > 0 || bulletList(motivationStyle).length > 0) {
+                await appendLongtermEntry(workspaceDir, [
+                    `\n## Profile Update - ${day}`,
+                    bulletList(longtermGoals).length > 0 ? "\n### Level 1 Goals\n" + formatBullets(longtermGoals) : "",
+                    bulletList(standards).length > 0 ? "\n### Standards\n" + formatBullets(standards) : "",
+                    bulletList(motivationStyle).length > 0 ? "\n### Motivation Style\n" + formatBullets(motivationStyle) : "",
+                    ""
+                ].filter(Boolean).join("\n"));
+                wrote.push("longterm.md");
+            }
+
+            if (bulletList(shorttermPriorities).length > 0 || bulletList(constraints).length > 0) {
+                await appendShorttermEntry(workspaceDir, [
+                    `\n## Profile Update - ${day}`,
+                    bulletList(shorttermPriorities).length > 0 ? "\n### Current Priorities\n" + formatBullets(shorttermPriorities) : "",
+                    bulletList(constraints).length > 0 ? "\n### Constraints\n" + formatBullets(constraints) : "",
+                    ""
+                ].filter(Boolean).join("\n"));
+                wrote.push("shortterm.md");
+            }
+
+            if (bulletList(behaviorPatterns).length > 0 || bulletList(driftRisks).length > 0 || bulletList(accountabilityStyle).length > 0) {
+                await appendBehaviorEntry(workspaceDir, [
+                    `\n## Profile Update - ${day}`,
+                    bulletList(behaviorPatterns).length > 0 ? "\n### Focus Patterns\n" + formatBullets(behaviorPatterns) : "",
+                    bulletList(driftRisks).length > 0 ? "\n### Drift Risks\n" + formatBullets(driftRisks) : "",
+                    bulletList(accountabilityStyle).length > 0 ? "\n### Accountability Style\n" + formatBullets(accountabilityStyle) : "",
+                    ""
+                ].filter(Boolean).join("\n"));
+                wrote.push("behavior.md");
+            }
+
+            const state = await readState(workspaceDir);
+            const status = await getOnboardingStatus(workspaceDir, state);
+            await writeState(workspaceDir, {
+                ...state,
+                onboardingCompletedAt: status.missing.length === 0 ? nowIso() : state.onboardingCompletedAt,
+                lastGoalReviewAt: nowIso()
+            });
+            await appendEvent(workspaceDir, {
+                type: "onboarding_answers_saved",
+                details: { wrote, remainingMissing: status.missing }
+            });
+
+            if (wrote.length === 0) {
+                return textResult("No profile answers were saved. Give me real material, not air.");
+            }
+            return textResult(`Saved onboarding/profile answers to ${wrote.join(", ")}. Remaining missing sections: ${status.missing.length ? status.missing.join(", ") : "none"}.`);
+        }
+    }), { name: "save_onboarding_answers" });
+
     api.registerTool((ctx) => ({
         name: "start_routine",
         label: "Start Routine",

@@ -303,6 +303,16 @@ export async function appendBehaviorEntry(workspaceDir: string, markdown: string
     await appendFile(behaviorPath, markdown, "utf8");
 }
 
+export async function appendLongtermEntry(workspaceDir: string, markdown: string): Promise<void> {
+    const longtermPath = path.join(workspaceDir, "longterm.md");
+    await appendFile(longtermPath, markdown, "utf8");
+}
+
+export async function appendShorttermEntry(workspaceDir: string, markdown: string): Promise<void> {
+    const shorttermPath = path.join(workspaceDir, "shortterm.md");
+    await appendFile(shorttermPath, markdown, "utf8");
+}
+
 export async function appendSleepEntry(workspaceDir: string, markdown: string): Promise<void> {
     const sleepPath = path.join(workspaceDir, "sleep.md");
     await appendFile(sleepPath, markdown, "utf8");

@@ -53,6 +53,8 @@ Daily runtime triggers are tracked in `.antirot/triggers.json`. The agent should
 
 Behavior memory is kept in `behavior.md` and injected into the compact prompt context. Use `log_behavior_note` for stable drift patterns or accountability tactics, and use the misc queue tools (`add_to_misc_queue`, `list_misc_queue`, `pop_misc_task`) to park intrusive thoughts without derailing focus.
 
+Onboarding should happen in chat. The agent should call `get_onboarding_status`, ask one focused question at a time, and save answers through `save_onboarding_answers` instead of telling the user to manually edit `longterm.md`, `shortterm.md`, or `behavior.md`. The same flow is used later for periodic goal reviews or when priorities change.
+
 Night cleanup should use `run_nightly_rollover` and `write_nightly_summary` so completed tasks are cleared, unfinished tasks carry forward, and summaries land in `work.md`/`behavior.md` without manual file rewrites.
 
 The plugin blocks ordinary file-tool edits to protected Antirot files unless the agent first records a justified protected edit intent. Shell access can still bypass ordinary file-tool hooks, so use OpenClaw tool policy to deny `exec` or `group:runtime` when you want stronger protection.
