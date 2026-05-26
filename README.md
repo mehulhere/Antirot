@@ -59,6 +59,11 @@ Night cleanup should use `run_nightly_rollover` and `write_nightly_summary` so c
 
 The plugin blocks ordinary file-tool edits to protected Antirot files unless the agent first records a justified protected edit intent. Shell access can still bypass ordinary file-tool hooks, so use OpenClaw tool policy to deny `exec` or `group:runtime` when you want stronger protection.
 
+## Mobile Apps
+
+- `apps/ios`: iOS client with notification alarms, alarm actions, and Screen Time scaffolding.
+- `apps/android`: Android client with exact alarms, alarm screen, acknowledgement actions, and usage-access summary.
+
 ## License
 
 Antirot is dual licensed:

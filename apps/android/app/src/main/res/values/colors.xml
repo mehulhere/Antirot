@@ -1,0 +1,7 @@
+<resources>
+    <color name="antirot_background">#101418</color>
+    <color name="antirot_panel">#182028</color>
+    <color name="antirot_text">#F5F7FA</color>
+    <color name="antirot_muted">#A7B0BA</color>
+    <color name="antirot_accent">#F05A28</color>
+</resources>
