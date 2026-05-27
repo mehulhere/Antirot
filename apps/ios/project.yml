@@ -15,6 +15,7 @@ targets:
     sources:
       - AntirotAlarm/Sources
       - AntirotAlarm/Resources
+      - AntirotShared/Sources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot
@@ -48,6 +49,28 @@ targets:
     info:
       path: AntirotDeviceActivityReport/Resources/Info.plist
       properties:
+          NSExtension:
+            NSExtensionPointIdentifier: com.apple.deviceactivityui.report-extension
+            NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DeviceActivityReportExtension
+  AntirotCurrentTaskWidget:
+    type: app-extension
+    platform: iOS
+    productType: com.apple.product-type.app-extension
+    sources:
+      - AntirotCurrentTaskWidget/Sources
+      - AntirotShared/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot.CurrentTaskWidget
+        INFOPLIST_FILE: AntirotCurrentTaskWidget/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AntirotCurrentTaskWidget/Resources/AntirotCurrentTaskWidget.entitlements
+    info:
+      path: AntirotCurrentTaskWidget/Resources/Info.plist
+      properties:
         NSExtension:
-          NSExtensionPointIdentifier: com.apple.deviceactivityui.report-extension
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DeviceActivityReportExtension
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: AntirotCurrentTaskWidget/Resources/AntirotCurrentTaskWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.mehulhere.Antirot

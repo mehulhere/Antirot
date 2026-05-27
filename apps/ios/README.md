@@ -76,6 +76,7 @@ If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SD
 - Request notification permission.
 - Schedule normal and loud local alarm notifications.
 - Schedule real AlarmKit alarms on iOS 26+ when available.
+- Show the current task in the Antirot iOS widget through shared app-group state.
 - Handle Stop, Snooze, and Need More Time actions.
 - Send acknowledgement callbacks to the VPS.
 - Request Screen Time authorization when entitlement is available.
@@ -95,3 +96,15 @@ POST /usage/recent
 ```
 
 The app works with local test alarms before the VPS alarm API exists.
+
+## Current Task Widget
+
+The iOS app includes a WidgetKit extension named `Current Task`.
+
+After installing Antirot:
+
+```text
+Home Screen -> long press -> Edit -> Add Widget -> Antirot -> Current Task
+```
+
+The app updates the widget when an alarm/task is scheduled. The test button `Show current task in widget` writes a sample current task so you can verify the widget before the VPS alarm API exists.

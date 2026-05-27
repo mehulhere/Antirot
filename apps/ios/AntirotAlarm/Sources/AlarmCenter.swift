@@ -77,6 +77,7 @@ final class AlarmCenter: ObservableObject {
         let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm)
         if scheduledWithAlarmKit {
             scheduledAlarms.append(alarm)
+            writeCurrentTaskSnapshot(for: alarm)
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
             lastMessage = "Real AlarmKit alarm scheduled"
             return
@@ -94,6 +95,7 @@ final class AlarmCenter: ObservableObject {
         let request = UNNotificationRequest(identifier: alarm.id, content: content, trigger: trigger)
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
+        writeCurrentTaskSnapshot(for: alarm)
         lastMessage = "AlarmKit unavailable; scheduled notification fallback"
     }
 
@@ -109,5 +111,26 @@ final class AlarmCenter: ObservableObject {
         default:
             "none"
         }
+    }
+
+    private func writeCurrentTaskSnapshot(for alarm: AlarmJob) {
+        let subtitle = switch alarm.kind {
+        case .normalWake, .loudWake:
+            "Wake up. Day does not start by negotiating with the pillow."
+        case .routineOverdue:
+            "Routine window is over. Come back."
+        case .sessionOverdue:
+            alarm.message
+        case .nonResponse:
+            "You vanished. Fix that."
+        case .test:
+            "Test alarm scheduled. Nothing heroic yet."
+        }
+        SharedTaskStore.write(CurrentTaskSnapshot(
+            title: alarm.title,
+            subtitle: subtitle,
+            mode: alarm.kind.rawValue,
+            dueAt: alarm.fireAt
+        ))
     }
 }

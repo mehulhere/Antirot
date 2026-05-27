@@ -53,6 +53,20 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Widget") {
+                    Button("Show current task in widget") {
+                        SharedTaskStore.write(CurrentTaskSnapshot(
+                            title: "Start one real work block",
+                            subtitle: "Enough setup. Put one task on the board.",
+                            mode: "working",
+                            dueAt: Date().addingTimeInterval(45 * 60)
+                        ))
+                    }
+                    Text("Add the Antirot Current Task widget from the iOS Home Screen after installing the app.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Scheduled") {
                     if alarmCenter.scheduledAlarms.isEmpty {
                         Text("No alarms scheduled")
