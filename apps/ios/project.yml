@@ -16,6 +16,11 @@ targets:
       - AntirotAlarm/Sources
       - AntirotAlarm/Resources
       - AntirotShared/Sources
+    dependencies:
+      - target: AntirotCurrentTaskWidget
+        embed: true
+      - target: AntirotDeviceActivityReport
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot
