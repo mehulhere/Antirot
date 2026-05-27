@@ -18,6 +18,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(registered, forKey: Keys.registered) }
     }
 
+    @Published var alarmSoundName: String {
+        didSet { defaults.set(alarmSoundName, forKey: Keys.alarmSoundName) }
+    }
+
     @Published var statusMessage: String = "Not registered"
 
     private let defaults: UserDefaults
@@ -28,6 +32,7 @@ final class SettingsStore: ObservableObject {
         self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
         self.deviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
         self.registered = defaults.bool(forKey: Keys.registered)
+        self.alarmSoundName = defaults.string(forKey: Keys.alarmSoundName) ?? ""
     }
 
     var baseURL: URL? {
@@ -39,5 +44,6 @@ final class SettingsStore: ObservableObject {
         static let apiToken = "apiToken"
         static let deviceId = "deviceId"
         static let registered = "registered"
+        static let alarmSoundName = "alarmSoundName"
     }
 }

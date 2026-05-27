@@ -2,7 +2,10 @@ package com.mehulhere.antirot;
 
 import android.Manifest;
 import android.app.AlarmManager;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -15,6 +18,8 @@ import android.widget.TextView;
 import java.util.List;
 
 public class MainActivity extends android.app.Activity {
+    private static final int PICK_ALARM_SOUND_REQUEST = 42;
+
     private SettingsStore settings;
     private TextView status;
     private EditText serverUrl;
@@ -56,6 +61,8 @@ public class MainActivity extends android.app.Activity {
         root.addView(apiToken);
         root.addView(button("Save settings", this::saveSettings));
         root.addView(button("Register device", this::registerDevice));
+        root.addView(button("Choose alarm sound", this::chooseAlarmSound));
+        root.addView(button("Use system alarm sound", this::clearAlarmSound));
         root.addView(button("Schedule normal test alarm", () -> scheduleTest("normal")));
         root.addView(button("Schedule loud test alarm", () -> scheduleTest("loud")));
         root.addView(button("Poll pending VPS alarms", this::pollPending));
@@ -65,7 +72,7 @@ public class MainActivity extends android.app.Activity {
         status = new TextView(this);
         status.setTextColor(0xFFF5F7FA);
         status.setPadding(0, 24, 0, 0);
-        status.setText("Device: " + settings.getDeviceId());
+        status.setText(statusText());
         root.addView(status);
         return scroll;
     }
@@ -104,6 +111,23 @@ public class MainActivity extends android.app.Activity {
         status.setText(message);
     }
 
+    private void chooseAlarmSound() {
+        Intent intent = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Choose Antirot alarm sound");
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
+        String existing = settings.getAlarmSoundUri();
+        Uri current = existing.isEmpty() ? RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) : Uri.parse(existing);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current);
+        startActivityForResult(intent, PICK_ALARM_SOUND_REQUEST);
+    }
+
+    private void clearAlarmSound() {
+        settings.setAlarmSoundUri("");
+        status.setText("Using system alarm sound. " + statusText());
+    }
+
     private void pollPending() {
         saveSettings();
         new AntirotApiClient(this).fetchPendingAlarms(new AntirotApiClient.AlarmCallback() {
@@ -139,6 +163,26 @@ public class MainActivity extends android.app.Activity {
                 statusMessageLater("Exact alarm permission may be needed for reliable alarms.");
             }
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_ALARM_SOUND_REQUEST || resultCode != RESULT_OK || data == null) {
+            return;
+        }
+        Uri picked = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+        if (picked == null) {
+            status.setText("No alarm sound selected.");
+            return;
+        }
+        settings.setAlarmSoundUri(picked.toString());
+        status.setText("Selected alarm sound. " + statusText());
+    }
+
+    private String statusText() {
+        String sound = settings.getAlarmSoundUri().isEmpty() ? "System default" : "Selected";
+        return "Device: " + settings.getDeviceId() + "\nAlarm sound: " + sound;
     }
 
     private void statusMessageLater(String message) {

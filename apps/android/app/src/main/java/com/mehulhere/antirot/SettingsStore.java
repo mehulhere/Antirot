@@ -11,6 +11,7 @@ public class SettingsStore {
     private static final String API_TOKEN = "api_token";
     private static final String DEVICE_ID = "device_id";
     private static final String REGISTERED = "registered";
+    private static final String ALARM_SOUND_URI = "alarm_sound_uri";
 
     private final SharedPreferences preferences;
 
@@ -47,5 +48,13 @@ public class SettingsStore {
 
     public void setRegistered(boolean registered) {
         preferences.edit().putBoolean(REGISTERED, registered).apply();
+    }
+
+    public String getAlarmSoundUri() {
+        return preferences.getString(ALARM_SOUND_URI, "");
+    }
+
+    public void setAlarmSoundUri(String value) {
+        preferences.edit().putString(ALARM_SOUND_URI, value == null ? "" : value).apply();
     }
 }

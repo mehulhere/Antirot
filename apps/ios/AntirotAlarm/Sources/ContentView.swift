@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @State private var screenTimeMessage = "Not requested"
+    @State private var isImportingSound = false
 
     var body: some View {
         NavigationStack {
@@ -53,6 +55,20 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Alarm Sound") {
+                    LabeledContent("Selected", value: settings.alarmSoundName.isEmpty ? "System default" : settings.alarmSoundName)
+                    Button("Choose sound file") {
+                        isImportingSound = true
+                    }
+                    Button("Use system default") {
+                        settings.alarmSoundName = ""
+                        alarmCenter.lastMessage = "Alarm sound reset to system default"
+                    }
+                    Text("Use a 30-second-or-shorter audio file. Antirot copies it into the iOS Library/Sounds folder and uses it for AlarmKit when available.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Widget") {
                     Button("Show current task in widget") {
                         SharedTaskStore.write(CurrentTaskSnapshot(
@@ -87,6 +103,19 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Antirot")
+            .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
+                switch result {
+                case let .success(url):
+                    do {
+                        settings.alarmSoundName = try SoundLibrary.importAlarmSound(from: url)
+                        alarmCenter.lastMessage = "Selected alarm sound: \(settings.alarmSoundName)"
+                    } catch {
+                        alarmCenter.lastMessage = "Sound import failed: \(error.localizedDescription)"
+                    }
+                case let .failure(error):
+                    alarmCenter.lastMessage = "Sound selection failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
 }

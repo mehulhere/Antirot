@@ -12,3 +12,4 @@
 - Build and run `apps/android` on a real Android phone to verify Antirot registration, exact alarm permission, normal/loud alarms, alarm actions, and last-30-minute usage access.
 - Build the iOS app with an iOS 26 SDK and verify `Request real alarm permission` schedules real AlarmKit alarms instead of notification fallback.
 - Add the Antirot Current Task widget on iPhone and verify scheduled alarms/tasks update the widget through shared app-group storage.
+- Select a custom alarm sound on iOS and Android, schedule normal/loud test alarms, and verify the chosen sound plays instead of the system default where the platform signing/runtime supports it.

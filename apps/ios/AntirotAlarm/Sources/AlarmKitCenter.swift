@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 #if canImport(AlarmKit)
+import ActivityKit
 import AlarmKit
 import AppIntents
 
@@ -84,7 +85,7 @@ enum AlarmKitCenter {
         return "AlarmKit unavailable. Requires iOS 26 SDK/device support."
     }
 
-    static func schedule(_ alarm: AlarmJob) async throws -> Bool {
+    static func schedule(_ alarm: AlarmJob, soundName: String?) async throws -> Bool {
         #if canImport(AlarmKit)
         if #available(iOS 26.1, *) {
             let authorization = AlarmManager.shared.authorizationState
@@ -93,9 +94,9 @@ enum AlarmKitCenter {
                 guard state == .authorized else {
                     return false
                 }
-                return try await scheduleAuthorized(alarm)
+                return try await scheduleAuthorized(alarm, soundName: soundName)
             }
-            return try await scheduleAuthorized(alarm)
+            return try await scheduleAuthorized(alarm, soundName: soundName)
         }
         #endif
         return false
@@ -103,7 +104,7 @@ enum AlarmKitCenter {
 
     #if canImport(AlarmKit)
     @available(iOS 26.1, *)
-    private static func scheduleAuthorized(_ alarm: AlarmJob) async throws -> Bool {
+    private static func scheduleAuthorized(_ alarm: AlarmJob, soundName: String?) async throws -> Bool {
         let alert = AlarmPresentation.Alert(
             title: LocalizedStringResource(stringLiteral: alarm.title),
             secondaryButton: AlarmButton(
@@ -120,12 +121,13 @@ enum AlarmKitCenter {
             tintColor: alarm.severity == .normal ? .orange : .red
         )
         let id = UUID(uuidString: stableUuidString(alarm.id)) ?? UUID()
+        let sound = soundName.map(AlertConfiguration.AlertSound.named) ?? .default
         let configuration = AlarmManager.AlarmConfiguration.alarm(
             schedule: .fixed(alarm.fireAt),
             attributes: attributes,
             stopIntent: StopAntirotAlarmIntent(alarmID: alarm.id),
             secondaryIntent: SnoozeAntirotAlarmIntent(alarmID: alarm.id),
-            sound: .default
+            sound: sound
         )
         _ = try await AlarmManager.shared.schedule(id: id, configuration: configuration)
         return true

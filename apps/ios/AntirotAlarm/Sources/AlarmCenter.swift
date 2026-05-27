@@ -74,19 +74,24 @@ final class AlarmCenter: ObservableObject {
     }
 
     func schedule(_ alarm: AlarmJob) async throws {
-        let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm)
+        let selectedSoundName = settings?.alarmSoundName.nilIfBlank
+        let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: selectedSoundName)
         if scheduledWithAlarmKit {
             scheduledAlarms.append(alarm)
             writeCurrentTaskSnapshot(for: alarm)
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
-            lastMessage = "Real AlarmKit alarm scheduled"
+            lastMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled" : "Real AlarmKit alarm scheduled with selected sound"
             return
         }
 
         let content = UNMutableNotificationContent()
         content.title = alarm.title
         content.body = alarm.message
-        content.sound = alarm.severity == .normal ? .default : .defaultCritical
+        if let selectedSoundName {
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: selectedSoundName))
+        } else {
+            content.sound = alarm.severity == .normal ? .default : .defaultCritical
+        }
         content.categoryIdentifier = AlarmNotificationActions.categoryIdentifier
         content.userInfo = ["alarmId": alarm.id]
 
@@ -96,7 +101,9 @@ final class AlarmCenter: ObservableObject {
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
         writeCurrentTaskSnapshot(for: alarm)
-        lastMessage = "AlarmKit unavailable; scheduled notification fallback"
+        lastMessage = selectedSoundName == nil
+            ? "AlarmKit unavailable; scheduled notification fallback"
+            : "AlarmKit unavailable; scheduled notification fallback with selected sound"
     }
 
     func refreshAuthorizationStatus() async {
@@ -132,5 +139,12 @@ final class AlarmCenter: ObservableObject {
             mode: alarm.kind.rawValue,
             dueAt: alarm.fireAt
         ))
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

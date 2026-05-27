@@ -47,7 +47,11 @@ public final class NotificationHelper {
         manager.createNotificationChannel(loud);
     }
 
-    public static Uri alarmSound() {
+    public static Uri alarmSound(Context context) {
+        String selectedUri = new SettingsStore(context).getAlarmSoundUri();
+        if (!selectedUri.isEmpty()) {
+            return Uri.parse(selectedUri);
+        }
         return Settings.System.DEFAULT_ALARM_ALERT_URI;
     }
 }

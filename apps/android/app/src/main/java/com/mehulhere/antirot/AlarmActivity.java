@@ -82,7 +82,7 @@ public class AlarmActivity extends android.app.Activity {
 
     private void startSound() {
         try {
-            player = MediaPlayer.create(this, NotificationHelper.alarmSound());
+            player = MediaPlayer.create(this, NotificationHelper.alarmSound(this));
             if (player != null) {
                 player.setLooping(!"normal".equals(alarm.severity));
                 player.start();
