@@ -78,9 +78,10 @@ final class AlarmCenter: ObservableObject {
         let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: selectedSoundName)
         if scheduledWithAlarmKit {
             scheduledAlarms.append(alarm)
-            writeCurrentTaskSnapshot(for: alarm)
+            let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
-            lastMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled" : "Real AlarmKit alarm scheduled with selected sound"
+            let soundMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled" : "Real AlarmKit alarm scheduled with selected sound"
+            lastMessage = widgetUpdated ? soundMessage : "\(soundMessage). Widget app-group storage unavailable."
             return
         }
 
@@ -100,10 +101,11 @@ final class AlarmCenter: ObservableObject {
         let request = UNNotificationRequest(identifier: alarm.id, content: content, trigger: trigger)
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
-        writeCurrentTaskSnapshot(for: alarm)
-        lastMessage = selectedSoundName == nil
+        let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
+        let scheduleMessage = selectedSoundName == nil
             ? "AlarmKit unavailable; scheduled notification fallback"
             : "AlarmKit unavailable; scheduled notification fallback with selected sound"
+        lastMessage = widgetUpdated ? scheduleMessage : "\(scheduleMessage). Widget app-group storage unavailable."
     }
 
     func refreshAuthorizationStatus() async {
@@ -120,7 +122,7 @@ final class AlarmCenter: ObservableObject {
         }
     }
 
-    private func writeCurrentTaskSnapshot(for alarm: AlarmJob) {
+    private func writeCurrentTaskSnapshot(for alarm: AlarmJob) -> Bool {
         let subtitle = switch alarm.kind {
         case .normalWake, .loudWake:
             "Wake up. Day does not start by negotiating with the pillow."
@@ -133,7 +135,7 @@ final class AlarmCenter: ObservableObject {
         case .test:
             "Test alarm scheduled. Nothing heroic yet."
         }
-        SharedTaskStore.write(CurrentTaskSnapshot(
+        return SharedTaskStore.write(CurrentTaskSnapshot(
             title: alarm.title,
             subtitle: subtitle,
             mode: alarm.kind.rawValue,

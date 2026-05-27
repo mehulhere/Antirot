@@ -71,14 +71,18 @@ struct ContentView: View {
 
                 Section("Widget") {
                     Button("Show current task in widget") {
-                        SharedTaskStore.write(CurrentTaskSnapshot(
+                        let updated = SharedTaskStore.write(CurrentTaskSnapshot(
                             title: "Start one real work block",
                             subtitle: "Enough setup. Put one task on the board.",
                             mode: "working",
                             dueAt: Date().addingTimeInterval(45 * 60)
                         ))
+                        alarmCenter.lastMessage = updated
+                            ? "Widget updated. If it stays stale, remove and re-add the widget once."
+                            : "Widget update failed: app-group storage unavailable in this install."
                     }
-                    Text("Add the Antirot Current Task widget from the iOS Home Screen after installing the app.")
+                    LabeledContent("App group", value: SharedTaskStore.canAccessAppGroup() ? "Available" : "Unavailable")
+                    Text("Add the Antirot Current Task widget from the iOS Home Screen after installing the app. If this says app-group unavailable, the current signing method is blocking widget shared storage.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

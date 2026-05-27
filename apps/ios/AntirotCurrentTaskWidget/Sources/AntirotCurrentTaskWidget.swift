@@ -73,7 +73,7 @@ struct AntirotCurrentTaskWidget: Widget {
         StaticConfiguration(kind: kind, provider: CurrentTaskProvider()) { entry in
             CurrentTaskWidgetView(entry: entry)
         }
-        .configurationDisplayName("Current Task")
+        .configurationDisplayName("Antirot Current Task")
         .description("Shows what Antirot expects you to be doing right now.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }

@@ -44,16 +44,23 @@ public enum SharedTaskStore {
         return snapshot
     }
 
-    public static func write(_ snapshot: CurrentTaskSnapshot) {
+    public static func write(_ snapshot: CurrentTaskSnapshot) -> Bool {
         guard
             let defaults = UserDefaults(suiteName: appGroupId),
             let data = try? JSONEncoder().encode(snapshot)
         else {
-            return
+            return false
         }
         defaults.set(data, forKey: currentTaskKey)
+        defaults.synchronize()
         if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadTimelines(ofKind: "AntirotCurrentTaskWidget")
+            WidgetCenter.shared.reloadAllTimelines()
         }
+        return true
+    }
+
+    public static func canAccessAppGroup() -> Bool {
+        UserDefaults(suiteName: appGroupId) != nil
     }
 }

@@ -13,3 +13,4 @@
 - Build the iOS app with an iOS 26 SDK and verify `Request real alarm permission` schedules real AlarmKit alarms instead of notification fallback.
 - Add the Antirot Current Task widget on iPhone and verify scheduled alarms/tasks update the widget through shared app-group storage.
 - Select a custom alarm sound on iOS and Android, schedule normal/loud test alarms, and verify the chosen sound plays instead of the system default where the platform signing/runtime supports it.
+- Press `Show current task in widget` on iPhone, confirm the app reports app-group availability, and verify the Antirot Current Task widget refreshes without reinstalling.
