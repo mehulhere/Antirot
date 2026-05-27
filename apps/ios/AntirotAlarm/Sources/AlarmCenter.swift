@@ -74,13 +74,14 @@ final class AlarmCenter: ObservableObject {
     }
 
     func schedule(_ alarm: AlarmJob) async throws {
+        let soundName = settings?.alarmSoundName.nilIfBlank ?? bundledSoundName(for: alarm.severity)
         let selectedSoundName = settings?.alarmSoundName.nilIfBlank
-        let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: selectedSoundName)
+        let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: soundName)
         if scheduledWithAlarmKit {
             scheduledAlarms.append(alarm)
             let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
-            let soundMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled" : "Real AlarmKit alarm scheduled with selected sound"
+            let soundMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled with bundled sound" : "Real AlarmKit alarm scheduled with selected sound"
             lastMessage = widgetUpdated ? soundMessage : "\(soundMessage). Widget app-group storage unavailable."
             return
         }
@@ -88,11 +89,7 @@ final class AlarmCenter: ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = alarm.title
         content.body = alarm.message
-        if let selectedSoundName {
-            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: selectedSoundName))
-        } else {
-            content.sound = alarm.severity == .normal ? .default : .defaultCritical
-        }
+        content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundName))
         content.categoryIdentifier = AlarmNotificationActions.categoryIdentifier
         content.userInfo = ["alarmId": alarm.id]
 
@@ -103,7 +100,7 @@ final class AlarmCenter: ObservableObject {
         scheduledAlarms.append(alarm)
         let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
         let scheduleMessage = selectedSoundName == nil
-            ? "AlarmKit unavailable; scheduled notification fallback"
+            ? "AlarmKit unavailable; scheduled notification fallback with bundled sound"
             : "AlarmKit unavailable; scheduled notification fallback with selected sound"
         lastMessage = widgetUpdated ? scheduleMessage : "\(scheduleMessage). Widget app-group storage unavailable."
     }
@@ -119,6 +116,15 @@ final class AlarmCenter: ObservableObject {
             "notification"
         default:
             "none"
+        }
+    }
+
+    private func bundledSoundName(for severity: AlarmJob.Severity) -> String {
+        switch severity {
+        case .normal:
+            "antirot-normal.wav"
+        case .loud, .urgent:
+            "antirot-loud.wav"
         }
     }
 

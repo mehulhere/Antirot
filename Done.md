@@ -15,3 +15,4 @@
 - Select a custom alarm sound on iOS and Android, schedule normal/loud test alarms, and verify the chosen sound plays instead of the system default where the platform signing/runtime supports it.
 - Press `Show current task in widget` on iPhone, confirm the app reports app-group availability, and verify the Antirot Current Task widget refreshes without reinstalling.
 - Install the iOS IPA, confirm the `Antirot Current Task` widget appears in the iOS widget picker, add it to Home Screen, then press `Show current task in widget`.
+- Schedule normal and loud test alarms on iOS and Android and verify normal uses `antirot-normal` while loud/urgent uses `antirot-loud` unless a custom sound is selected.

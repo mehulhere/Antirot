@@ -6,7 +6,6 @@ import android.content.Context;
 import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
-import android.provider.Settings;
 
 public final class NotificationHelper {
     public static final String NORMAL_CHANNEL_ID = "antirot_normal_alarm";
@@ -32,7 +31,7 @@ public final class NotificationHelper {
                 NotificationManager.IMPORTANCE_HIGH
         );
         normal.setDescription("Wake checks and normal Antirot alarms.");
-        normal.setSound(Settings.System.DEFAULT_ALARM_ALERT_URI, attributes);
+        normal.setSound(bundledAlarmSound(context, "normal"), attributes);
 
         NotificationChannel loud = new NotificationChannel(
                 LOUD_CHANNEL_ID,
@@ -40,18 +39,23 @@ public final class NotificationHelper {
                 NotificationManager.IMPORTANCE_HIGH
         );
         loud.setDescription("Strict escalation alarms for Antirot.");
-        loud.setSound(Settings.System.DEFAULT_ALARM_ALERT_URI, attributes);
+        loud.setSound(bundledAlarmSound(context, "loud"), attributes);
         loud.enableVibration(true);
 
         manager.createNotificationChannel(normal);
         manager.createNotificationChannel(loud);
     }
 
-    public static Uri alarmSound(Context context) {
+    public static Uri alarmSound(Context context, String severity) {
         String selectedUri = new SettingsStore(context).getAlarmSoundUri();
         if (!selectedUri.isEmpty()) {
             return Uri.parse(selectedUri);
         }
-        return Settings.System.DEFAULT_ALARM_ALERT_URI;
+        return bundledAlarmSound(context, severity);
+    }
+
+    private static Uri bundledAlarmSound(Context context, String severity) {
+        int resource = "normal".equals(severity) ? R.raw.antirot_normal : R.raw.antirot_loud;
+        return Uri.parse("android.resource://" + context.getPackageName() + "/" + resource);
     }
 }
