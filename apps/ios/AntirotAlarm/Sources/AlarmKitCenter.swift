@@ -86,7 +86,7 @@ enum AlarmKitCenter {
 
     static func schedule(_ alarm: AlarmJob) async throws -> Bool {
         #if canImport(AlarmKit)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.1, *) {
             let authorization = AlarmManager.shared.authorizationState
             guard authorization == .authorized else {
                 let state = try await AlarmManager.shared.requestAuthorization()
@@ -102,7 +102,7 @@ enum AlarmKitCenter {
     }
 
     #if canImport(AlarmKit)
-    @available(iOS 26.0, *)
+    @available(iOS 26.1, *)
     private static func scheduleAuthorized(_ alarm: AlarmJob) async throws -> Bool {
         let alert = AlarmPresentation.Alert(
             title: LocalizedStringResource(stringLiteral: alarm.title),
