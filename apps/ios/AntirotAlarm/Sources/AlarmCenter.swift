@@ -74,14 +74,14 @@ final class AlarmCenter: ObservableObject {
     }
 
     func schedule(_ alarm: AlarmJob) async throws {
-        let soundName = settings?.alarmSoundName.nilIfBlank ?? bundledSoundName(for: alarm.severity)
-        let selectedSoundName = settings?.alarmSoundName.nilIfBlank
+        let soundChoice = alarmSoundChoice(for: alarm.severity)
+        let soundName = soundChoice.name
         let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: soundName)
         if scheduledWithAlarmKit {
             scheduledAlarms.append(alarm)
             let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
-            let soundMessage = selectedSoundName == nil ? "Real AlarmKit alarm scheduled with bundled sound" : "Real AlarmKit alarm scheduled with selected sound"
+            let soundMessage = "Real AlarmKit alarm scheduled with \(soundChoice.label)"
             lastMessage = widgetUpdated ? soundMessage : "\(soundMessage). Widget app-group storage unavailable."
             return
         }
@@ -99,9 +99,7 @@ final class AlarmCenter: ObservableObject {
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
         let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
-        let scheduleMessage = selectedSoundName == nil
-            ? "AlarmKit unavailable; scheduled notification fallback with bundled sound"
-            : "AlarmKit unavailable; scheduled notification fallback with selected sound"
+        let scheduleMessage = "AlarmKit unavailable; scheduled notification fallback with \(soundChoice.label)"
         lastMessage = widgetUpdated ? scheduleMessage : "\(scheduleMessage). Widget app-group storage unavailable."
     }
 
@@ -116,6 +114,27 @@ final class AlarmCenter: ObservableObject {
             "notification"
         default:
             "none"
+        }
+    }
+
+    private func alarmSoundChoice(for severity: AlarmJob.Severity) -> (name: String, label: String) {
+        guard let settings else {
+            return (bundledSoundName(for: severity), "bundled sound")
+        }
+
+        let mode = AlarmSoundMode(storedValue: settings.alarmSoundMode)
+        switch mode {
+        case .automatic:
+            return (bundledSoundName(for: severity), "automatic bundled sound")
+        case .bundledNormal:
+            return ("antirot-normal.wav", "bundled normal sound")
+        case .bundledLoud:
+            return ("antirot-loud.wav", "bundled loud sound")
+        case .custom:
+            if let customName = settings.alarmSoundName.nilIfBlank {
+                return (customName, "custom sound")
+            }
+            return (bundledSoundName(for: severity), "automatic bundled sound because no custom sound is imported")
         }
     }
 

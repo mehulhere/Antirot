@@ -12,6 +12,12 @@ public class SettingsStore {
     private static final String DEVICE_ID = "device_id";
     private static final String REGISTERED = "registered";
     private static final String ALARM_SOUND_URI = "alarm_sound_uri";
+    private static final String ALARM_SOUND_MODE = "alarm_sound_mode";
+
+    public static final String SOUND_AUTO = "auto";
+    public static final String SOUND_NORMAL = "normal";
+    public static final String SOUND_LOUD = "loud";
+    public static final String SOUND_CUSTOM = "custom";
 
     private final SharedPreferences preferences;
 
@@ -56,5 +62,13 @@ public class SettingsStore {
 
     public void setAlarmSoundUri(String value) {
         preferences.edit().putString(ALARM_SOUND_URI, value == null ? "" : value).apply();
+    }
+
+    public String getAlarmSoundMode() {
+        return preferences.getString(ALARM_SOUND_MODE, SOUND_AUTO);
+    }
+
+    public void setAlarmSoundMode(String value) {
+        preferences.edit().putString(ALARM_SOUND_MODE, value == null ? SOUND_AUTO : value).apply();
     }
 }

@@ -47,11 +47,36 @@ public final class NotificationHelper {
     }
 
     public static Uri alarmSound(Context context, String severity) {
-        String selectedUri = new SettingsStore(context).getAlarmSoundUri();
-        if (!selectedUri.isEmpty()) {
-            return Uri.parse(selectedUri);
+        SettingsStore settings = new SettingsStore(context);
+        String mode = settings.getAlarmSoundMode();
+        if (SettingsStore.SOUND_NORMAL.equals(mode)) {
+            return bundledAlarmSound(context, "normal");
+        }
+        if (SettingsStore.SOUND_LOUD.equals(mode)) {
+            return bundledAlarmSound(context, "loud");
+        }
+        if (SettingsStore.SOUND_CUSTOM.equals(mode)) {
+            String selectedUri = settings.getAlarmSoundUri();
+            if (!selectedUri.isEmpty()) {
+                return Uri.parse(selectedUri);
+            }
         }
         return bundledAlarmSound(context, severity);
+    }
+
+    public static String soundLabel(Context context) {
+        SettingsStore settings = new SettingsStore(context);
+        String mode = settings.getAlarmSoundMode();
+        if (SettingsStore.SOUND_NORMAL.equals(mode)) {
+            return "Bundled normal";
+        }
+        if (SettingsStore.SOUND_LOUD.equals(mode)) {
+            return "Bundled loud";
+        }
+        if (SettingsStore.SOUND_CUSTOM.equals(mode)) {
+            return settings.getAlarmSoundUri().isEmpty() ? "Custom not selected" : "Custom selected";
+        }
+        return "Auto: normal + loud";
     }
 
     private static Uri bundledAlarmSound(Context context, String severity) {

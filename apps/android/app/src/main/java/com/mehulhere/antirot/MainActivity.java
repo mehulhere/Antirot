@@ -61,8 +61,10 @@ public class MainActivity extends android.app.Activity {
         root.addView(apiToken);
         root.addView(button("Save settings", this::saveSettings));
         root.addView(button("Register device", this::registerDevice));
-        root.addView(button("Choose alarm sound", this::chooseAlarmSound));
-        root.addView(button("Use system alarm sound", this::clearAlarmSound));
+        root.addView(button("Use auto normal/loud sounds", () -> setAlarmSoundMode(SettingsStore.SOUND_AUTO)));
+        root.addView(button("Use bundled normal sound", () -> setAlarmSoundMode(SettingsStore.SOUND_NORMAL)));
+        root.addView(button("Use bundled loud sound", () -> setAlarmSoundMode(SettingsStore.SOUND_LOUD)));
+        root.addView(button("Choose custom alarm sound", this::chooseAlarmSound));
         root.addView(button("Schedule normal test alarm", () -> scheduleTest("normal")));
         root.addView(button("Schedule loud test alarm", () -> scheduleTest("loud")));
         root.addView(button("Poll pending VPS alarms", this::pollPending));
@@ -124,8 +126,15 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void clearAlarmSound() {
-        settings.setAlarmSoundUri("");
-        status.setText("Using system alarm sound. " + statusText());
+        setAlarmSoundMode(SettingsStore.SOUND_AUTO);
+    }
+
+    private void setAlarmSoundMode(String mode) {
+        settings.setAlarmSoundMode(mode);
+        if (!SettingsStore.SOUND_CUSTOM.equals(mode)) {
+            settings.setAlarmSoundUri("");
+        }
+        status.setText("Alarm sound changed. " + statusText());
     }
 
     private void pollPending() {
@@ -177,11 +186,12 @@ public class MainActivity extends android.app.Activity {
             return;
         }
         settings.setAlarmSoundUri(picked.toString());
+        settings.setAlarmSoundMode(SettingsStore.SOUND_CUSTOM);
         status.setText("Selected alarm sound. " + statusText());
     }
 
     private String statusText() {
-        String sound = settings.getAlarmSoundUri().isEmpty() ? "System default" : "Selected";
+        String sound = NotificationHelper.soundLabel(this);
         return "Device: " + settings.getDeviceId() + "\nAlarm sound: " + sound;
     }
 

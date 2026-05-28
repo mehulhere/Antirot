@@ -56,15 +56,25 @@ struct ContentView: View {
                 }
 
                 Section("Alarm Sound") {
-                    LabeledContent("Selected", value: settings.alarmSoundName.isEmpty ? "System default" : settings.alarmSoundName)
+                    Picker("Mode", selection: $settings.alarmSoundMode) {
+                        ForEach(AlarmSoundMode.allCases) { mode in
+                            Text(mode.label).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    LabeledContent("Selected", value: soundSelectionLabel)
+                    Text(AlarmSoundMode(storedValue: settings.alarmSoundMode).detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Button("Choose sound file") {
                         isImportingSound = true
                     }
-                    Button("Use system default") {
+                    Button("Use automatic bundled sounds") {
+                        settings.alarmSoundMode = AlarmSoundMode.automatic.rawValue
                         settings.alarmSoundName = ""
-                        alarmCenter.lastMessage = "Alarm sound reset to system default"
+                        alarmCenter.lastMessage = "Alarm sound reset to automatic bundled sounds"
                     }
-                    Text("Use a 30-second-or-shorter audio file. Antirot copies it into the iOS Library/Sounds folder and uses it for AlarmKit when available.")
+                    Text("Custom files must be 30 seconds or shorter. Antirot copies them into the iOS Library/Sounds folder and uses them for AlarmKit when available.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -112,6 +122,7 @@ struct ContentView: View {
                 case let .success(url):
                     do {
                         settings.alarmSoundName = try SoundLibrary.importAlarmSound(from: url)
+                        settings.alarmSoundMode = AlarmSoundMode.custom.rawValue
                         alarmCenter.lastMessage = "Selected alarm sound: \(settings.alarmSoundName)"
                     } catch {
                         alarmCenter.lastMessage = "Sound import failed: \(error.localizedDescription)"
@@ -120,6 +131,20 @@ struct ContentView: View {
                     alarmCenter.lastMessage = "Sound selection failed: \(error.localizedDescription)"
                 }
             }
+        }
+    }
+
+    private var soundSelectionLabel: String {
+        let mode = AlarmSoundMode(storedValue: settings.alarmSoundMode)
+        switch mode {
+        case .automatic:
+            "Auto: normal + loud"
+        case .bundledNormal:
+            "Bundled normal"
+        case .bundledLoud:
+            "Bundled loud"
+        case .custom:
+            settings.alarmSoundName.isEmpty ? "Custom not imported yet" : settings.alarmSoundName
         }
     }
 }
