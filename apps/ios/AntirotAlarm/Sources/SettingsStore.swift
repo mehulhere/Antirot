@@ -65,26 +65,26 @@ enum AlarmSoundMode: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .automatic:
-            "Auto"
+            return "Auto"
         case .bundledNormal:
-            "Normal"
+            return "Normal"
         case .bundledLoud:
-            "Loud"
+            return "Loud"
         case .custom:
-            "Custom"
+            return "Custom"
         }
     }
 
     var detail: String {
         switch self {
         case .automatic:
-            "Normal alarms use normal sound. Loud/urgent alarms use loud sound."
+            return "Normal alarms use normal sound. Loud/urgent alarms use loud sound."
         case .bundledNormal:
-            "Use the bundled normal sound for every alarm."
+            return "Use the bundled normal sound for every alarm."
         case .bundledLoud:
-            "Use the bundled loud sound for every alarm."
+            return "Use the bundled loud sound for every alarm."
         case .custom:
-            "Use your imported sound for every alarm."
+            return "Use your imported sound for every alarm."
         }
     }
 

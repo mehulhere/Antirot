@@ -138,13 +138,13 @@ struct ContentView: View {
         let mode = AlarmSoundMode(storedValue: settings.alarmSoundMode)
         switch mode {
         case .automatic:
-            "Auto: normal + loud"
+            return "Auto: normal + loud"
         case .bundledNormal:
-            "Bundled normal"
+            return "Bundled normal"
         case .bundledLoud:
-            "Bundled loud"
+            return "Bundled loud"
         case .custom:
-            settings.alarmSoundName.isEmpty ? "Custom not imported yet" : settings.alarmSoundName
+            return settings.alarmSoundName.isEmpty ? "Custom not imported yet" : settings.alarmSoundName
         }
     }
 }
