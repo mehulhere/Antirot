@@ -65,7 +65,7 @@ public class AntirotApiClient {
     private String request(String method, String path, JSONObject body) throws Exception {
         String serverUrl = settings.getServerUrl();
         if (serverUrl.isEmpty()) {
-            throw new IllegalStateException("Set the Antirot VPS URL first.");
+            serverUrl = SettingsStore.DEFAULT_SERVER_URL;
         }
         URL url = new URL(serverUrl.replaceAll("/+$", "") + path);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();

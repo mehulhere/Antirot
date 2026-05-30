@@ -12,7 +12,7 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section("Bridge") {
-                    LabeledContent("Server", value: URL(string: settings.serverURL)?.host() ?? "api.antirot.org")
+                    LabeledContent("Server", value: URL(string: settings.effectiveServerURL)?.host() ?? "api.antirot.org")
                     LabeledContent("Device ID", value: settings.deviceId)
                     LabeledContent("Status", value: settings.statusMessage)
                     Button("Register device") {
@@ -120,6 +120,7 @@ struct ContentView: View {
                             .textContentType(.URL)
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
+                        LabeledContent("Effective URL", value: settings.effectiveServerURL)
                         SecureField("API token", text: $settings.apiToken)
                         Button("Reset server to api.antirot.org") {
                             settings.serverURL = SettingsStore.defaultServerURL

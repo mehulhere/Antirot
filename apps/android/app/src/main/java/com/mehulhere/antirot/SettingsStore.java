@@ -31,11 +31,16 @@ public class SettingsStore {
     }
 
     public String getServerUrl() {
-        return preferences.getString(SERVER_URL, DEFAULT_SERVER_URL);
+        String value = preferences.getString(SERVER_URL, DEFAULT_SERVER_URL);
+        if (value == null || value.trim().isEmpty()) {
+            return DEFAULT_SERVER_URL;
+        }
+        return value.trim();
     }
 
     public void setServerUrl(String value) {
-        preferences.edit().putString(SERVER_URL, value.trim()).apply();
+        String normalized = value == null || value.trim().isEmpty() ? DEFAULT_SERVER_URL : value.trim();
+        preferences.edit().putString(SERVER_URL, normalized).apply();
     }
 
     public String getApiToken() {

@@ -34,7 +34,7 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.serverURL = defaults.string(forKey: Keys.serverURL) ?? Self.defaultServerURL
+        self.serverURL = Self.normalizedServerURL(defaults.string(forKey: Keys.serverURL))
         self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
         self.deviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
         self.registered = defaults.bool(forKey: Keys.registered)
@@ -43,7 +43,16 @@ final class SettingsStore: ObservableObject {
     }
 
     var baseURL: URL? {
-        URL(string: serverURL.trimmingCharacters(in: .whitespacesAndNewlines))
+        URL(string: Self.normalizedServerURL(serverURL))
+    }
+
+    var effectiveServerURL: String {
+        Self.normalizedServerURL(serverURL)
+    }
+
+    private static func normalizedServerURL(_ value: String?) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? defaultServerURL : trimmed
     }
 
     private enum Keys {

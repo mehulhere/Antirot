@@ -8,7 +8,7 @@ struct APIClient {
         var errorDescription: String? {
             switch self {
             case .missingServerURL:
-                "Set the Antirot VPS URL first."
+                "Bridge URL is invalid. Open Developer Settings and reset it to api.antirot.org."
             case .invalidResponse:
                 "The Antirot server returned an invalid response."
             }
@@ -28,7 +28,7 @@ struct APIClient {
     }
 
     func fetchPendingAlarms(deviceId: String) async throws -> [AlarmJob] {
-        guard let baseURL else { throw APIError.missingServerURL }
+        let baseURL = effectiveBaseURL()
         var components = URLComponents(url: baseURL.appendingPathComponent("/alarms/pending"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "deviceId", value: deviceId)]
         guard let url = components?.url else { throw APIError.missingServerURL }
@@ -57,7 +57,7 @@ struct APIClient {
         body: RequestBody,
         response: ResponseBody.Type
     ) async throws -> ResponseBody {
-        guard let baseURL else { throw APIError.missingServerURL }
+        let baseURL = effectiveBaseURL()
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -76,6 +76,10 @@ struct APIClient {
     private func addAuth(to request: inout URLRequest) {
         guard !apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func effectiveBaseURL() -> URL {
+        baseURL ?? URL(string: SettingsStore.defaultServerURL)!
     }
 }
 
