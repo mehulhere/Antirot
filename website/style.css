@@ -1244,6 +1244,24 @@ a {
         justify-content: center;
     }
 
+    .hero-downloads-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .hero-download-label {
+        justify-content: center;
+    }
+
+    .hero-download-label::after {
+        display: none;
+    }
+
+    .hero-downloads-container {
+        justify-content: center !important;
+    }
+
     .hero-visual {
         order: -1;
     }
@@ -1313,7 +1331,11 @@ a {
 
     .btn-download {
         width: 100%;
-        justify-content: center;
+    }
+
+    .btn-download-arrow {
+        opacity: 1;
+        transform: translateX(0);
     }
 
     .cta-card {
