@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @State private var screenTimeMessage = "Not requested"
@@ -20,9 +21,7 @@ struct ContentView: View {
                         Task { await alarmCenter.registerDevice() }
                     }
                     Button("Reset local login", role: .destructive) {
-                        settings.resetBridgeSession()
-                        alarmCenter.lastMessage = "Local bridge login reset. Add a fresh token, then register again."
-                        alarmCenter.lastErrorDetails = nil
+                        resetBridgeSessionAndOpenAuthPage(message: "Local bridge login reset. Opened Antirot login/home page.")
                     }
                     if alarmCenter.lastErrorDetails != nil {
                         Button("Show full error") {
@@ -143,9 +142,7 @@ struct ContentView: View {
                             alarmCenter.lastMessage = "Bridge server reset to api.antirot.org"
                         }
                         Button("Reset bridge session", role: .destructive) {
-                            settings.resetBridgeSession()
-                            alarmCenter.lastMessage = "Bridge session reset. Use a fresh device token, then register again."
-                            alarmCenter.lastErrorDetails = nil
+                            resetBridgeSessionAndOpenAuthPage(message: "Bridge session reset. Opened Antirot login/home page.")
                         }
                         Text("Paste the device token from /etc/antirot/bridge.env. Do not commit or share that token.")
                             .font(.footnote)
@@ -187,6 +184,15 @@ struct ContentView: View {
             return "Bundled loud"
         case .custom:
             return settings.alarmSoundName.isEmpty ? "Custom not imported yet" : settings.alarmSoundName
+        }
+    }
+
+    private func resetBridgeSessionAndOpenAuthPage(message: String) {
+        settings.resetBridgeSession()
+        alarmCenter.lastMessage = message
+        alarmCenter.lastErrorDetails = nil
+        if let url = URL(string: SettingsStore.authPageURL) {
+            openURL(url)
         }
     }
 }

@@ -229,8 +229,14 @@ public class MainActivity extends android.app.Activity {
         settings.resetBridgeSession();
         serverUrl = null;
         apiToken = null;
-        status.setText("Bridge session reset. Use a fresh device token, then register again.");
+        status.setText("Bridge session reset. Opening Antirot login/home page.");
+        openAuthPage();
         setContentView(buildView());
+    }
+
+    private void openAuthPage() {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(SettingsStore.AUTH_PAGE_URL));
+        startActivity(intent);
     }
 
     @Override

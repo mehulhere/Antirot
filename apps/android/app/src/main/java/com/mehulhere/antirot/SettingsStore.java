@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public class SettingsStore {
     public static final String DEFAULT_SERVER_URL = "https://api.antirot.org";
+    public static final String AUTH_PAGE_URL = "https://antirot.org";
 
     private static final String PREFS = "antirot";
     private static final String SERVER_URL = "server_url";
