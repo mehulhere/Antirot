@@ -20,3 +20,4 @@
 - Deploy `apps/bridge` on a VPS behind `api.antirot.org`, register a phone with `ANTIROT_DEVICE_TOKEN`, create an alarm with `ANTIROT_ADMIN_TOKEN`, poll pending alarms from the app, and verify ack/snooze events are stored.
 - Install iOS and Android builds, confirm `https://api.antirot.org` is the default bridge, and verify the URL/token fields are hidden under Developer Settings.
 - Upgrade from an older iOS/Android install with a blank saved bridge URL and verify registration falls back to `https://api.antirot.org` instead of showing a missing VPS URL error.
+- Trigger an iOS bridge registration failure and verify the app shows the HTTP status/body instead of the generic invalid response message.

@@ -3,14 +3,17 @@ import Foundation
 struct APIClient {
     enum APIError: Error, LocalizedError {
         case missingServerURL
-        case invalidResponse
+        case invalidResponse(status: Int, body: String)
+        case decodeFailed(body: String)
 
         var errorDescription: String? {
             switch self {
             case .missingServerURL:
                 "Bridge URL is invalid. Open Developer Settings and reset it to api.antirot.org."
-            case .invalidResponse:
-                "The Antirot server returned an invalid response."
+            case let .invalidResponse(status, body):
+                "Bridge returned HTTP \(status): \(body)"
+            case let .decodeFailed(body):
+                "Bridge returned unexpected JSON: \(body)"
             }
         }
     }
@@ -35,10 +38,15 @@ struct APIClient {
         var request = URLRequest(url: url)
         addAuth(to: &request)
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode ?? 500 < 300 else {
-            throw APIError.invalidResponse
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
         }
-        return try JSONDecoder.antirot.decode([AlarmJob].self, from: data)
+        do {
+            return try JSONDecoder.antirot.decode([AlarmJob].self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
     }
 
     func acknowledge(alarmId: String, deviceId: String, action: String, minutes: Int? = nil) async throws {
@@ -64,13 +72,18 @@ struct APIClient {
         addAuth(to: &request)
         request.httpBody = try JSONEncoder.antirot.encode(body)
         let (data, urlResponse) = try await URLSession.shared.data(for: request)
-        guard (urlResponse as? HTTPURLResponse)?.statusCode ?? 500 < 300 else {
-            throw APIError.invalidResponse
+        let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
         }
         if ResponseBody.self == EmptyResponse.self {
             return EmptyResponse() as! ResponseBody
         }
-        return try JSONDecoder.antirot.decode(ResponseBody.self, from: data)
+        do {
+            return try JSONDecoder.antirot.decode(ResponseBody.self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
     }
 
     private func addAuth(to request: inout URLRequest) {
@@ -80,6 +93,11 @@ struct APIClient {
 
     private func effectiveBaseURL() -> URL {
         baseURL ?? URL(string: SettingsStore.defaultServerURL)!
+    }
+
+    private func responseBody(_ data: Data) -> String {
+        let text = String(data: data, encoding: .utf8) ?? "<non-utf8 response>"
+        return text.isEmpty ? "<empty response>" : String(text.prefix(300))
     }
 }
 
