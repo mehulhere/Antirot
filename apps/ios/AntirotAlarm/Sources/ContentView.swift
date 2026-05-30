@@ -19,6 +19,11 @@ struct ContentView: View {
                     Button("Register device") {
                         Task { await alarmCenter.registerDevice() }
                     }
+                    if alarmCenter.lastErrorDetails != nil {
+                        Button("Show full error") {
+                            showFullError = true
+                        }
+                    }
                 }
 
                 Section("Permissions") {
