@@ -64,6 +64,201 @@ bridge user/process   -> api.antirot.org -> 127.0.0.1:8787
 
 Run the bridge with a dedicated Linux user and `systemd` resource limits so it cannot starve the homepage.
 
+## VPS Deployment With `git push production main`
+
+This deployment assumes:
+
+- VPS SSH user: `antirot`
+- VPS IP: `187.77.25.228`
+- bare deployment repo: `/srv/git/antirot.git`
+- checkout directory: `/opt/antirot`
+- bridge service user: `antirot-bridge`
+- bridge port: `127.0.0.1:8787`
+- public API domain: `api.antirot.org`
+
+### 1. Install Packages
+
+```bash
+ssh antirot@187.77.25.228
+sudo apt update
+sudo apt install -y git curl build-essential pkg-config libssl-dev postgresql nginx
+```
+
+Install Rust for the `antirot` user if it is not installed:
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+. "$HOME/.cargo/env"
+cargo --version
+```
+
+### 2. Create Postgres Database
+
+```bash
+sudo -u postgres createuser antirot_bridge
+sudo -u postgres createdb antirot_bridge -O antirot_bridge
+sudo -u postgres psql -c "ALTER USER antirot_bridge WITH PASSWORD 'CHANGE_DB_PASSWORD';"
+```
+
+### 3. Create Bridge User And Env
+
+```bash
+sudo useradd --system --home /var/lib/antirot-bridge --shell /usr/sbin/nologin antirot-bridge
+sudo mkdir -p /etc/antirot /var/lib/antirot-bridge
+sudo chown antirot-bridge:antirot-bridge /var/lib/antirot-bridge
+sudo nano /etc/antirot/bridge.env
+```
+
+Put:
+
+```bash
+ANTIROT_BRIDGE_BIND=127.0.0.1:8787
+DATABASE_URL=postgres://antirot_bridge:CHANGE_DB_PASSWORD@localhost/antirot_bridge
+ANTIROT_ADMIN_TOKEN=CHANGE_LONG_ADMIN_TOKEN
+ANTIROT_DEVICE_TOKEN=CHANGE_LONG_DEVICE_TOKEN
+RUST_LOG=antirot_bridge=info,tower_http=info
+```
+
+Use `ANTIROT_DEVICE_TOKEN` as the API token in the iOS/Android app. Use `ANTIROT_ADMIN_TOKEN` from OpenClaw or a future backend when creating alarms.
+
+### 4. Create Bare Git Repo
+
+```bash
+sudo mkdir -p /srv/git /opt/antirot
+sudo chown -R antirot:antirot /srv/git /opt/antirot
+cd /srv/git
+git init --bare antirot.git
+```
+
+Create the deploy hook:
+
+```bash
+nano /srv/git/antirot.git/hooks/post-receive
+```
+
+Paste:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="/opt/antirot"
+REPO_DIR="/srv/git/antirot.git"
+
+git --work-tree="$APP_DIR" --git-dir="$REPO_DIR" checkout -f main
+
+cd "$APP_DIR/apps/bridge"
+"$HOME/.cargo/bin/cargo" build --release
+
+sudo install -m 0755 target/release/antirot-bridge /opt/antirot/apps/bridge/antirot-bridge
+sudo systemctl restart antirot-bridge
+```
+
+Make it executable:
+
+```bash
+chmod +x /srv/git/antirot.git/hooks/post-receive
+```
+
+Allow the deploy hook to install and restart the bridge:
+
+```bash
+sudo visudo
+```
+
+Add:
+
+```text
+antirot ALL=(root) NOPASSWD: /usr/bin/systemctl restart antirot-bridge, /usr/bin/install
+```
+
+### 5. Install systemd Service
+
+After the first push checks out `/opt/antirot`, install the service:
+
+```bash
+sudo cp /opt/antirot/apps/bridge/deploy/antirot-bridge.service /etc/systemd/system/antirot-bridge.service
+sudo systemctl daemon-reload
+sudo systemctl enable antirot-bridge
+```
+
+### 6. Configure Nginx
+
+Create:
+
+```bash
+sudo nano /etc/nginx/sites-available/antirot-api
+```
+
+Put:
+
+```nginx
+server {
+    listen 80;
+    server_name api.antirot.org;
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/antirot-api /etc/nginx/sites-enabled/antirot-api
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Add HTTPS after DNS points `api.antirot.org` to the VPS:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.antirot.org
+```
+
+### 7. Add Local Production Remote
+
+On your local machine:
+
+```bash
+cd ~/Work/Antirot
+git remote add production ssh://antirot@187.77.25.228/srv/git/antirot.git
+git push production main
+```
+
+Future deploys:
+
+```bash
+git push production main
+```
+
+### 8. Smoke Test
+
+On the VPS:
+
+```bash
+curl http://127.0.0.1:8787/health
+```
+
+From anywhere after DNS/SSL:
+
+```bash
+curl https://api.antirot.org/health
+```
+
+Expected:
+
+```json
+{"ok":true,"service":"antirot-bridge"}
+```
+
 ## Notes
 
 This MVP uses pending-fetch delivery because the current iOS/Android apps already support it. APNs/FCM push delivery should be added later behind the same `POST /alarms` path, using the device push fields already accepted by `/devices/register`.

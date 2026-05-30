@@ -93,6 +93,8 @@ ANTIROT_BRIDGE_BIND=127.0.0.1:8787
 
 Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.
 
+For VPS deployment, `git push production main`, systemd, and Nginx setup, see `apps/bridge/README.md`.
+
 ## License
 
 Antirot is dual licensed:
