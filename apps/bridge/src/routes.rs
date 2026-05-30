@@ -1,5 +1,6 @@
 use axum::extract::{Path, Query, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, HeaderValue};
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
@@ -29,11 +30,13 @@ pub fn router() -> Router<AppState> {
         .route("/alarms", post(create_alarm))
         .route("/alarms/pending", get(pending_alarms))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
+        .route("/visits", get(get_and_increment_visits))
         .route("/v1/health", get(health))
         .route("/v1/devices/register", post(register_device))
         .route("/v1/alarms", post(create_alarm))
         .route("/v1/alarms/pending", get(pending_alarms))
         .route("/v1/alarms/{alarm_id}/{action}", post(record_alarm_action))
+        .route("/v1/visits", get(get_and_increment_visits))
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -371,4 +374,35 @@ fn normalize_action(path_action: &str, body_action: &str) -> AppResult<String> {
             "path action {path_action} does not match body action {body_action}"
         )))
     }
+}
+
+async fn get_and_increment_visits(
+    State(state): State<AppState>,
+) -> AppResult<impl IntoResponse> {
+    let client = state.pool.get().await?;
+    let row = client
+        .query_one(
+            "
+            UPDATE page_views
+            SET count = count + 1
+            WHERE id = 'homepage'
+            RETURNING count
+            ",
+            &[],
+        )
+        .await?;
+    let count: i64 = row.get("count");
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
+
+    #[derive(serde::Serialize)]
+    struct VisitsResponse {
+        count: i64,
+    }
+
+    Ok((headers, Json(VisitsResponse { count })))
 }

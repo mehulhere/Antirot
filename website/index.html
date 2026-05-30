@@ -306,21 +306,27 @@
             observer.observe(el);
         });
 
-        // Visitor Counter API
+        // Visitor Counter API (VPS Self-Hosted)
         async function initVisitorCounter() {
             const counterEl = document.getElementById('visitor-count');
             if (!counterEl) return;
             try {
-                // Increment and get views for antirot.org
-                const response = await fetch('https://api.counterapi.dev/v1/antirot.org/visits/up');
+                const protocol = window.location.protocol;
+                const hostname = window.location.hostname;
+                let apiOrigin = `${protocol}//api.${hostname}`;
+                if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+                    apiOrigin = 'http://127.0.0.1:8787';
+                }
+
+                const response = await fetch(`${apiOrigin}/v1/visits`);
                 if (response.ok) {
                     const data = await response.json();
                     counterEl.textContent = Number(data.count).toLocaleString();
                 } else {
-                    counterEl.textContent = '1,482';
+                    counterEl.textContent = '...';
                 }
             } catch (e) {
-                counterEl.textContent = '1,482';
+                counterEl.textContent = '...';
             }
         }
         initVisitorCounter();

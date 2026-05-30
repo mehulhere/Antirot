@@ -46,3 +46,13 @@ CREATE TABLE IF NOT EXISTS alarm_events (
 
 CREATE INDEX IF NOT EXISTS alarm_events_alarm_id_idx
     ON alarm_events (alarm_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS page_views (
+    id TEXT PRIMARY KEY,
+    count BIGINT NOT NULL DEFAULT 0
+);
+
+INSERT INTO page_views (id, count)
+VALUES ('homepage', 0)
+ON CONFLICT (id) DO NOTHING;
+
