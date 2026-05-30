@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in to Antirot</title>
+    <meta name="description" content="Sign in or connect the Antirot mobile app to the Antirot alarm bridge.">
+    <meta property="og:title" content="Sign in to Antirot">
+    <meta property="og:description" content="Connect the Antirot app to your coach, alarms, and device bridge.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://antirot.org/login.html">
+    <meta name="twitter:card" content="summary">
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" href="favicon.ico?v=2" type="image/x-icon">
+    <link rel="icon" href="favicon.ico?v=2" type="image/x-icon">
+</head>
+<body>
+    <div class="ambient-bg"></div>
+    <div class="grid-overlay"></div>
+
+    <main class="page-wrapper auth-page">
+        <nav class="nav" id="nav">
+            <div class="container nav-inner">
+                <a href="index.html" class="nav-brand">
+                    <span class="dot"></span>
+                    Antirot
+                </a>
+                <ul class="nav-links">
+                    <li><a href="index.html#features">Features</a></li>
+                    <li><a href="index.html#how">How It Works</a></li>
+                    <li><a href="https://github.com/mehulhere/Antirot" target="_blank" rel="noopener">GitHub</a></li>
+                </ul>
+                <a href="index.html" class="btn-nav">Home</a>
+            </div>
+        </nav>
+
+        <section class="auth-shell">
+            <div class="container auth-grid">
+                <div class="auth-copy">
+                    <p class="section-label">App Login</p>
+                    <h1 class="auth-title">Connect your phone to the coach.</h1>
+                    <p class="auth-subtitle">
+                        This is the login handoff page for the iOS and Android apps.
+                        Google and Apple account login will land here, then return a
+                        device token to the app.
+                    </p>
+                    <div class="auth-notes">
+                        <div>
+                            <strong>Current MVP</strong>
+                            <span>Use the bridge device token from your VPS developer settings.</span>
+                        </div>
+                        <div>
+                            <strong>Next auth step</strong>
+                            <span>Google and Apple sign-in will issue per-device tokens automatically.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="auth-card" aria-labelledby="auth-heading">
+                    <div class="auth-card-header">
+                        <span class="auth-status-dot"></span>
+                        <span>Antirot account</span>
+                    </div>
+                    <h2 id="auth-heading">Sign in or connect manually</h2>
+                    <p>
+                        OAuth is not enabled on this server yet. For now, use the
+                        device token flow. No fake buttons pretending to work.
+                    </p>
+
+                    <div class="auth-actions">
+                        <button class="auth-provider" type="button" disabled>
+                            <span class="provider-mark">G</span>
+                            Continue with Google
+                            <span class="provider-state">Soon</span>
+                        </button>
+                        <button class="auth-provider" type="button" disabled>
+                            <span class="provider-mark">A</span>
+                            Continue with Apple
+                            <span class="provider-state">Soon</span>
+                        </button>
+                    </div>
+
+                    <div class="auth-divider">
+                        <span>Current test setup</span>
+                    </div>
+
+                    <ol class="auth-steps">
+                        <li>Open the Antirot app.</li>
+                        <li>Open Developer Settings.</li>
+                        <li>Paste the device token from your VPS bridge env.</li>
+                        <li>Tap Register device.</li>
+                    </ol>
+
+                    <a class="btn-primary auth-primary" href="index.html#downloads">
+                        Back to app downloads
+                    </a>
+                </section>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
