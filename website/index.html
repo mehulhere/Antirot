@@ -11,7 +11,7 @@
     <meta property="og:url" content="https://antirot.org">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="icon" type="image/png" href="assets/favicon.png?v=1">
 </head>
 <body>
     <!-- Ambient Background -->
@@ -314,7 +314,7 @@
                 const response = await fetch('https://api.counterapi.dev/v1/antirot.org/visits/up');
                 if (response.ok) {
                     const data = await response.json();
-                    counterEl.textContent = Number(data.value).toLocaleString();
+                    counterEl.textContent = Number(data.count).toLocaleString();
                 } else {
                     counterEl.textContent = '1,482';
                 }
