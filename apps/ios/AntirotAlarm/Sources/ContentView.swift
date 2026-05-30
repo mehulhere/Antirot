@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var screenTimeMessage = "Not requested"
     @State private var isImportingSound = false
     @State private var showDeveloperSettings = false
+    @State private var showFullError = false
 
     var body: some View {
         NavigationStack {
@@ -50,6 +51,11 @@ struct ContentView: View {
                     Text(alarmCenter.lastMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if alarmCenter.lastErrorDetails != nil {
+                        Button("Show full error") {
+                            showFullError = true
+                        }
+                    }
                 }
 
                 Section("Alarm Sound") {
@@ -133,6 +139,11 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Antirot")
+            .alert("Full Error", isPresented: $showFullError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(alarmCenter.lastErrorDetails ?? "No error details.")
+            }
             .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
                 switch result {
                 case let .success(url):

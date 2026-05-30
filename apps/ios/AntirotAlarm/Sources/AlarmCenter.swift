@@ -7,6 +7,7 @@ final class AlarmCenter: ObservableObject {
     @Published var alarmKitStatus: String = "unknown"
     @Published var scheduledAlarms: [AlarmJob] = []
     @Published var lastMessage: String = "No alarms scheduled"
+    @Published var lastErrorDetails: String?
 
     private var settings: SettingsStore?
 
@@ -22,7 +23,7 @@ final class AlarmCenter: ObservableObject {
             await refreshAuthorizationStatus()
             lastMessage = granted ? "Notification permission granted" : "Notification permission denied"
         } catch {
-            lastMessage = "Notification permission failed: \(error.localizedDescription)"
+            recordError("Notification permission failed", error)
         }
     }
 
@@ -45,9 +46,11 @@ final class AlarmCenter: ObservableObject {
             settings.registered = response.ok
             settings.statusMessage = response.message ?? "Registered as \(response.deviceId)"
             lastMessage = settings.statusMessage
+            lastErrorDetails = nil
         } catch {
-            settings.statusMessage = "Registration failed: \(error.localizedDescription)"
+            settings.statusMessage = "Registration failed"
             lastMessage = settings.statusMessage
+            recordError("Registration failed", error)
         }
     }
 
@@ -60,8 +63,9 @@ final class AlarmCenter: ObservableObject {
                 try await schedule(alarm)
             }
             lastMessage = alarms.isEmpty ? "No pending alarms" : "Scheduled \(alarms.count) alarm(s)"
+            lastErrorDetails = nil
         } catch {
-            lastMessage = "Poll failed: \(error.localizedDescription)"
+            recordError("Poll failed", error)
         }
     }
 
@@ -69,7 +73,7 @@ final class AlarmCenter: ObservableObject {
         do {
             try await schedule(.test(severity: severity))
         } catch {
-            lastMessage = "Test alarm failed: \(error.localizedDescription)"
+            recordError("Test alarm failed", error)
         }
     }
 
@@ -166,6 +170,15 @@ final class AlarmCenter: ObservableObject {
             mode: alarm.kind.rawValue,
             dueAt: alarm.fireAt
         ))
+    }
+
+    private func recordError(_ summary: String, _ error: Error) {
+        lastMessage = summary
+        lastErrorDetails = [
+            summary,
+            error.localizedDescription,
+            String(describing: error)
+        ].joined(separator: "\n\n")
     }
 }
 
