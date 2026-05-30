@@ -48,7 +48,7 @@
                 <div class="hero-content">
                     <div class="hero-badge">
                         <span class="badge-dot"></span>
-                        Open Source &middot; <span id="visitor-count">...</span> Rotters Challenged
+                        <span>Open Source &middot; <span id="visitor-count">...</span> Rotters Challenged</span>
                     </div>
                     <h1 class="hero-title">
                         Stop rotting.<br>
@@ -319,10 +319,18 @@
                     apiOrigin = 'http://127.0.0.1:8787';
                 }
 
-                const response = await fetch(`${apiOrigin}/v1/visits`);
+                // Check if visitor has already been counted in this browser
+                const hasVisited = localStorage.getItem('antirot_visited');
+                let url = `${apiOrigin}/v1/visits`;
+                if (hasVisited) {
+                    url += '?increment=false';
+                }
+
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     counterEl.textContent = Number(data.count).toLocaleString();
+                    localStorage.setItem('antirot_visited', 'true');
                 } else {
                     counterEl.textContent = '...';
                 }

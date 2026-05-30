@@ -376,22 +376,42 @@ fn normalize_action(path_action: &str, body_action: &str) -> AppResult<String> {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct VisitsQuery {
+    increment: Option<bool>,
+}
+
 async fn get_and_increment_visits(
     State(state): State<AppState>,
+    Query(query): Query<VisitsQuery>,
 ) -> AppResult<impl IntoResponse> {
     let client = state.pool.get().await?;
-    let row = client
-        .query_one(
-            "
-            UPDATE page_views
-            SET count = count + 1
-            WHERE id = 'homepage'
-            RETURNING count
-            ",
-            &[],
-        )
-        .await?;
-    let count: i64 = row.get("count");
+    let should_increment = query.increment.unwrap_or(true);
+
+    let count: i64 = if should_increment {
+        let row = client
+            .query_one(
+                "
+                UPDATE page_views
+                SET count = count + 1
+                WHERE id = 'homepage'
+                RETURNING count
+                ",
+                &[],
+            )
+            .await?;
+        row.get("count")
+    } else {
+        let row = client
+            .query_one(
+                "
+                SELECT count FROM page_views WHERE id = 'homepage'
+                ",
+                &[],
+            )
+            .await?;
+        row.get("count")
+    };
 
     let mut headers = HeaderMap::new();
     headers.insert(
