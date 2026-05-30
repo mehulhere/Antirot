@@ -63,6 +63,35 @@ The plugin blocks ordinary file-tool edits to protected Antirot files unless the
 
 - `apps/ios`: iOS client with notification alarms, alarm actions, and Screen Time scaffolding.
 - `apps/android`: Android client with exact alarms, alarm screen, acknowledgement actions, and usage-access summary.
+- `apps/bridge`: low-resource Rust alarm bridge for `api.antirot.org`, device registration, alarm delivery queueing, and acknowledgement/snooze events.
+
+## Alarm Bridge
+
+The Rust bridge is the phone-facing API. It is meant to run separately from the homepage process, usually behind Nginx/Caddy:
+
+```text
+antirot.org      -> homepage
+api.antirot.org  -> 127.0.0.1:8787
+```
+
+Development:
+
+```bash
+cd apps/bridge
+cp ../../env.example.txt .env
+cargo run
+```
+
+Required environment variables:
+
+```text
+DATABASE_URL=postgres://antirot_bridge:secret@localhost/antirot_bridge
+ANTIROT_ADMIN_TOKEN=long-random-token-used-by-openclaw
+ANTIROT_DEVICE_TOKEN=long-random-token-used-by-mobile-apps
+ANTIROT_BRIDGE_BIND=127.0.0.1:8787
+```
+
+Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.
 
 ## License
 

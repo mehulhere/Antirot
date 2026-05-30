@@ -17,3 +17,4 @@
 - Install the iOS IPA, confirm the `Antirot Current Task` widget appears in the iOS widget picker, add it to Home Screen, then press `Show current task in widget`.
 - Schedule normal and loud test alarms on iOS and Android and verify normal uses `antirot-normal` while loud/urgent uses `antirot-loud` unless a custom sound is selected.
 - In the iOS and Android alarm sound sections, select Auto, bundled normal, bundled loud, and custom sound modes, then verify the scheduled test alarms use the chosen mode.
+- Deploy `apps/bridge` on a VPS behind `api.antirot.org`, register a phone with `ANTIROT_DEVICE_TOKEN`, create an alarm with `ANTIROT_ADMIN_TOKEN`, poll pending alarms from the app, and verify ack/snooze events are stored.
