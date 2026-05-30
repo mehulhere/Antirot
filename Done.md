@@ -25,3 +25,4 @@
 - In iOS and Android Developer Settings, press `Reset bridge session` and verify it clears the token, rotates the device ID, resets registration, and lets a fresh token register again.
 - Press `Reset local login` on iOS and Android and verify it clears stale bridge auth, rotates the device ID, and opens `https://antirot.org`.
 - Press `Reset local login` on iOS and Android and verify it opens `https://antirot.org/login.html`, not the generic homepage.
+- Reload the homepage and verify the Rotters Challenged badge starts at 0, counts up quickly, and eases into the exact fetched visitor count.

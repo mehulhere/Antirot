@@ -261,6 +261,13 @@ a {
     animation: pulse-dot 2s ease-in-out infinite;
 }
 
+#visitor-count {
+    display: inline-block;
+    min-width: 2ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 .hero-title {
     font-size: clamp(3rem, 6vw, 4.5rem);
     font-weight: 900;
@@ -355,31 +362,92 @@ a {
     transform: translateY(-1px);
 }
 
+/* --- Download Buttons Group --- */
+.hero-downloads-wrapper {
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    animation: fadeInUp 0.6s ease 0.45s forwards;
+    opacity: 0;
+}
+
+.hero-download-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hero-download-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent);
+}
+
 .btn-download {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
+    gap: 14px;
+    padding: 14px 22px;
     background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: var(--radius-md);
     color: var(--text-primary);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     text-align: left;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.btn-download::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
+    pointer-events: none;
 }
 
 .btn-download:hover {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.07);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-3px);
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.btn-download-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(234, 88, 12, 0.08));
+    border: 1px solid rgba(220, 38, 38, 0.15);
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.btn-download:hover .btn-download-icon-wrap {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(234, 88, 12, 0.14));
+    border-color: rgba(220, 38, 38, 0.25);
+    box-shadow: 0 0 16px rgba(220, 38, 38, 0.12);
 }
 
 .btn-download-icon {
     flex-shrink: 0;
     color: var(--text-secondary);
-    transition: color 0.2s ease;
+    transition: color 0.3s ease;
 }
 
 .btn-download:hover .btn-download-icon {
@@ -389,6 +457,7 @@ a {
 .btn-download-text {
     display: flex;
     flex-direction: column;
+    gap: 2px;
     line-height: 1.2;
 }
 
@@ -396,24 +465,34 @@ a {
     font-size: 0.65rem;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: var(--text-muted);
+    transition: color 0.2s ease;
+}
+
+.btn-download:hover .btn-download-sub {
+    color: var(--text-secondary);
 }
 
 .btn-download-main {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-primary);
+    letter-spacing: -0.01em;
 }
 
-.hero-download-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+.btn-download-arrow {
+    margin-left: auto;
     color: var(--text-muted);
-    margin-top: 36px;
-    margin-bottom: 12px;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateX(-4px);
+}
+
+.btn-download:hover .btn-download-arrow {
+    opacity: 1;
+    transform: translateX(0);
+    color: var(--text-secondary);
 }
 
 

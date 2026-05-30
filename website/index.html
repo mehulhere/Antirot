@@ -319,9 +319,34 @@
         });
 
         // Visitor Counter API (VPS Self-Hosted)
+        function animateVisitorCount(counterEl, targetCount) {
+            const finalCount = Math.max(0, Number(targetCount) || 0);
+            const durationMs = Math.min(1600, Math.max(700, 650 + finalCount * 35));
+            const startTime = performance.now();
+
+            counterEl.textContent = '0';
+
+            function tick(now) {
+                const progress = Math.min((now - startTime) / durationMs, 1);
+                const eased = 1 - Math.pow(1 - progress, 4);
+                const currentCount = Math.floor(eased * finalCount);
+                counterEl.textContent = currentCount.toLocaleString();
+
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                    return;
+                }
+
+                counterEl.textContent = finalCount.toLocaleString();
+            }
+
+            requestAnimationFrame(tick);
+        }
+
         async function initVisitorCounter() {
             const counterEl = document.getElementById('visitor-count');
             if (!counterEl) return;
+            counterEl.textContent = '0';
             try {
                 const protocol = window.location.protocol;
                 const hostname = window.location.hostname;
@@ -340,7 +365,7 @@
                 const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
-                    counterEl.textContent = Number(data.count).toLocaleString();
+                    animateVisitorCount(counterEl, data.count);
                     localStorage.setItem('antirot_visited', 'true');
                 } else {
                     counterEl.textContent = '...';
