@@ -391,6 +391,7 @@ a {
     height: 100%;
     object-fit: contain;
     filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.5));
+    mix-blend-mode: lighten;
 }
 
 /* Floating quote bubbles around the coach */
