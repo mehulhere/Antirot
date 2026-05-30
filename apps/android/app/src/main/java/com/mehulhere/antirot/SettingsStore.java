@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import java.util.UUID;
 
 public class SettingsStore {
+    public static final String DEFAULT_SERVER_URL = "https://api.antirot.org";
+
     private static final String PREFS = "antirot";
     private static final String SERVER_URL = "server_url";
     private static final String API_TOKEN = "api_token";
@@ -29,7 +31,7 @@ public class SettingsStore {
     }
 
     public String getServerUrl() {
-        return preferences.getString(SERVER_URL, "");
+        return preferences.getString(SERVER_URL, DEFAULT_SERVER_URL);
     }
 
     public void setServerUrl(String value) {

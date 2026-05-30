@@ -6,16 +6,13 @@ struct ContentView: View {
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @State private var screenTimeMessage = "Not requested"
     @State private var isImportingSound = false
+    @State private var showDeveloperSettings = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("VPS") {
-                    TextField("https://your-vps.example.com", text: $settings.serverURL)
-                        .textContentType(.URL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                    SecureField("API token", text: $settings.apiToken)
+                Section("Bridge") {
+                    LabeledContent("Server", value: URL(string: settings.serverURL)?.host() ?? "api.antirot.org")
                     LabeledContent("Device ID", value: settings.deviceId)
                     LabeledContent("Status", value: settings.statusMessage)
                     Button("Register device") {
@@ -113,6 +110,24 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                }
+
+                Section("Developer Settings") {
+                    Toggle("Show bridge credentials", isOn: $showDeveloperSettings)
+                    if showDeveloperSettings {
+                        TextField("https://api.antirot.org", text: $settings.serverURL)
+                            .textContentType(.URL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                        SecureField("API token", text: $settings.apiToken)
+                        Button("Reset server to api.antirot.org") {
+                            settings.serverURL = SettingsStore.defaultServerURL
+                            alarmCenter.lastMessage = "Bridge server reset to api.antirot.org"
+                        }
+                        Text("Paste the device token from /etc/antirot/bridge.env. Do not commit or share that token.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

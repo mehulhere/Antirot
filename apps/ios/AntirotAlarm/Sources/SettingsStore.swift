@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class SettingsStore: ObservableObject {
+    static let defaultServerURL = "https://api.antirot.org"
+
     @Published var serverURL: String {
         didSet { defaults.set(serverURL, forKey: Keys.serverURL) }
     }
@@ -32,7 +34,7 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.serverURL = defaults.string(forKey: Keys.serverURL) ?? ""
+        self.serverURL = defaults.string(forKey: Keys.serverURL) ?? Self.defaultServerURL
         self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
         self.deviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
         self.registered = defaults.bool(forKey: Keys.registered)

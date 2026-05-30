@@ -24,6 +24,8 @@ public class MainActivity extends android.app.Activity {
     private TextView status;
     private EditText serverUrl;
     private EditText apiToken;
+    private LinearLayout root;
+    private boolean showDeveloperSettings = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,7 +38,7 @@ public class MainActivity extends android.app.Activity {
 
     private ScrollView buildView() {
         ScrollView scroll = new ScrollView(this);
-        LinearLayout root = new LinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(36, 48, 36, 48);
         root.setBackgroundColor(0xFF101418);
@@ -55,11 +57,12 @@ public class MainActivity extends android.app.Activity {
         subtitle.setPadding(0, 8, 0, 24);
         root.addView(subtitle);
 
-        serverUrl = input("Antirot VPS URL", settings.getServerUrl());
-        apiToken = input("API token", settings.getApiToken());
-        root.addView(serverUrl);
-        root.addView(apiToken);
-        root.addView(button("Save settings", this::saveSettings));
+        TextView bridge = new TextView(this);
+        bridge.setText("Bridge: api.antirot.org");
+        bridge.setTextColor(0xFFA7B0BA);
+        bridge.setPadding(0, 0, 0, 16);
+        root.addView(bridge);
+
         root.addView(button("Register device", this::registerDevice));
         root.addView(button("Use auto normal/loud sounds", () -> setAlarmSoundMode(SettingsStore.SOUND_AUTO)));
         root.addView(button("Use bundled normal sound", () -> setAlarmSoundMode(SettingsStore.SOUND_NORMAL)));
@@ -70,12 +73,14 @@ public class MainActivity extends android.app.Activity {
         root.addView(button("Poll pending VPS alarms", this::pollPending));
         root.addView(button("Open usage access settings", () -> new UsageStatsHelper(this).openUsageAccessSettings()));
         root.addView(button("Show last 30 min usage", this::showUsage));
+        root.addView(button("Developer settings", this::toggleDeveloperSettings));
 
         status = new TextView(this);
         status.setTextColor(0xFFF5F7FA);
         status.setPadding(0, 24, 0, 0);
         status.setText(statusText());
         root.addView(status);
+        renderDeveloperSettings();
         return scroll;
     }
 
@@ -98,8 +103,12 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void saveSettings() {
-        settings.setServerUrl(serverUrl.getText().toString());
-        settings.setApiToken(apiToken.getText().toString());
+        if (serverUrl != null) {
+            settings.setServerUrl(serverUrl.getText().toString());
+        }
+        if (apiToken != null) {
+            settings.setApiToken(apiToken.getText().toString());
+        }
         status.setText("Settings saved. Device: " + settings.getDeviceId());
     }
 
@@ -172,6 +181,46 @@ public class MainActivity extends android.app.Activity {
                 statusMessageLater("Exact alarm permission may be needed for reliable alarms.");
             }
         }
+    }
+
+    private void toggleDeveloperSettings() {
+        showDeveloperSettings = !showDeveloperSettings;
+        serverUrl = null;
+        apiToken = null;
+        setContentView(buildView());
+    }
+
+    private void renderDeveloperSettings() {
+        if (root == null) {
+            return;
+        }
+        if (!showDeveloperSettings) {
+            return;
+        }
+        if (serverUrl != null || apiToken != null) {
+            return;
+        }
+
+        TextView heading = new TextView(this);
+        heading.setText("Developer settings");
+        heading.setTextColor(0xFFF5F7FA);
+        heading.setPadding(0, 28, 0, 8);
+        root.addView(heading);
+
+        serverUrl = input("Antirot bridge URL", settings.getServerUrl());
+        apiToken = input("API token from /etc/antirot/bridge.env", settings.getApiToken());
+        root.addView(serverUrl);
+        root.addView(apiToken);
+        root.addView(button("Save developer settings", this::saveSettings));
+        root.addView(button("Reset bridge to api.antirot.org", this::resetBridgeUrl));
+    }
+
+    private void resetBridgeUrl() {
+        settings.setServerUrl(SettingsStore.DEFAULT_SERVER_URL);
+        if (serverUrl != null) {
+            serverUrl.setText(SettingsStore.DEFAULT_SERVER_URL);
+        }
+        status.setText("Bridge reset. " + statusText());
     }
 
     @Override
