@@ -22,3 +22,4 @@
 - Upgrade from an older iOS/Android install with a blank saved bridge URL and verify registration falls back to `https://api.antirot.org` instead of showing a missing VPS URL error.
 - Trigger an iOS bridge registration failure and verify the app shows the HTTP status/body instead of the generic invalid response message.
 - Trigger an iOS bridge registration failure and verify `Show full error` reveals the complete stored error detail while the main status remains concise.
+- In iOS and Android Developer Settings, press `Reset bridge session` and verify it clears the token, rotates the device ID, resets registration, and lets a fresh token register again.

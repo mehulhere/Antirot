@@ -78,4 +78,13 @@ public class SettingsStore {
     public void setAlarmSoundMode(String value) {
         preferences.edit().putString(ALARM_SOUND_MODE, value == null ? SOUND_AUTO : value).apply();
     }
+
+    public void resetBridgeSession() {
+        preferences.edit()
+                .putString(SERVER_URL, DEFAULT_SERVER_URL)
+                .putString(API_TOKEN, "")
+                .putString(DEVICE_ID, UUID.randomUUID().toString())
+                .putBoolean(REGISTERED, false)
+                .apply();
+    }
 }

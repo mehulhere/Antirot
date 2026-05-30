@@ -50,6 +50,14 @@ final class SettingsStore: ObservableObject {
         Self.normalizedServerURL(serverURL)
     }
 
+    func resetBridgeSession() {
+        serverURL = Self.defaultServerURL
+        apiToken = ""
+        deviceId = UUID().uuidString
+        registered = false
+        statusMessage = "Not registered"
+    }
+
     private static func normalizedServerURL(_ value: String?) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? defaultServerURL : trimmed

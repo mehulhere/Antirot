@@ -19,6 +19,11 @@ struct ContentView: View {
                     Button("Register device") {
                         Task { await alarmCenter.registerDevice() }
                     }
+                    Button("Reset local login", role: .destructive) {
+                        settings.resetBridgeSession()
+                        alarmCenter.lastMessage = "Local bridge login reset. Add a fresh token, then register again."
+                        alarmCenter.lastErrorDetails = nil
+                    }
                     if alarmCenter.lastErrorDetails != nil {
                         Button("Show full error") {
                             showFullError = true
@@ -136,6 +141,11 @@ struct ContentView: View {
                         Button("Reset server to api.antirot.org") {
                             settings.serverURL = SettingsStore.defaultServerURL
                             alarmCenter.lastMessage = "Bridge server reset to api.antirot.org"
+                        }
+                        Button("Reset bridge session", role: .destructive) {
+                            settings.resetBridgeSession()
+                            alarmCenter.lastMessage = "Bridge session reset. Use a fresh device token, then register again."
+                            alarmCenter.lastErrorDetails = nil
                         }
                         Text("Paste the device token from /etc/antirot/bridge.env. Do not commit or share that token.")
                             .font(.footnote)

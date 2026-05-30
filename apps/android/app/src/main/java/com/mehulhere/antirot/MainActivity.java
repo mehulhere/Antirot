@@ -64,6 +64,7 @@ public class MainActivity extends android.app.Activity {
         root.addView(bridge);
 
         root.addView(button("Register device", this::registerDevice));
+        root.addView(button("Reset local login", this::resetBridgeSession));
         root.addView(button("Use auto normal/loud sounds", () -> setAlarmSoundMode(SettingsStore.SOUND_AUTO)));
         root.addView(button("Use bundled normal sound", () -> setAlarmSoundMode(SettingsStore.SOUND_NORMAL)));
         root.addView(button("Use bundled loud sound", () -> setAlarmSoundMode(SettingsStore.SOUND_LOUD)));
@@ -213,6 +214,7 @@ public class MainActivity extends android.app.Activity {
         root.addView(apiToken);
         root.addView(button("Save developer settings", this::saveSettings));
         root.addView(button("Reset bridge to api.antirot.org", this::resetBridgeUrl));
+        root.addView(button("Reset bridge session", this::resetBridgeSession));
     }
 
     private void resetBridgeUrl() {
@@ -221,6 +223,14 @@ public class MainActivity extends android.app.Activity {
             serverUrl.setText(SettingsStore.DEFAULT_SERVER_URL);
         }
         status.setText("Bridge reset. " + statusText());
+    }
+
+    private void resetBridgeSession() {
+        settings.resetBridgeSession();
+        serverUrl = null;
+        apiToken = null;
+        status.setText("Bridge session reset. Use a fresh device token, then register again.");
+        setContentView(buildView());
     }
 
     @Override
