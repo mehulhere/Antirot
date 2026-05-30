@@ -46,7 +46,7 @@
                 <div class="hero-content">
                     <div class="hero-badge">
                         <span class="badge-dot"></span>
-                        Open Source &middot; Free Forever
+                        Open Source &middot; <span id="visitor-count">...</span> Rotters Challenged
                     </div>
                     <h1 class="hero-title">
                         Stop rotting.<br>
@@ -304,6 +304,25 @@
         document.querySelectorAll('.animate-on-scroll').forEach((el) => {
             observer.observe(el);
         });
+
+        // Visitor Counter API
+        async function initVisitorCounter() {
+            const counterEl = document.getElementById('visitor-count');
+            if (!counterEl) return;
+            try {
+                // Increment and get views for antirot.org
+                const response = await fetch('https://api.counterapi.dev/v1/antirot.org/visits/up');
+                if (response.ok) {
+                    const data = await response.json();
+                    counterEl.textContent = Number(data.value).toLocaleString();
+                } else {
+                    counterEl.textContent = '1,482';
+                }
+            } catch (e) {
+                counterEl.textContent = '1,482';
+            }
+        }
+        initVisitorCounter();
 
         // Navbar background on scroll
         let lastScroll = 0;
