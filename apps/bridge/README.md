@@ -4,6 +4,8 @@ Low-resource Rust alarm forwarding bridge for Antirot mobile clients.
 
 The bridge accepts alarms from OpenClaw or future Antirot services, stores them in Postgres, exposes pending alarms to mobile clients, and records ack/snooze/scheduled events. It supports the current iOS/Android app paths plus `/v1` aliases.
 
+For iOS, the bridge can also send a best-effort APNs background wake. APNs does not schedule the alarm directly; it wakes the app so the app can fetch pending alarms and schedule AlarmKit locally.
+
 ## Stack
 
 - Rust
@@ -21,10 +23,16 @@ ANTIROT_DEVICE_TOKEN=change-me-device-token
 GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
 ANTIROT_WORKSPACE_ID=main
 RUST_LOG=antirot_bridge=info,tower_http=info
+ANTIROT_APNS_ENV=sandbox
+ANTIROT_APNS_TEAM_ID=TEAMID1234
+ANTIROT_APNS_KEY_ID=KEYID1234
+ANTIROT_APNS_PRIVATE_KEY_PATH=/etc/antirot/AuthKey_KEYID1234.p8
+ANTIROT_APNS_TOPIC=com.mehulhere.Antirot
 ```
 
 Use `ANTIROT_ADMIN_TOKEN` from the OpenClaw plugin or future backend when creating alarms. Use `ANTIROT_DEVICE_TOKEN` in the iOS/Android app while the app still has a single API-token field.
 Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`; the bridge verifies the Google ID token and returns a per-device Antirot token.
+Set APNs variables to enable VPS-to-iPhone wake delivery. Use `sandbox` for development/sideload builds and `production` for App Store/TestFlight production-signed builds.
 
 ## Endpoints
 
@@ -280,4 +288,4 @@ Expected:
 
 ## Notes
 
-This MVP uses pending-fetch delivery because the current iOS/Android apps already support it. APNs/FCM push delivery should be added later behind the same `POST /alarms` path, using the device push fields already accepted by `/devices/register`.
+This MVP uses pending-fetch as the durable delivery queue. When APNs is configured and an iOS device has registered an APNs token, `POST /alarms` sends a best-effort background push so the app can wake, fetch the pending alarm, and schedule AlarmKit locally. If APNs fails or iOS delays the wake, the alarm remains queued for the app's next poll/open.

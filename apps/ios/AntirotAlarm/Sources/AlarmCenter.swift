@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import UserNotifications
 
 @MainActor
@@ -15,12 +16,16 @@ final class AlarmCenter: ObservableObject {
         self.settings = settings
         await refreshAuthorizationStatus()
         alarmKitStatus = AlarmKitCenter.authorizationLabel()
+        RemoteNotificationRegistrar.register()
     }
 
     func requestNotificationPermission() async {
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
             await refreshAuthorizationStatus()
+            if granted {
+                RemoteNotificationRegistrar.register()
+            }
             lastMessage = granted ? "Notification permission granted" : "Notification permission denied"
         } catch {
             recordError("Notification permission failed", error)
@@ -41,7 +46,9 @@ final class AlarmCenter: ObservableObject {
                 platform: "ios",
                 appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0",
                 notificationCapability: notificationCapability,
-                usageCapability: await ScreenTimeCenter.currentCapability()
+                usageCapability: await ScreenTimeCenter.currentCapability(),
+                pushProvider: settings.pushToken.isEmpty ? nil : "apns",
+                pushToken: settings.pushToken.isEmpty ? nil : settings.pushToken
             ))
             settings.registered = response.ok
             settings.statusMessage = response.message ?? "Registered as \(response.deviceId)"
@@ -115,7 +122,7 @@ final class AlarmCenter: ObservableObject {
     private var notificationCapability: String {
         switch notificationStatus {
         case .authorized, .provisional, .ephemeral:
-            "notification"
+            settings?.pushToken.isEmpty == false ? "remote_notification" : "notification"
         default:
             "none"
         }

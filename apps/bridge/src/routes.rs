@@ -139,9 +139,11 @@ async fn auth_google(
                 platform,
                 app_version,
                 notification_capability,
-                usage_capability
+                usage_capability,
+                push_provider,
+                push_token
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (device_id) DO UPDATE SET
                 user_id = EXCLUDED.user_id,
                 api_token_hash = EXCLUDED.api_token_hash,
@@ -149,6 +151,8 @@ async fn auth_google(
                 app_version = EXCLUDED.app_version,
                 notification_capability = EXCLUDED.notification_capability,
                 usage_capability = EXCLUDED.usage_capability,
+                push_provider = COALESCE(EXCLUDED.push_provider, devices.push_provider),
+                push_token = COALESCE(EXCLUDED.push_token, devices.push_token),
                 updated_at = now()
             ",
             &[
@@ -159,6 +163,8 @@ async fn auth_google(
                 &app_version,
                 &notification_capability,
                 &usage_capability,
+                &request.push_provider,
+                &request.push_token,
             ],
         )
         .await?;
@@ -406,6 +412,8 @@ async fn create_alarm(
         )
         .await?;
 
+    maybe_send_apns_wake(&state, &request.device_id, &id).await;
+
     info!(alarm_id = %id, device_id = %request.device_id, "queued alarm");
     Ok(Json(CreateAlarmResponse {
         ok: true,
@@ -415,6 +423,75 @@ async fn create_alarm(
             status: "queued".to_string(),
         },
     }))
+}
+
+async fn maybe_send_apns_wake(state: &AppState, device_id: &str, alarm_id: &str) {
+    let client = match state.pool.get().await {
+        Ok(client) => client,
+        Err(error) => {
+            warn!(
+                alarm_id,
+                device_id,
+                error = %error,
+                "🔴 FALLBACK: APNs wake skipped - Reason: database pool unavailable after queuing alarm - Impact: iOS app must poll/open before scheduling"
+            );
+            return;
+        }
+    };
+
+    let row = match client
+        .query_opt(
+            "
+            SELECT push_provider, push_token
+            FROM devices
+            WHERE device_id = $1
+            ",
+            &[&device_id],
+        )
+        .await
+    {
+        Ok(row) => row,
+        Err(error) => {
+            warn!(
+                alarm_id,
+                device_id,
+                error = %error,
+                "🔴 FALLBACK: APNs wake skipped - Reason: device push lookup failed - Impact: iOS app must poll/open before scheduling"
+            );
+            return;
+        }
+    };
+
+    let Some(row) = row else {
+        return;
+    };
+    let push_provider: Option<String> = row.get("push_provider");
+    let push_token: Option<String> = row.get("push_token");
+    if push_provider.as_deref() != Some("apns") {
+        warn!(
+            alarm_id,
+            device_id,
+            "🔴 FALLBACK: APNs wake skipped - Reason: device has no APNs provider - Impact: iOS app must poll/open before scheduling"
+        );
+        return;
+    }
+    let Some(push_token) = push_token.filter(|value| !value.trim().is_empty()) else {
+        warn!(
+            alarm_id,
+            device_id,
+            "🔴 FALLBACK: APNs wake skipped - Reason: device has no APNs token - Impact: iOS app must poll/open before scheduling"
+        );
+        return;
+    };
+
+    if let Err(error) = crate::apns::send_alarm_wake(&state.config, &push_token, alarm_id).await {
+        warn!(
+            alarm_id,
+            device_id,
+            error = %error,
+            "🔴 FALLBACK: APNs wake failed - Reason: bridge could not complete APNs request - Impact: iOS app must poll/open before scheduling"
+        );
+    }
 }
 
 async fn pending_alarms(

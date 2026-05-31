@@ -30,3 +30,4 @@
 - Open the iOS app Bridge/sign-in section and verify the Antirot favicon appears above the Google login button.
 - Verify the iOS app shows `Continue with Google` only on the logged-out signup screen, hides device/server/permission controls under bottom settings, and shows `Logout` at the bottom only after sign-in.
 - Run `antirot-bridge pair --workspace main --timeout 60`, enter the 6-digit code in the signed-in iOS app, and verify the command prints the paired device while Postgres stores the device/workspace mapping.
+- Configure APNs env vars on the VPS, sign into the iOS app so it registers an APNs token, create a bridge alarm for the device, and verify the app wakes/fetches/schedules the pending alarm.

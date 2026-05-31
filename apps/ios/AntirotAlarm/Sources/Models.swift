@@ -47,6 +47,8 @@ struct DeviceRegistrationRequest: Codable {
     var appVersion: String
     var notificationCapability: String
     var usageCapability: String
+    var pushProvider: String?
+    var pushToken: String?
 }
 
 struct DeviceRegistrationResponse: Codable {
@@ -62,6 +64,8 @@ struct GoogleAuthRequest: Codable {
     var appVersion: String
     var notificationCapability: String
     var usageCapability: String
+    var pushProvider: String?
+    var pushToken: String?
 }
 
 struct GoogleAuthResponse: Codable {

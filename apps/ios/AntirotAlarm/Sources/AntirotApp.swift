@@ -32,6 +32,48 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        PushTokenStore.save(deviceToken.map { String(format: "%02x", $0) }.joined())
+        Task { @MainActor in
+            let settings = SettingsStore()
+            guard !settings.apiToken.isEmpty else { return }
+
+            let alarmCenter = AlarmCenter()
+            await alarmCenter.configure(settings: settings)
+            await alarmCenter.registerDevice()
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("🔴 FALLBACK: APNs registration failed - Reason: \(error.localizedDescription) - Impact: VPS wake pushes cannot reach this device")
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task { @MainActor in
+            let settings = SettingsStore()
+            guard !settings.apiToken.isEmpty else {
+                print("🔴 FALLBACK: APNs wake ignored - Reason: device is not signed in - Impact: alarm remains pending until login/poll")
+                completionHandler(.noData)
+                return
+            }
+
+            let alarmCenter = AlarmCenter()
+            await alarmCenter.configure(settings: settings)
+            await alarmCenter.pollPendingAlarms()
+            completionHandler(alarmCenter.lastErrorDetails == nil ? .newData : .failed)
+        }
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification

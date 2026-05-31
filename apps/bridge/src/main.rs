@@ -1,3 +1,4 @@
+mod apns;
 mod auth;
 mod config;
 mod db;

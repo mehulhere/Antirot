@@ -23,8 +23,10 @@ enum GoogleAuthCenter {
             deviceId: settings.deviceId,
             platform: "ios",
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            notificationCapability: "local_notifications",
-            usageCapability: await ScreenTimeCenter.currentCapability()
+            notificationCapability: settings.pushToken.isEmpty ? "local_notifications" : "remote_notification",
+            usageCapability: await ScreenTimeCenter.currentCapability(),
+            pushProvider: settings.pushToken.isEmpty ? nil : "apns",
+            pushToken: settings.pushToken.isEmpty ? nil : settings.pushToken
         )
 
         let response = try await APIClient(

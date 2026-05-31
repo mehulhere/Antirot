@@ -28,9 +28,14 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(alarmSoundMode, forKey: Keys.alarmSoundMode) }
     }
 
+    @Published var pushToken: String {
+        didSet { defaults.set(pushToken, forKey: Keys.pushToken) }
+    }
+
     @Published var statusMessage: String = "Not registered"
 
     private let defaults: UserDefaults
+    private var pushTokenObserver: NSObjectProtocol?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -40,6 +45,21 @@ final class SettingsStore: ObservableObject {
         self.registered = defaults.bool(forKey: Keys.registered)
         self.alarmSoundName = defaults.string(forKey: Keys.alarmSoundName) ?? ""
         self.alarmSoundMode = defaults.string(forKey: Keys.alarmSoundMode) ?? AlarmSoundMode.automatic.rawValue
+        self.pushToken = PushTokenStore.currentToken(defaults: defaults)
+        self.pushTokenObserver = NotificationCenter.default.addObserver(
+            forName: .antirotPushTokenDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let token = notification.userInfo?["token"] as? String ?? ""
+            self?.pushToken = token
+        }
+    }
+
+    deinit {
+        if let pushTokenObserver {
+            NotificationCenter.default.removeObserver(pushTokenObserver)
+        }
     }
 
     var baseURL: URL? {
@@ -54,6 +74,8 @@ final class SettingsStore: ObservableObject {
         serverURL = Self.defaultServerURL
         apiToken = ""
         deviceId = UUID().uuidString
+        PushTokenStore.clear(defaults: defaults)
+        pushToken = ""
         registered = false
         statusMessage = "Not registered"
     }
@@ -70,6 +92,7 @@ final class SettingsStore: ObservableObject {
         static let registered = "registered"
         static let alarmSoundName = "alarmSoundName"
         static let alarmSoundMode = "alarmSoundMode"
+        static let pushToken = "apnsDeviceToken"
     }
 }
 

@@ -10,6 +10,17 @@ pub struct Config {
     pub admin_token: String,
     pub device_token: String,
     pub google_allowed_client_ids: Vec<String>,
+    pub apns: Option<ApnsConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ApnsConfig {
+    pub team_id: String,
+    pub key_id: String,
+    pub private_key_path: Option<String>,
+    pub private_key_pem: Option<String>,
+    pub topic: String,
+    pub endpoint: String,
 }
 
 impl Config {
@@ -25,6 +36,7 @@ impl Config {
         let device_token =
             env::var("ANTIROT_DEVICE_TOKEN").context("ANTIROT_DEVICE_TOKEN is required")?;
         let google_allowed_client_ids = google_allowed_client_ids();
+        let apns = apns_config();
 
         Ok(Self {
             bind,
@@ -32,8 +44,39 @@ impl Config {
             admin_token,
             device_token,
             google_allowed_client_ids,
+            apns,
         })
     }
+}
+
+fn apns_config() -> Option<ApnsConfig> {
+    let team_id = env::var("ANTIROT_APNS_TEAM_ID").ok()?;
+    let key_id = env::var("ANTIROT_APNS_KEY_ID").ok()?;
+    let private_key_path = env::var("ANTIROT_APNS_PRIVATE_KEY_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let private_key_pem = env::var("ANTIROT_APNS_PRIVATE_KEY_PEM")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let topic =
+        env::var("ANTIROT_APNS_TOPIC").unwrap_or_else(|_| "com.mehulhere.Antirot".to_string());
+    let environment = env::var("ANTIROT_APNS_ENV")
+        .unwrap_or_else(|_| "sandbox".to_string())
+        .to_ascii_lowercase();
+    let endpoint = match environment.as_str() {
+        "production" | "prod" => "https://api.push.apple.com",
+        _ => "https://api.sandbox.push.apple.com",
+    }
+    .to_string();
+
+    Some(ApnsConfig {
+        team_id,
+        key_id,
+        private_key_path,
+        private_key_pem,
+        topic,
+        endpoint,
+    })
 }
 
 fn google_allowed_client_ids() -> Vec<String> {

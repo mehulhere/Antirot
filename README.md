@@ -94,6 +94,8 @@ GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleus
 
 Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.
 
+For iOS remote alarm delivery, the VPS does not schedule AlarmKit directly. It queues the alarm, sends an APNs background wake when configured, and the iOS app fetches the pending alarm and schedules AlarmKit locally.
+
 To pair a signed-in phone with the VPS/plugin workspace:
 
 ```bash

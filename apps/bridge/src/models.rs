@@ -31,6 +31,8 @@ pub struct GoogleAuthRequest {
     pub app_version: Option<String>,
     pub notification_capability: Option<String>,
     pub usage_capability: Option<String>,
+    pub push_provider: Option<String>,
+    pub push_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

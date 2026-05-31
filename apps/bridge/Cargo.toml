@@ -11,6 +11,7 @@ chrono = { version = "0.4", features = ["serde"] }
 deadpool-postgres = "0.14"
 dotenvy = "0.15"
 hex = "0.4"
+jsonwebtoken = "10.2"
 rand = "0.9"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
