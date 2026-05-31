@@ -24,5 +24,7 @@
 - Trigger an iOS bridge registration failure and verify `Show full error` reveals the complete stored error detail while the main status remains concise.
 - In iOS and Android Developer Settings, press `Reset bridge session` and verify it clears the token, rotates the device ID, resets registration, and lets a fresh token register again.
 - Press `Reset local login` on iOS and Android and verify it clears stale bridge auth, rotates the device ID, and opens `https://antirot.org`.
-- Press `Reset local login` on iOS and Android and verify it opens `https://antirot.org/login.html`, not the generic homepage.
+- Press `Reset local login` on iOS and Android and verify it clears local auth without opening a website.
 - Reload the homepage and verify the Rotters Challenged badge starts at 0, counts up quickly, and eases into the exact fetched visitor count.
+- Install the iOS IPA, tap `Continue with Google`, verify the native Google sheet appears without opening `login.html`, and confirm the bridge returns/stores an Antirot device token.
+- Open the iOS app Bridge/sign-in section and verify the Antirot favicon appears above the Google login button.

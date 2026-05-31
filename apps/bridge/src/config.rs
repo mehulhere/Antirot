@@ -9,6 +9,7 @@ pub struct Config {
     pub database_url: String,
     pub admin_token: String,
     pub device_token: String,
+    pub google_allowed_client_ids: Vec<String>,
 }
 
 impl Config {
@@ -23,12 +24,36 @@ impl Config {
             env::var("ANTIROT_ADMIN_TOKEN").context("ANTIROT_ADMIN_TOKEN is required")?;
         let device_token =
             env::var("ANTIROT_DEVICE_TOKEN").context("ANTIROT_DEVICE_TOKEN is required")?;
+        let google_allowed_client_ids = google_allowed_client_ids();
 
         Ok(Self {
             bind,
             database_url,
             admin_token,
             device_token,
+            google_allowed_client_ids,
         })
     }
+}
+
+fn google_allowed_client_ids() -> Vec<String> {
+    let mut values = Vec::new();
+    for key in [
+        "GOOGLE_ALLOWED_CLIENT_IDS",
+        "GOOGLE_IOS_CLIENT_ID",
+        "GOOGLE_ANDROID_CLIENT_ID",
+        "GOOGLE_WEB_CLIENT_ID",
+    ] {
+        if let Ok(raw) = env::var(key) {
+            values.extend(
+                raw.split(',')
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(ToOwned::to_owned),
+            );
+        }
+    }
+    values.sort();
+    values.dedup();
+    values
 }

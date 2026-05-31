@@ -24,6 +24,28 @@ pub struct DeviceRegistrationResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GoogleAuthRequest {
+    pub id_token: String,
+    pub device_id: String,
+    pub platform: String,
+    pub app_version: Option<String>,
+    pub notification_capability: Option<String>,
+    pub usage_capability: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoogleAuthResponse {
+    pub ok: bool,
+    pub device_id: String,
+    pub device_token: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAlarmRequest {
     pub id: Option<String>,
     pub device_id: String,

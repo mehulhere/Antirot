@@ -89,6 +89,7 @@ DATABASE_URL=postgres://antirot_bridge:secret@localhost/antirot_bridge
 ANTIROT_ADMIN_TOKEN=long-random-token-used-by-openclaw
 ANTIROT_DEVICE_TOKEN=long-random-token-used-by-mobile-apps
 ANTIROT_BRIDGE_BIND=127.0.0.1:8787
+GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
 ```
 
 Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.

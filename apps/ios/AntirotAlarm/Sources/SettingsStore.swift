@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 final class SettingsStore: ObservableObject {
     static let defaultServerURL = "https://api.antirot.org"
-    static let authPageURL = "https://antirot.org/login.html"
 
     @Published var serverURL: String {
         didSet { defaults.set(serverURL, forKey: Keys.serverURL) }

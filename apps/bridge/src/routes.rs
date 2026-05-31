@@ -7,12 +7,14 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use tokio_postgres::Row;
 use tracing::{info, warn};
+use uuid::Uuid;
 
-use crate::auth::{require_auth, AuthScope};
+use crate::auth::{require_admin_auth, require_device_auth, token_hash};
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, CreateAlarmRequest, CreateAlarmResponse,
-    DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, HealthResponse,
+    DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
+    GoogleAuthResponse, HealthResponse,
 };
 use crate::AppState;
 
@@ -26,12 +28,14 @@ struct PendingQuery {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
+        .route("/auth/google", post(auth_google))
         .route("/devices/register", post(register_device))
         .route("/alarms", post(create_alarm))
         .route("/alarms/pending", get(pending_alarms))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/visits", get(get_and_increment_visits))
         .route("/v1/health", get(health))
+        .route("/v1/auth/google", post(auth_google))
         .route("/v1/devices/register", post(register_device))
         .route("/v1/alarms", post(create_alarm))
         .route("/v1/alarms/pending", get(pending_alarms))
@@ -46,12 +50,139 @@ async fn health() -> Json<HealthResponse> {
     })
 }
 
+async fn auth_google(
+    State(state): State<AppState>,
+    Json(request): Json<GoogleAuthRequest>,
+) -> AppResult<Json<GoogleAuthResponse>> {
+    validate_non_empty("idToken", &request.id_token)?;
+    validate_non_empty("deviceId", &request.device_id)?;
+    validate_non_empty("platform", &request.platform)?;
+
+    if state.config.google_allowed_client_ids.is_empty() {
+        return Err(AppError::BadRequest(
+            "Google OAuth is not configured on this bridge".to_string(),
+        ));
+    }
+
+    let profile =
+        verify_google_id_token(&request.id_token, &state.config.google_allowed_client_ids).await?;
+    let client = state.pool.get().await?;
+    let fallback_user_id = Uuid::new_v4().to_string();
+    let existing_user = client
+        .query_opt(
+            "
+            SELECT user_id
+            FROM auth_identities
+            WHERE provider = 'google' AND provider_subject = $1
+            ",
+            &[&profile.sub],
+        )
+        .await?;
+    let preferred_user_id = existing_user
+        .map(|row| row.get::<_, String>("user_id"))
+        .unwrap_or(fallback_user_id);
+
+    let row = client
+        .query_one(
+            "
+            INSERT INTO users (id, email, display_name, avatar_url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (email) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                avatar_url = EXCLUDED.avatar_url,
+                updated_at = now()
+            RETURNING id
+            ",
+            &[
+                &preferred_user_id,
+                &profile.email,
+                &profile.name,
+                &profile.picture,
+            ],
+        )
+        .await?;
+    let user_id: String = row.get("id");
+
+    client
+        .execute(
+            "
+            INSERT INTO auth_identities (provider, provider_subject, user_id, email)
+            VALUES ('google', $1, $2, $3)
+            ON CONFLICT (provider, provider_subject) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                email = EXCLUDED.email,
+                updated_at = now()
+            ",
+            &[&profile.sub, &user_id, &profile.email],
+        )
+        .await?;
+
+    let device_token = format!("antirot_{}", Uuid::new_v4().simple());
+    let api_token_hash = token_hash(&device_token);
+    let app_version = request.app_version.unwrap_or_else(|| "unknown".to_string());
+    let notification_capability = request
+        .notification_capability
+        .unwrap_or_else(|| "unknown".to_string());
+    let usage_capability = request
+        .usage_capability
+        .unwrap_or_else(|| "unknown".to_string());
+
+    client
+        .execute(
+            "
+            INSERT INTO devices (
+                device_id,
+                user_id,
+                api_token_hash,
+                platform,
+                app_version,
+                notification_capability,
+                usage_capability
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (device_id) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                api_token_hash = EXCLUDED.api_token_hash,
+                platform = EXCLUDED.platform,
+                app_version = EXCLUDED.app_version,
+                notification_capability = EXCLUDED.notification_capability,
+                usage_capability = EXCLUDED.usage_capability,
+                updated_at = now()
+            ",
+            &[
+                &request.device_id,
+                &user_id,
+                &api_token_hash,
+                &request.platform,
+                &app_version,
+                &notification_capability,
+                &usage_capability,
+            ],
+        )
+        .await?;
+
+    info!(
+        device_id = %request.device_id,
+        email = %profile.email,
+        "registered Google-authenticated device"
+    );
+
+    Ok(Json(GoogleAuthResponse {
+        ok: true,
+        device_id: request.device_id,
+        device_token,
+        email: profile.email,
+        name: profile.name,
+        message: "Signed in with Google".to_string(),
+    }))
+}
+
 async fn register_device(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(request): Json<DeviceRegistrationRequest>,
 ) -> AppResult<Json<DeviceRegistrationResponse>> {
-    require_auth(&headers, &state.config, AuthScope::Device)?;
+    require_device_auth(&headers, &state.config, &state.pool).await?;
     validate_non_empty("deviceId", &request.device_id)?;
     validate_non_empty("platform", &request.platform)?;
 
@@ -103,7 +234,7 @@ async fn create_alarm(
     headers: HeaderMap,
     Json(request): Json<CreateAlarmRequest>,
 ) -> AppResult<Json<CreateAlarmResponse>> {
-    require_auth(&headers, &state.config, AuthScope::Admin)?;
+    require_admin_auth(&headers, &state.config)?;
     validate_non_empty("deviceId", &request.device_id)?;
     validate_non_empty("title", &request.title)?;
 
@@ -193,7 +324,7 @@ async fn pending_alarms(
     headers: HeaderMap,
     Query(query): Query<PendingQuery>,
 ) -> AppResult<Json<Vec<AlarmJob>>> {
-    require_auth(&headers, &state.config, AuthScope::Device)?;
+    require_device_auth(&headers, &state.config, &state.pool).await?;
     validate_non_empty("deviceId", &query.device_id)?;
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let mut client = state.pool.get().await?;
@@ -248,7 +379,7 @@ async fn record_alarm_action(
     Path((alarm_id, path_action)): Path<(String, String)>,
     Json(request): Json<AlarmActionRequest>,
 ) -> AppResult<Json<AlarmActionResponse>> {
-    require_auth(&headers, &state.config, AuthScope::Device)?;
+    require_device_auth(&headers, &state.config, &state.pool).await?;
     validate_non_empty("deviceId", &request.device_id)?;
     validate_non_empty("alarmId", &alarm_id)?;
 
@@ -374,6 +505,89 @@ fn normalize_action(path_action: &str, body_action: &str) -> AppResult<String> {
             "path action {path_action} does not match body action {body_action}"
         )))
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct GoogleTokenInfo {
+    sub: String,
+    aud: String,
+    email: Option<String>,
+    email_verified: Option<serde_json::Value>,
+    name: Option<String>,
+    picture: Option<String>,
+}
+
+#[derive(Debug)]
+struct GoogleProfile {
+    sub: String,
+    email: String,
+    name: Option<String>,
+    picture: Option<String>,
+}
+
+async fn verify_google_id_token(
+    id_token: &str,
+    allowed_client_ids: &[String],
+) -> AppResult<GoogleProfile> {
+    let response = reqwest::Client::new()
+        .get("https://oauth2.googleapis.com/tokeninfo")
+        .query(&[("id_token", id_token)])
+        .send()
+        .await
+        .map_err(|error| {
+            AppError::BadRequest(format!("Google token verification failed: {error}"))
+        })?;
+
+    if !response.status().is_success() {
+        return Err(AppError::Unauthorized);
+    }
+
+    let token_info = response.json::<GoogleTokenInfo>().await.map_err(|error| {
+        AppError::BadRequest(format!("Google token response was invalid: {error}"))
+    })?;
+
+    if !allowed_client_ids
+        .iter()
+        .any(|client_id| constant_time_string_eq(client_id, &token_info.aud))
+    {
+        return Err(AppError::Unauthorized);
+    }
+
+    if !google_email_verified(token_info.email_verified.as_ref()) {
+        return Err(AppError::Unauthorized);
+    }
+
+    let email = token_info.email.ok_or_else(|| {
+        AppError::BadRequest("Google account did not include an email address".to_string())
+    })?;
+
+    Ok(GoogleProfile {
+        sub: token_info.sub,
+        email,
+        name: token_info.name,
+        picture: token_info.picture,
+    })
+}
+
+fn google_email_verified(value: Option<&serde_json::Value>) -> bool {
+    match value {
+        Some(serde_json::Value::Bool(verified)) => *verified,
+        Some(serde_json::Value::String(verified)) => verified == "true",
+        _ => false,
+    }
+}
+
+fn constant_time_string_eq(left: &str, right: &str) -> bool {
+    let left = left.as_bytes();
+    let right = right.as_bytes();
+    let max_len = left.len().max(right.len());
+    let mut diff = left.len() ^ right.len();
+    for index in 0..max_len {
+        let a = *left.get(index).unwrap_or(&0);
+        let b = *right.get(index).unwrap_or(&0);
+        diff |= (a ^ b) as usize;
+    }
+    diff == 0
 }
 
 #[derive(Debug, Deserialize)]

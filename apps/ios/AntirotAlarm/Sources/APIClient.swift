@@ -30,6 +30,16 @@ struct APIClient {
         )
     }
 
+    func signInWithGoogle(_ request: GoogleAuthRequest) async throws -> GoogleAuthResponse {
+        try await send(
+            path: "/v1/auth/google",
+            method: "POST",
+            body: request,
+            response: GoogleAuthResponse.self,
+            includeAuth: false
+        )
+    }
+
     func fetchPendingAlarms(deviceId: String) async throws -> [AlarmJob] {
         let baseURL = effectiveBaseURL()
         var components = URLComponents(url: baseURL.appendingPathComponent("/alarms/pending"), resolvingAgainstBaseURL: false)
@@ -63,13 +73,16 @@ struct APIClient {
         path: String,
         method: String,
         body: RequestBody,
-        response: ResponseBody.Type
+        response: ResponseBody.Type,
+        includeAuth: Bool = true
     ) async throws -> ResponseBody {
         let baseURL = effectiveBaseURL()
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        addAuth(to: &request)
+        if includeAuth {
+            addAuth(to: &request)
+        }
         request.httpBody = try JSONEncoder.antirot.encode(body)
         let (data, urlResponse) = try await URLSession.shared.data(for: request)
         let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500

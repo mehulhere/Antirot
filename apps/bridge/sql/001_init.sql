@@ -1,5 +1,7 @@
 CREATE TABLE IF NOT EXISTS devices (
     device_id TEXT PRIMARY KEY,
+    user_id TEXT,
+    api_token_hash TEXT UNIQUE,
     platform TEXT NOT NULL,
     app_version TEXT NOT NULL,
     notification_capability TEXT NOT NULL,
@@ -9,6 +11,38 @@ CREATE TABLE IF NOT EXISTS devices (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS auth_identities (
+    provider TEXT NOT NULL,
+    provider_subject TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (provider, provider_subject)
+);
+
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS user_id TEXT;
+
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS api_token_hash TEXT;
+
+CREATE INDEX IF NOT EXISTS devices_user_id_idx
+    ON devices (user_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS devices_api_token_hash_idx
+    ON devices (api_token_hash)
+    WHERE api_token_hash IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS alarms (
     id TEXT PRIMARY KEY,
@@ -55,4 +89,3 @@ CREATE TABLE IF NOT EXISTS page_views (
 INSERT INTO page_views (id, count)
 VALUES ('homepage', 0)
 ON CONFLICT (id) DO NOTHING;
-

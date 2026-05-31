@@ -1,28 +1,50 @@
 use axum::http::HeaderMap;
+use deadpool_postgres::Pool;
+use sha2::{Digest, Sha256};
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 
-#[derive(Clone, Copy)]
-pub enum AuthScope {
-    Admin,
-    Device,
-}
-
-pub fn require_auth(headers: &HeaderMap, config: &Config, scope: AuthScope) -> AppResult<()> {
+pub fn require_admin_auth(headers: &HeaderMap, config: &Config) -> AppResult<()> {
     let token = bearer_token(headers).ok_or(AppError::Unauthorized)?;
-    let allowed = match scope {
-        AuthScope::Admin => constant_time_eq(token, &config.admin_token),
-        AuthScope::Device => {
-            constant_time_eq(token, &config.device_token)
-                || constant_time_eq(token, &config.admin_token)
-        }
-    };
-    if allowed {
+    if constant_time_eq(token, &config.admin_token) {
         Ok(())
     } else {
         Err(AppError::Unauthorized)
     }
+}
+
+pub async fn require_device_auth(
+    headers: &HeaderMap,
+    config: &Config,
+    pool: &Pool,
+) -> AppResult<()> {
+    let token = bearer_token(headers).ok_or(AppError::Unauthorized)?;
+    if constant_time_eq(token, &config.device_token) || constant_time_eq(token, &config.admin_token)
+    {
+        return Ok(());
+    }
+
+    let client = pool.get().await?;
+    let token_hash = token_hash(token);
+    let exists = client
+        .query_opt(
+            "SELECT 1 FROM devices WHERE api_token_hash = $1",
+            &[&token_hash],
+        )
+        .await?
+        .is_some();
+    if exists {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
+pub fn token_hash(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hex::encode(hasher.finalize())
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {

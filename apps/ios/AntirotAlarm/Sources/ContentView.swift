@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @State private var screenTimeMessage = "Not requested"
@@ -14,14 +13,31 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section("Bridge") {
+                    HStack(spacing: 12) {
+                        Image("favicon")
+                            .resizable()
+                            .frame(width: 36, height: 36)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Antirot")
+                                .font(.headline)
+                            Text("Sign in to link this phone to your coach.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     LabeledContent("Server", value: URL(string: settings.effectiveServerURL)?.host() ?? "api.antirot.org")
                     LabeledContent("Device ID", value: settings.deviceId)
                     LabeledContent("Status", value: settings.statusMessage)
+                    Button("Continue with Google") {
+                        Task { await signInWithGoogle() }
+                    }
                     Button("Register device") {
                         Task { await alarmCenter.registerDevice() }
                     }
                     Button("Reset local login", role: .destructive) {
-                        resetBridgeSessionAndOpenAuthPage(message: "Local bridge login reset. Opened Antirot login/home page.")
+                        resetBridgeSession(message: "Local bridge login reset. Sign in again when you're ready.")
                     }
                     if alarmCenter.lastErrorDetails != nil {
                         Button("Show full error") {
@@ -142,7 +158,7 @@ struct ContentView: View {
                             alarmCenter.lastMessage = "Bridge server reset to api.antirot.org"
                         }
                         Button("Reset bridge session", role: .destructive) {
-                            resetBridgeSessionAndOpenAuthPage(message: "Bridge session reset. Opened Antirot login/home page.")
+                            resetBridgeSession(message: "Bridge session reset. Sign in again when you're ready.")
                         }
                         Text("Paste the device token from /etc/antirot/bridge.env. Do not commit or share that token.")
                             .font(.footnote)
@@ -187,13 +203,23 @@ struct ContentView: View {
         }
     }
 
-    private func resetBridgeSessionAndOpenAuthPage(message: String) {
+    private func signInWithGoogle() async {
+        do {
+            let response = try await GoogleAuthCenter.signIn(settings: settings)
+            alarmCenter.lastMessage = "Signed in as \(response.email)"
+            alarmCenter.lastErrorDetails = nil
+            await alarmCenter.registerDevice()
+        } catch {
+            settings.statusMessage = "Google sign-in failed"
+            alarmCenter.lastMessage = "Google sign-in failed"
+            alarmCenter.lastErrorDetails = error.localizedDescription
+        }
+    }
+
+    private func resetBridgeSession(message: String) {
         settings.resetBridgeSession()
         alarmCenter.lastMessage = message
         alarmCenter.lastErrorDetails = nil
-        if let url = URL(string: SettingsStore.authPageURL) {
-            openURL(url)
-        }
     }
 }
 

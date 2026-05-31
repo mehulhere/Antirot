@@ -15,6 +15,9 @@ struct AntirotApp: App {
                 .task {
                     await alarmCenter.configure(settings: settings)
                 }
+                .onOpenURL { url in
+                    _ = GoogleAuthCenter.handle(url: url)
+                }
         }
     }
 }

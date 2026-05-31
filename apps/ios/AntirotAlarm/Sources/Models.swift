@@ -55,6 +55,24 @@ struct DeviceRegistrationResponse: Codable {
     var message: String?
 }
 
+struct GoogleAuthRequest: Codable {
+    var idToken: String
+    var deviceId: String
+    var platform: String
+    var appVersion: String
+    var notificationCapability: String
+    var usageCapability: String
+}
+
+struct GoogleAuthResponse: Codable {
+    var ok: Bool
+    var deviceId: String
+    var deviceToken: String
+    var email: String
+    var name: String?
+    var message: String
+}
+
 struct AlarmActionRequest: Codable {
     var deviceId: String
     var action: String

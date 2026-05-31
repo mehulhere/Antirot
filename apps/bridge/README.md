@@ -18,10 +18,12 @@ ANTIROT_BRIDGE_BIND=127.0.0.1:8787
 DATABASE_URL=postgres://antirot_bridge:change-me@localhost/antirot_bridge
 ANTIROT_ADMIN_TOKEN=change-me-admin-token
 ANTIROT_DEVICE_TOKEN=change-me-device-token
+GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
 RUST_LOG=antirot_bridge=info,tower_http=info
 ```
 
 Use `ANTIROT_ADMIN_TOKEN` from the OpenClaw plugin or future backend when creating alarms. Use `ANTIROT_DEVICE_TOKEN` in the iOS/Android app while the app still has a single API-token field.
+Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`; the bridge verifies the Google ID token and returns a per-device Antirot token.
 
 ## Endpoints
 
@@ -116,6 +118,7 @@ ANTIROT_BRIDGE_BIND=127.0.0.1:8787
 DATABASE_URL=postgres://antirot_bridge:CHANGE_DB_PASSWORD@localhost/antirot_bridge
 ANTIROT_ADMIN_TOKEN=CHANGE_LONG_ADMIN_TOKEN
 ANTIROT_DEVICE_TOKEN=CHANGE_LONG_DEVICE_TOKEN
+GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
 RUST_LOG=antirot_bridge=info,tower_http=info
 ```
 
