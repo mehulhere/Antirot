@@ -94,6 +94,15 @@ GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleus
 
 Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.
 
+To pair a signed-in phone with the VPS/plugin workspace:
+
+```bash
+set -a
+. /etc/antirot/bridge.env
+set +a
+/opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
+```
+
 For VPS deployment, `git push production main`, systemd, and Nginx setup, see `apps/bridge/README.md`.
 
 ## License

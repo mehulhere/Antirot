@@ -40,6 +40,15 @@ struct APIClient {
         )
     }
 
+    func claimPairing(_ request: PairingClaimRequest) async throws -> PairingClaimResponse {
+        try await send(
+            path: "/v1/pairing/claim",
+            method: "POST",
+            body: request,
+            response: PairingClaimResponse.self
+        )
+    }
+
     func fetchPendingAlarms(deviceId: String) async throws -> [AlarmJob] {
         let baseURL = effectiveBaseURL()
         var components = URLComponents(url: baseURL.appendingPathComponent("/alarms/pending"), resolvingAgainstBaseURL: false)

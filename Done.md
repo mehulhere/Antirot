@@ -29,3 +29,4 @@
 - Install the iOS IPA, tap `Continue with Google`, verify the native Google sheet appears without opening `login.html`, and confirm the bridge returns/stores an Antirot device token.
 - Open the iOS app Bridge/sign-in section and verify the Antirot favicon appears above the Google login button.
 - Verify the iOS app shows `Continue with Google` only on the logged-out signup screen, hides device/server/permission controls under bottom settings, and shows `Logout` at the bottom only after sign-in.
+- Run `antirot-bridge pair --workspace main --timeout 60`, enter the 6-digit code in the signed-in iOS app, and verify the command prints the paired device while Postgres stores the device/workspace mapping.

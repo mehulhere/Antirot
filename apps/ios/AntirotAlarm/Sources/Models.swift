@@ -73,6 +73,20 @@ struct GoogleAuthResponse: Codable {
     var message: String
 }
 
+struct PairingClaimRequest: Codable {
+    var code: String
+    var deviceId: String
+    var deviceName: String
+    var platform: String
+}
+
+struct PairingClaimResponse: Codable {
+    var ok: Bool
+    var workspaceId: String
+    var deviceId: String
+    var message: String
+}
+
 struct AlarmActionRequest: Codable {
     var deviceId: String
     var action: String

@@ -41,6 +41,34 @@ pub async fn require_device_auth(
     }
 }
 
+pub async fn require_device_auth_for(
+    headers: &HeaderMap,
+    config: &Config,
+    pool: &Pool,
+    device_id: &str,
+) -> AppResult<()> {
+    let token = bearer_token(headers).ok_or(AppError::Unauthorized)?;
+    if constant_time_eq(token, &config.device_token) || constant_time_eq(token, &config.admin_token)
+    {
+        return Ok(());
+    }
+
+    let client = pool.get().await?;
+    let token_hash = token_hash(token);
+    let matches = client
+        .query_opt(
+            "SELECT 1 FROM devices WHERE api_token_hash = $1 AND device_id = $2",
+            &[&token_hash, &device_id],
+        )
+        .await?
+        .is_some();
+    if matches {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
 pub fn token_hash(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());

@@ -30,6 +30,7 @@ dependencies = [
  "deadpool-postgres",
  "dotenvy",
  "hex",
+ "rand 0.9.4",
  "reqwest",
  "serde",
  "serde_json",

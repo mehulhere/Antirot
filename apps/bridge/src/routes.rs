@@ -9,12 +9,12 @@ use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::auth::{require_admin_auth, require_device_auth, token_hash};
+use crate::auth::{require_admin_auth, require_device_auth, require_device_auth_for, token_hash};
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, CreateAlarmRequest, CreateAlarmResponse,
     DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
-    GoogleAuthResponse, HealthResponse,
+    GoogleAuthResponse, HealthResponse, PairingClaimRequest, PairingClaimResponse,
 };
 use crate::AppState;
 
@@ -29,6 +29,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
         .route("/auth/google", post(auth_google))
+        .route("/pairing/claim", post(claim_pairing))
         .route("/devices/register", post(register_device))
         .route("/alarms", post(create_alarm))
         .route("/alarms/pending", get(pending_alarms))
@@ -36,6 +37,7 @@ pub fn router() -> Router<AppState> {
         .route("/visits", get(get_and_increment_visits))
         .route("/v1/health", get(health))
         .route("/v1/auth/google", post(auth_google))
+        .route("/v1/pairing/claim", post(claim_pairing))
         .route("/v1/devices/register", post(register_device))
         .route("/v1/alarms", post(create_alarm))
         .route("/v1/alarms/pending", get(pending_alarms))
@@ -226,6 +228,102 @@ async fn register_device(
         ok: true,
         device_id: request.device_id,
         message: Some("Registered device".to_string()),
+    }))
+}
+
+async fn claim_pairing(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<PairingClaimRequest>,
+) -> AppResult<Json<PairingClaimResponse>> {
+    validate_pairing_code(&request.code)?;
+    validate_non_empty("deviceId", &request.device_id)?;
+    require_device_auth_for(&headers, &state.config, &state.pool, &request.device_id).await?;
+
+    let code_hash = token_hash(&normalize_pairing_code(&request.code));
+    let mut client = state.pool.get().await?;
+    let transaction = client.transaction().await?;
+    let session = transaction
+        .query_opt(
+            "
+            SELECT id, workspace_id
+            FROM pairing_sessions
+            WHERE code_hash = $1
+              AND used_at IS NULL
+              AND expires_at > now()
+              AND attempt_count < 5
+            FOR UPDATE
+            ",
+            &[&code_hash],
+        )
+        .await?;
+
+    let Some(session) = session else {
+        return Err(AppError::BadRequest(
+            "Pairing code is invalid or expired".to_string(),
+        ));
+    };
+
+    let session_id: String = session.get("id");
+    let workspace_id: String = session.get("workspace_id");
+    let user_row = transaction
+        .query_opt(
+            "SELECT user_id FROM devices WHERE device_id = $1",
+            &[&request.device_id],
+        )
+        .await?;
+    let Some(user_row) = user_row else {
+        return Err(AppError::Unauthorized);
+    };
+    let user_id: Option<String> = user_row.get("user_id");
+    let Some(user_id) = user_id else {
+        return Err(AppError::Unauthorized);
+    };
+    let device_name = request
+        .device_name
+        .clone()
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| default_device_name(request.platform.as_deref()));
+
+    transaction
+        .execute(
+            "
+            UPDATE devices
+            SET workspace_id = $1,
+                device_name = $2,
+                paired_at = now(),
+                updated_at = now()
+            WHERE device_id = $3
+            ",
+            &[&workspace_id, &device_name, &request.device_id],
+        )
+        .await?;
+
+    transaction
+        .execute(
+            "
+            UPDATE pairing_sessions
+            SET used_at = now(),
+                claimed_device_id = $1,
+                claimed_user_id = $2,
+                device_name = $3
+            WHERE id = $4
+            ",
+            &[&request.device_id, &user_id, &device_name, &session_id],
+        )
+        .await?;
+
+    transaction.commit().await?;
+    info!(
+        device_id = %request.device_id,
+        workspace_id = %workspace_id,
+        "paired device with workspace"
+    );
+    Ok(Json(PairingClaimResponse {
+        ok: true,
+        workspace_id,
+        device_id: request.device_id,
+        message: "Device paired".to_string(),
     }))
 }
 
@@ -492,6 +590,31 @@ fn validate_non_empty(name: &str, value: &str) -> AppResult<()> {
         Err(AppError::BadRequest(format!("{name} is required")))
     } else {
         Ok(())
+    }
+}
+
+fn normalize_pairing_code(code: &str) -> String {
+    code.chars()
+        .filter(|character| character.is_ascii_digit())
+        .collect()
+}
+
+fn validate_pairing_code(code: &str) -> AppResult<()> {
+    let normalized = normalize_pairing_code(code);
+    if normalized.len() == 6 {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "pairing code must be 6 digits".to_string(),
+        ))
+    }
+}
+
+fn default_device_name(platform: Option<&str>) -> String {
+    match platform {
+        Some("ios") => "iPhone".to_string(),
+        Some("android") => "Android phone".to_string(),
+        _ => "Phone".to_string(),
     }
 }
 

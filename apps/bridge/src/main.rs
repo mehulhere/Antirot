@@ -3,7 +3,10 @@ mod config;
 mod db;
 mod error;
 mod models;
+mod pairing_cli;
 mod routes;
+
+use std::env;
 
 use anyhow::Result;
 use axum::Router;
@@ -32,6 +35,11 @@ async fn main() -> Result<()> {
         .init();
 
     let config = Config::from_env()?;
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|arg| arg == "pair") {
+        return pairing_cli::run_pair_command(config, &args[1..]).await;
+    }
+
     let pool = db::create_pool(&config.database_url).await?;
     db::migrate(&pool).await?;
 

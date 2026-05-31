@@ -19,6 +19,7 @@ DATABASE_URL=postgres://antirot_bridge:change-me@localhost/antirot_bridge
 ANTIROT_ADMIN_TOKEN=change-me-admin-token
 ANTIROT_DEVICE_TOKEN=change-me-device-token
 GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
+ANTIROT_WORKSPACE_ID=main
 RUST_LOG=antirot_bridge=info,tower_http=info
 ```
 
@@ -29,6 +30,8 @@ Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`;
 
 ```text
 GET  /health
+POST /v1/auth/google
+POST /v1/pairing/claim
 POST /devices/register
 POST /alarms
 GET  /alarms/pending?deviceId=...
@@ -36,6 +39,19 @@ POST /alarms/{alarmId}/{action}
 ```
 
 Each endpoint also exists under `/v1`.
+
+## Pair A Phone
+
+After the phone signs in with Google, create a short-lived pairing code on the VPS:
+
+```bash
+set -a
+. /etc/antirot/bridge.env
+set +a
+/opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
+```
+
+The command prints a 6-digit code, waits for the app to claim it, then prints the paired device. The app must enter the code within the timeout. Codes are one-time use, hashed in Postgres, and mapped to the workspace id.
 
 ## Create An Alarm
 

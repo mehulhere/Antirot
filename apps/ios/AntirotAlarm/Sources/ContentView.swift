@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -8,6 +9,7 @@ struct ContentView: View {
     @State private var isImportingSound = false
     @State private var showDeveloperSettings = false
     @State private var showFullError = false
+    @State private var pairingCode = ""
 
     var body: some View {
         NavigationStack {
@@ -109,6 +111,22 @@ struct ContentView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+        }
+
+        Section("Pair with coach") {
+            Text("Run the pairing command on your VPS, then enter the 6-digit code here.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            TextField("6-digit code", text: $pairingCode)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .onChange(of: pairingCode) { _, newValue in
+                    pairingCode = String(newValue.filter(\.isNumber).prefix(6))
+                }
+            Button("Pair device") {
+                Task { await pairDevice() }
+            }
+            .disabled(pairingCode.count != 6)
         }
 
         Section("Scheduled") {
@@ -262,8 +280,31 @@ struct ContentView: View {
 
     private func resetBridgeSession(message: String) {
         settings.resetBridgeSession()
+        pairingCode = ""
         alarmCenter.lastMessage = message
         alarmCenter.lastErrorDetails = nil
+    }
+
+    private func pairDevice() async {
+        do {
+            let request = PairingClaimRequest(
+                code: pairingCode,
+                deviceId: settings.deviceId,
+                deviceName: UIDevice.current.name,
+                platform: "ios"
+            )
+            let response = try await APIClient(
+                baseURL: settings.baseURL,
+                apiToken: settings.apiToken
+            ).claimPairing(request)
+            pairingCode = ""
+            settings.statusMessage = response.message
+            alarmCenter.lastMessage = "Paired with coach."
+            alarmCenter.lastErrorDetails = nil
+        } catch {
+            alarmCenter.lastMessage = "Pairing failed"
+            alarmCenter.lastErrorDetails = error.localizedDescription
+        }
     }
 }
 

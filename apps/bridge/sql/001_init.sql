@@ -37,12 +37,40 @@ ALTER TABLE devices
 ALTER TABLE devices
     ADD COLUMN IF NOT EXISTS api_token_hash TEXT;
 
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS workspace_id TEXT;
+
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS device_name TEXT;
+
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS paired_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS devices_user_id_idx
     ON devices (user_id);
+
+CREATE INDEX IF NOT EXISTS devices_workspace_id_idx
+    ON devices (workspace_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS devices_api_token_hash_idx
     ON devices (api_token_hash)
     WHERE api_token_hash IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS pairing_sessions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    code_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    claimed_device_id TEXT,
+    claimed_user_id TEXT,
+    device_name TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS pairing_sessions_workspace_created_idx
+    ON pairing_sessions (workspace_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS alarms (
     id TEXT PRIMARY KEY,

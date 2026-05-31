@@ -46,6 +46,24 @@ pub struct GoogleAuthResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PairingClaimRequest {
+    pub code: String,
+    pub device_id: String,
+    pub device_name: Option<String>,
+    pub platform: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingClaimResponse {
+    pub ok: bool,
+    pub workspace_id: String,
+    pub device_id: String,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAlarmRequest {
     pub id: Option<String>,
     pub device_id: String,
