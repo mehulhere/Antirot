@@ -112,7 +112,7 @@ set +a
 /opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
 ```
 
-For VPS deployment, `git push production main`, systemd, and Nginx setup, see `apps/bridge/README.md`.
+For VPS deployment, `git push production main`, systemd, Nginx setup, OpenClaw plugin config, iPhone pairing, and phone alarm escalation, see `setup_VPS.md` and `apps/bridge/README.md`.
 
 ## Testing
 
