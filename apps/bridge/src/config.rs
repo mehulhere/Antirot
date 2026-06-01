@@ -63,11 +63,7 @@ fn apns_config() -> Option<ApnsConfig> {
     let environment = env::var("ANTIROT_APNS_ENV")
         .unwrap_or_else(|_| "sandbox".to_string())
         .to_ascii_lowercase();
-    let endpoint = match environment.as_str() {
-        "production" | "prod" => "https://api.push.apple.com",
-        _ => "https://api.sandbox.push.apple.com",
-    }
-    .to_string();
+    let endpoint = apns_endpoint_for_environment(&environment).to_string();
 
     Some(ApnsConfig {
         team_id,
@@ -77,6 +73,13 @@ fn apns_config() -> Option<ApnsConfig> {
         topic,
         endpoint,
     })
+}
+
+fn apns_endpoint_for_environment(environment: &str) -> &'static str {
+    match environment {
+        "production" | "prod" => "https://api.push.apple.com",
+        _ => "https://api.sandbox.push.apple.com",
+    }
 }
 
 fn google_allowed_client_ids() -> Vec<String> {
@@ -99,4 +102,37 @@ fn google_allowed_client_ids() -> Vec<String> {
     values.sort();
     values.dedup();
     values
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apns_endpoint_for_environment;
+
+    #[test]
+    fn apns_endpoint_uses_sandbox_by_default_for_unknown_values() {
+        assert_eq!(
+            apns_endpoint_for_environment("sandbox"),
+            "https://api.sandbox.push.apple.com"
+        );
+        assert_eq!(
+            apns_endpoint_for_environment("development"),
+            "https://api.sandbox.push.apple.com"
+        );
+        assert_eq!(
+            apns_endpoint_for_environment(""),
+            "https://api.sandbox.push.apple.com"
+        );
+    }
+
+    #[test]
+    fn apns_endpoint_accepts_production_aliases() {
+        assert_eq!(
+            apns_endpoint_for_environment("production"),
+            "https://api.push.apple.com"
+        );
+        assert_eq!(
+            apns_endpoint_for_environment("prod"),
+            "https://api.push.apple.com"
+        );
+    }
 }

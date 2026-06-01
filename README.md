@@ -114,6 +114,15 @@ set +a
 
 For VPS deployment, `git push production main`, systemd, and Nginx setup, see `apps/bridge/README.md`.
 
+## Testing
+
+Recent alarm escalation and bridge delivery behavior can be validated with:
+
+```bash
+npm run test:recent
+cargo test --manifest-path apps/bridge/Cargo.toml
+```
+
 ## License
 
 Antirot is dual licensed:
