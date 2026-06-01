@@ -123,6 +123,14 @@ npm run test:recent
 cargo test --manifest-path apps/bridge/Cargo.toml
 ```
 
+To validate a real OpenClaw agent turn with one persistent chat history and real model provider API keys:
+
+```bash
+ANTIROT_RUN_REAL_AGENT_TESTS=1 npm run test:agent-real
+```
+
+This test uses `openclaw agent --local --session-id ...` for three turns in the same session, reads provider API keys from your shell, starts a local mock bridge, asks the agent to call `startAlarm`, verifies a bridge alarm was queued, verifies the `alarm_escalation` trigger survives a user reply, then asks the agent to clear it. It skips unless `ANTIROT_RUN_REAL_AGENT_TESTS=1` is set.
+
 ## License
 
 Antirot is dual licensed:

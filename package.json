@@ -26,7 +26,8 @@
         "build": "tsc -p tsconfig.json",
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
-        "test:recent": "npm run build && node scripts/test-recent-alarm-flow.mjs"
+        "test:recent": "npm run build && node scripts/test-recent-alarm-flow.mjs",
+        "test:agent-real": "npm run build && node scripts/test-real-agent-chat.mjs"
     },
     "openclaw": {
         "extensions": [
