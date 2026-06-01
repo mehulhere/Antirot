@@ -14,7 +14,8 @@ use crate::error::{AppError, AppResult};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, CreateAlarmRequest, CreateAlarmResponse,
     DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
-    GoogleAuthResponse, HealthResponse, PairingClaimRequest, PairingClaimResponse,
+    GoogleAuthResponse, HealthResponse, PairingClaimRequest, PairingClaimResponse, WorkspaceDevice,
+    WorkspaceDevicesResponse,
 };
 use crate::AppState;
 
@@ -31,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/google", post(auth_google))
         .route("/pairing/claim", post(claim_pairing))
         .route("/devices/register", post(register_device))
+        .route("/workspaces/{workspace_id}/devices", get(workspace_devices))
         .route("/alarms", post(create_alarm))
         .route("/alarms/pending", get(pending_alarms))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
@@ -39,6 +41,10 @@ pub fn router() -> Router<AppState> {
         .route("/v1/auth/google", post(auth_google))
         .route("/v1/pairing/claim", post(claim_pairing))
         .route("/v1/devices/register", post(register_device))
+        .route(
+            "/v1/workspaces/{workspace_id}/devices",
+            get(workspace_devices),
+        )
         .route("/v1/alarms", post(create_alarm))
         .route("/v1/alarms/pending", get(pending_alarms))
         .route("/v1/alarms/{alarm_id}/{action}", post(record_alarm_action))
@@ -234,6 +240,44 @@ async fn register_device(
         ok: true,
         device_id: request.device_id,
         message: Some("Registered device".to_string()),
+    }))
+}
+
+async fn workspace_devices(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(workspace_id): Path<String>,
+) -> AppResult<Json<WorkspaceDevicesResponse>> {
+    require_admin_auth(&headers, &state.config)?;
+    validate_non_empty("workspaceId", &workspace_id)?;
+
+    let client = state.pool.get().await?;
+    let rows = client
+        .query(
+            "
+            SELECT device_id, device_name, platform, notification_capability, paired_at
+            FROM devices
+            WHERE workspace_id = $1
+            ORDER BY paired_at DESC NULLS LAST, updated_at DESC
+            LIMIT 20
+            ",
+            &[&workspace_id],
+        )
+        .await?;
+
+    Ok(Json(WorkspaceDevicesResponse {
+        ok: true,
+        workspace_id,
+        devices: rows
+            .iter()
+            .map(|row| WorkspaceDevice {
+                device_id: row.get("device_id"),
+                device_name: row.get("device_name"),
+                platform: row.get("platform"),
+                notification_capability: row.get("notification_capability"),
+                paired_at: row.get("paired_at"),
+            })
+            .collect(),
     }))
 }
 

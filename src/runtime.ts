@@ -180,3 +180,132 @@ export async function triggerNormalAlarmCommand(config: AntirotConfig): Promise<
         };
     }
 }
+
+export type BridgeAlarmSeverity = "normal" | "loud";
+
+export async function scheduleBridgeAlarm(params: {
+    config: AntirotConfig;
+    severity: BridgeAlarmSeverity;
+    title: string;
+    message: string;
+    fireDelayMins: number;
+}): Promise<CronResult & { deviceId?: string; alarmId?: string }> {
+    const bridgeUrl = normalizeBridgeUrl(params.config.bridgeUrl);
+    const adminToken = params.config.bridgeAdminToken?.trim() || process.env.ANTIROT_ADMIN_TOKEN?.trim();
+    if (!bridgeUrl || !adminToken) {
+        return {
+            ok: false,
+            message: "🔴 FALLBACK: phone alarm skipped - Reason: bridgeUrl/bridgeAdminToken is not configured - Impact: only chat/cron escalation can run"
+        };
+    }
+
+    const deviceResult = await resolveBridgeDeviceId({
+        bridgeUrl,
+        adminToken,
+        config: params.config
+    });
+    if (!deviceResult.ok || !deviceResult.deviceId) {
+        return deviceResult;
+    }
+
+    const alarmId = `antirot-${params.severity}-${Date.now()}`;
+    const fireAt = new Date(Date.now() + Math.max(1, Math.round(params.fireDelayMins)) * 60_000);
+    const expiresAt = new Date(fireAt.getTime() + 30 * 60_000);
+    try {
+        const response = await fetch(`${bridgeUrl}/v1/alarms`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${adminToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                id: alarmId,
+                deviceId: deviceResult.deviceId,
+                kind: params.severity === "loud" ? "non_response" : "routine_overdue",
+                severity: params.severity,
+                title: params.title,
+                message: params.message,
+                fireAt: fireAt.toISOString(),
+                hiddenBufferApplied: true,
+                requiresAcknowledgement: true,
+                expiresAt: expiresAt.toISOString()
+            })
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            return {
+                ok: false,
+                message: `🔴 FALLBACK: phone alarm queue failed - Reason: bridge returned HTTP ${response.status}: ${body.slice(0, 300)} - Impact: only chat/cron escalation can run`,
+                deviceId: deviceResult.deviceId,
+                alarmId
+            };
+        }
+        return {
+            ok: true,
+            message: `Phone ${params.severity} alarm queued through bridge.`,
+            deviceId: deviceResult.deviceId,
+            alarmId
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            message: `🔴 FALLBACK: phone alarm queue failed - Reason: ${error instanceof Error ? error.message : String(error)} - Impact: only chat/cron escalation can run`,
+            deviceId: deviceResult.deviceId,
+            alarmId
+        };
+    }
+}
+
+async function resolveBridgeDeviceId(params: {
+    bridgeUrl: string;
+    adminToken: string;
+    config: AntirotConfig;
+}): Promise<CronResult & { deviceId?: string }> {
+    const configuredDevice = params.config.bridgeDeviceId?.trim() || process.env.ANTIROT_BRIDGE_DEVICE_ID?.trim();
+    if (configuredDevice) {
+        return {
+            ok: true,
+            message: "Using configured bridge device id.",
+            deviceId: configuredDevice
+        };
+    }
+
+    const workspaceId = params.config.bridgeWorkspaceId?.trim() || process.env.ANTIROT_WORKSPACE_ID?.trim() || "main";
+    try {
+        const response = await fetch(`${params.bridgeUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/devices`, {
+            headers: {
+                "Authorization": `Bearer ${params.adminToken}`
+            }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            return {
+                ok: false,
+                message: `🔴 FALLBACK: phone device lookup failed - Reason: bridge returned HTTP ${response.status}: ${body.slice(0, 300)} - Impact: configure bridgeDeviceId or pair the app`
+            };
+        }
+        const parsed = JSON.parse(body) as { devices?: Array<{ deviceId?: string }> };
+        const deviceId = parsed.devices?.[0]?.deviceId;
+        if (!deviceId) {
+            return {
+                ok: false,
+                message: `🔴 FALLBACK: phone device lookup failed - Reason: no paired devices found for workspace ${workspaceId} - Impact: run bridge pairing or configure bridgeDeviceId`
+            };
+        }
+        return {
+            ok: true,
+            message: `Resolved paired device for workspace ${workspaceId}.`,
+            deviceId
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            message: `🔴 FALLBACK: phone device lookup failed - Reason: ${error instanceof Error ? error.message : String(error)} - Impact: configure bridgeDeviceId or pair the app`
+        };
+    }
+}
+
+function normalizeBridgeUrl(value: string | undefined): string | undefined {
+    const trimmed = value?.trim() || process.env.ANTIROT_BRIDGE_URL?.trim() || "https://api.antirot.org";
+    return trimmed.replace(/\/+$/, "");
+}

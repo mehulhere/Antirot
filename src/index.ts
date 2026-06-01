@@ -7,7 +7,7 @@ import {
     type PluginCommandContext
 } from "openclaw/plugin-sdk/plugin-entry";
 import { getLinearPlan } from "./plan.js";
-import { triggerAlarmCommand, triggerNormalAlarmCommand } from "./runtime.js";
+import { scheduleBridgeAlarm, triggerAlarmCommand, triggerNormalAlarmCommand } from "./runtime.js";
 import {
     beginSleep,
     completeSleep,
@@ -74,12 +74,31 @@ function textResult(text: string): ToolResult {
     return { content: [{ type: "text", text }], details: {} };
 }
 
+function alarmEscalationSystemEvent(params: {
+    reason: string;
+    nextSeverity: "normal" | "loud";
+}): string {
+    const toolName = params.nextSeverity === "loud" ? "startLoudAlarm" : "startAlarm";
+    return [
+        `Antirot alarm escalation callback: ${params.reason}`,
+        "First call list_active_triggers and inspect chat context.",
+        "The user replying does not automatically clear this escalation. You decide whether the reply actually resolves the situation.",
+        "If the escalation is stale or resolved, call clear_active_trigger for the alarm_escalation trigger and do not ring.",
+        `If the user is still absent, evasive, or not back on task, call ${toolName} with the same reason.`,
+        "After two normal phone alarms in the chain, use startLoudAlarm. Keep escalating every hidden-buffered check until you explicitly clear the trigger, /override is used, or /vacation is active."
+    ].join("\n");
+}
+
 function asConfig(value: Record<string, unknown> | undefined): AntirotConfig {
     return {
         workspaceDir: readOptionalString(value?.workspaceDir),
         openclawCommand: readOptionalString(value?.openclawCommand),
         normalAlarmCommand: readOptionalString(value?.normalAlarmCommand),
         alarmCommand: readOptionalString(value?.alarmCommand),
+        bridgeUrl: readOptionalString(value?.bridgeUrl),
+        bridgeAdminToken: readOptionalString(value?.bridgeAdminToken),
+        bridgeDeviceId: readOptionalString(value?.bridgeDeviceId),
+        bridgeWorkspaceId: readOptionalString(value?.bridgeWorkspaceId),
         enableCron: typeof value?.enableCron === "boolean" ? value.enableCron : undefined,
         bestStrategiesCount: typeof value?.bestStrategiesCount === "number" ? value.bestStrategiesCount : undefined,
         randomStrategiesCount: typeof value?.randomStrategiesCount === "number" ? value.randomStrategiesCount : undefined
@@ -364,6 +383,7 @@ function buildPersonaContext(): string {
         "- Use Antirot deterministic tools for timers, sessions, routines, vacation, overrides, state, metrics, and protected edit intents.",
         "- Use list_active_triggers before acting on a timer callback. Ignore stale callbacks whose Antirot trigger is no longer active.",
         "- If the user finishes early or wakes early, clear the matching Antirot trigger. If the user needs more time, reschedule the matching trigger.",
+        "- For phone alarm escalation, first warn the user in chat and set a hidden timer. If the callback fires and the user's reply did not genuinely resolve it, call startAlarm. After two normal alarm escalations, call startLoudAlarm. User replies do not auto-clear alarm escalation; you must decide and explicitly clear/reschedule the trigger.",
         "- Never call cron directly. Antirot tools own trigger creation, clearing, rescheduling, and inspection.",
         "- Do not manually edit Antirot protected files unless request_protected_edit has recorded a fresh approved intent."
     ].join("\n");
@@ -1144,6 +1164,109 @@ function registerTools(api: OpenClawPluginApi): void {
     }), { name: "write_nightly_summary" });
 
     api.registerTool((ctx) => ({
+        name: "startAlarm",
+        label: "Start Phone Alarm",
+        description: "Queue a normal Antirot phone alarm through the bridge for about one minute later, then schedule the next escalation check. The LLM decides later whether to clear or continue it.",
+        parameters: Type.Object({
+            reason: Type.Optional(Type.String()),
+            normal_count: Type.Optional(Type.Number({ minimum: 0 }))
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const reason = readOptionalString(values.reason) ?? "user did not return/respond";
+            const normalCount = Math.max(0, Math.round(readOptionalNumber(values, "normal_count") ?? 0)) + 1;
+            const bridge = await scheduleBridgeAlarm({
+                config: resolveRuntimeConfig(api),
+                severity: "normal",
+                title: "Antirot",
+                message: "Come back. You got the buffer; now stop drifting.",
+                fireDelayMins: 1
+            });
+            const fallback = bridge.ok ? undefined : await triggerNormalAlarmCommand(resolveRuntimeConfig(api));
+            const stats = await readStats(workspaceDir);
+            const day = today();
+            stats.normalAlarmsTriggered[day] = (stats.normalAlarmsTriggered[day] ?? 0) + 1;
+            await writeStats(workspaceDir, stats);
+            await clearMatchingTriggers({
+                workspaceDir,
+                config: resolveRuntimeConfig(api),
+                kinds: ["alarm_escalation"],
+                reason: "phone alarm escalation advanced"
+            });
+            const nextSeverity = normalCount >= 2 ? "loud" : "normal";
+            const trigger = await createAntirotTrigger({
+                workspaceDir,
+                config: resolveRuntimeConfig(api),
+                kind: "alarm_escalation",
+                scope: "daily",
+                label: `normalCount=${normalCount}`,
+                reason,
+                delayMins: 10,
+                cronName: "antirot-phone-alarm-escalation",
+                systemEvent: `${alarmEscalationSystemEvent({ reason, nextSeverity })}\nIf calling startAlarm, pass normal_count=${normalCount}.`
+            });
+            await appendEvent(workspaceDir, {
+                type: "phone_normal_alarm",
+                details: { reason, normalCount, bridge, fallback, nextTrigger: trigger }
+            });
+            const fallbackMessage = fallback ? ` ${fallback.message}` : "";
+            return textResult(`${bridge.message}${fallbackMessage} I gave you the buffer; normal phone alarm is queued. Next hidden escalation check is armed. Trigger id: ${trigger.trigger.id}. ${trigger.cron.message}`);
+        }
+    }), { name: "startAlarm" });
+
+    api.registerTool((ctx) => ({
+        name: "startLoudAlarm",
+        label: "Start Loud Phone Alarm",
+        description: "Queue a loud Antirot phone alarm through the bridge for about one minute later, then schedule another escalation check. The LLM decides later whether to clear or continue it.",
+        parameters: Type.Object({
+            reason: Type.Optional(Type.String())
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const reason = readOptionalString(values.reason) ?? "user ignored normal alarms";
+            const bridge = await scheduleBridgeAlarm({
+                config: resolveRuntimeConfig(api),
+                severity: "loud",
+                title: "Antirot loud alarm",
+                message: "Enough disappearing. Come back and answer.",
+                fireDelayMins: 1
+            });
+            const fallback = bridge.ok ? undefined : await triggerAlarmCommand(resolveRuntimeConfig(api));
+            const stats = await readStats(workspaceDir);
+            const day = today();
+            stats.loudAlarmsTriggered[day] = (stats.loudAlarmsTriggered[day] ?? 0) + 1;
+            await writeStats(workspaceDir, stats);
+            await clearMatchingTriggers({
+                workspaceDir,
+                config: resolveRuntimeConfig(api),
+                kinds: ["alarm_escalation"],
+                reason: "loud phone alarm escalation advanced"
+            });
+            const trigger = await createAntirotTrigger({
+                workspaceDir,
+                config: resolveRuntimeConfig(api),
+                kind: "alarm_escalation",
+                scope: "daily",
+                label: "loud",
+                reason,
+                delayMins: 10,
+                cronName: "antirot-loud-phone-alarm-escalation",
+                systemEvent: alarmEscalationSystemEvent({ reason, nextSeverity: "loud" })
+            });
+            await appendEvent(workspaceDir, {
+                type: "phone_loud_alarm",
+                details: { reason, bridge, fallback, nextTrigger: trigger }
+            });
+            const fallbackMessage = fallback ? ` ${fallback.message}` : "";
+            return textResult(`${bridge.message}${fallbackMessage} Loud phone alarm is queued. If this is still unresolved at the next hidden check, I will keep escalating. Trigger id: ${trigger.trigger.id}. ${trigger.cron.message}`);
+        }
+    }), { name: "startLoudAlarm" });
+
+    api.registerTool((ctx) => ({
         name: "trigger_loud_alarm",
         label: "Trigger Loud Alarm",
         description: "Trigger the configured local loud alarm command or log a fallback urgent reminder.",
@@ -1377,6 +1500,10 @@ export default definePluginEntry({
                 openclawCommand: { type: "string", minLength: 1, default: "openclaw" },
                 normalAlarmCommand: { type: "string", minLength: 1 },
                 alarmCommand: { type: "string", minLength: 1 },
+                bridgeUrl: { type: "string", minLength: 1, default: "https://api.antirot.org" },
+                bridgeAdminToken: { type: "string", minLength: 1 },
+                bridgeDeviceId: { type: "string", minLength: 1 },
+                bridgeWorkspaceId: { type: "string", minLength: 1, default: "main" },
                 enableCron: { type: "boolean", default: true }
             }
         }

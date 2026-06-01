@@ -96,6 +96,13 @@ Mobile apps currently call the compatibility endpoints `/devices/register`, `/al
 
 For iOS remote alarm delivery, the VPS does not schedule AlarmKit directly. It queues the alarm, sends an APNs background wake when configured, and the iOS app fetches the pending alarm and schedules AlarmKit locally.
 
+OpenClaw plugin alarm tools:
+
+- `startAlarm`: queues a normal phone alarm through the bridge for roughly one minute later and arms the next hidden escalation check.
+- `startLoudAlarm`: queues a loud phone alarm through the bridge for roughly one minute later and arms the next hidden escalation check.
+
+The plugin resolves the target phone from `bridgeDeviceId` when configured, otherwise from the paired `bridgeWorkspaceId` using `/v1/workspaces/:workspaceId/devices`. User replies do not automatically stop escalation; the LLM must inspect context and explicitly clear or reschedule the active `alarm_escalation` trigger.
+
 To pair a signed-in phone with the VPS/plugin workspace:
 
 ```bash

@@ -4,6 +4,10 @@ export type AntirotConfig = {
     openclawCommand?: string;
     normalAlarmCommand?: string;
     alarmCommand?: string;
+    bridgeUrl?: string;
+    bridgeAdminToken?: string;
+    bridgeDeviceId?: string;
+    bridgeWorkspaceId?: string;
     enableCron?: boolean;
     bestStrategiesCount?: number;
     randomStrategiesCount?: number;
@@ -97,7 +101,7 @@ export type AntirotEvent = {
     type: string;
     details: Record<string, unknown>;
 };
-export type AntirotTriggerKind = "routine" | "session" | "timer" | "alignment_check" | "sleep_normal_alarm" | "sleep_loud_alarm";
+export type AntirotTriggerKind = "routine" | "session" | "timer" | "alignment_check" | "sleep_normal_alarm" | "sleep_loud_alarm" | "alarm_escalation";
 export type AntirotTriggerStatus = "active" | "cleared" | "rescheduled" | "fired";
 export type AntirotTriggerScope = "daily" | "sleep";
 export type AntirotTrigger = {

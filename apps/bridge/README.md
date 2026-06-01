@@ -44,6 +44,7 @@ POST /devices/register
 POST /alarms
 GET  /alarms/pending?deviceId=...
 POST /alarms/{alarmId}/{action}
+GET  /v1/workspaces/{workspaceId}/devices
 ```
 
 Each endpoint also exists under `/v1`.
@@ -60,6 +61,13 @@ set +a
 ```
 
 The command prints a 6-digit code, waits for the app to claim it, then prints the paired device. The app must enter the code within the timeout. Codes are one-time use, hashed in Postgres, and mapped to the workspace id.
+
+After pairing, OpenClaw can resolve the phone with:
+
+```bash
+curl -H "Authorization: Bearer $ANTIROT_ADMIN_TOKEN" \
+  http://127.0.0.1:8787/v1/workspaces/main/devices
+```
 
 ## Create An Alarm
 

@@ -64,6 +64,24 @@ pub struct PairingClaimResponse {
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDevice {
+    pub device_id: String,
+    pub device_name: Option<String>,
+    pub platform: String,
+    pub notification_capability: String,
+    pub paired_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDevicesResponse {
+    pub ok: bool,
+    pub workspace_id: String,
+    pub devices: Vec<WorkspaceDevice>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAlarmRequest {

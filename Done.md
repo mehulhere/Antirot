@@ -31,3 +31,4 @@
 - Verify the iOS app shows `Continue with Google` only on the logged-out signup screen, hides device/server/permission controls under bottom settings, and shows `Logout` at the bottom only after sign-in.
 - Run `antirot-bridge pair --workspace main --timeout 60`, enter the 6-digit code in the signed-in iOS app, and verify the command prints the paired device while Postgres stores the device/workspace mapping.
 - Configure APNs env vars on the VPS, sign into the iOS app so it registers an APNs token, create a bridge alarm for the device, and verify the app wakes/fetches/schedules the pending alarm.
+- In OpenClaw, call `startAlarm`, verify the paired iOS app schedules a normal alarm about a minute later, then let the hidden escalation callback fire and confirm the LLM decides whether to clear, repeat normal, or call `startLoudAlarm`.

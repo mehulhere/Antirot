@@ -19,3 +19,14 @@ export declare function cancelCronReminder(params: {
 }): Promise<CronResult>;
 export declare function triggerAlarmCommand(config: AntirotConfig): Promise<CronResult>;
 export declare function triggerNormalAlarmCommand(config: AntirotConfig): Promise<CronResult>;
+export type BridgeAlarmSeverity = "normal" | "loud";
+export declare function scheduleBridgeAlarm(params: {
+    config: AntirotConfig;
+    severity: BridgeAlarmSeverity;
+    title: string;
+    message: string;
+    fireDelayMins: number;
+}): Promise<CronResult & {
+    deviceId?: string;
+    alarmId?: string;
+}>;
