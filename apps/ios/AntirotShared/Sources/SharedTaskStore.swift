@@ -30,7 +30,7 @@ public struct CurrentTaskSnapshot: Codable, Equatable {
 }
 
 public enum SharedTaskStore {
-    public static let appGroupId = "group.com.mehulhere.Antirot"
+    public static let appGroupId = "group.com.mehulhere.antirot"
     private static let currentTaskKey = "currentTaskSnapshot"
 
     public static func read() -> CurrentTaskSnapshot {

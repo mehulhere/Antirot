@@ -33,36 +33,68 @@ struct CurrentTaskProvider: TimelineProvider {
 struct CurrentTaskWidgetView: View {
     let entry: CurrentTaskEntry
 
+    private var modeColor: Color {
+        switch entry.snapshot.mode.lowercased() {
+        case "working", "routine":
+            return Color(red: 0.918, green: 0.345, blue: 0.047) // orange
+        case "idle":
+            return Color(red: 0.443, green: 0.443, blue: 0.478) // muted
+        default:
+            return Color(red: 0.863, green: 0.149, blue: 0.149) // red
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
                 Text(entry.snapshot.mode.uppercased())
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.orange)
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(modeColor))
+
                 Spacer()
+
                 Text(entry.snapshot.updatedAt, style: .time)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
             }
 
             Text(entry.snapshot.title)
-                .font(.headline)
-                .lineLimit(3)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
                 .minimumScaleFactor(0.8)
 
             Text(entry.snapshot.subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(2)
+
+            Spacer(minLength: 0)
 
             if let dueAt = entry.snapshot.dueAt {
-                Text("Check at \(dueAt, style: .time)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 9))
+                    Text(dueAt, style: .relative)
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(modeColor)
             }
         }
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            Color(red: 0.039, green: 0.039, blue: 0.043)
+                .overlay(
+                    LinearGradient(
+                        colors: [modeColor.opacity(0.08), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
     }
 }
 

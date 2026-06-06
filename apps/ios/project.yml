@@ -27,7 +27,7 @@ targets:
         product: GoogleSignIn
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot
+        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot
         INFOPLIST_FILE: AntirotAlarm/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: AntirotAlarm/Resources/AntirotAlarm.entitlements
     info:
@@ -50,7 +50,7 @@ targets:
       properties:
         aps-environment: development
         com.apple.security.application-groups:
-          - group.com.mehulhere.Antirot
+          - group.com.mehulhere.antirot
   AntirotDeviceActivityReport:
     type: app-extension
     platform: iOS
@@ -59,7 +59,7 @@ targets:
       - AntirotDeviceActivityReport/Sources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot.DeviceActivityReport
+        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot.DeviceActivityReport
         INFOPLIST_FILE: AntirotDeviceActivityReport/Resources/Info.plist
     info:
       path: AntirotDeviceActivityReport/Resources/Info.plist
@@ -76,7 +76,7 @@ targets:
       - AntirotShared/Sources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.Antirot.CurrentTaskWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot.CurrentTaskWidget
         INFOPLIST_FILE: AntirotCurrentTaskWidget/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: AntirotCurrentTaskWidget/Resources/AntirotCurrentTaskWidget.entitlements
     info:
@@ -88,4 +88,4 @@ targets:
       path: AntirotCurrentTaskWidget/Resources/AntirotCurrentTaskWidget.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.mehulhere.Antirot
+          - group.com.mehulhere.antirot

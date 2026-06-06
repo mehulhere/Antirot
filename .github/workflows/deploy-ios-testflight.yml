@@ -1,0 +1,204 @@
+name: Deploy iOS TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-testflight:
+    name: Deploy to TestFlight
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: apps/ios
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          ls -1 /Applications/Xcode*.app || true
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Verify iOS 26 SDK
+        run: |
+          set -euo pipefail
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iphoneos SDK: ${SDK_VERSION}"
+          case "${SDK_VERSION}" in
+            26*) ;;
+            *)
+              echo "AlarmKit requires an iOS 26 SDK. Refusing to build."
+              exit 1
+              ;;
+          esac
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Install Apple Certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          
+          # Create temporary paths
+          CERTIFICATE_PATH="${RUNNER_TEMP}/build_certificate.p12"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="temporary_keychain_password_123"
+          
+          # Decode certificate
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          
+          # Import certificate
+          security import "$CERTIFICATE_PATH" \
+            -P "$P12_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+            
+          # Add keychain to search list and set as default
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          
+          # Allow codesign to access the keychain without user interaction
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Download Provisioning Profiles
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          
+          # Write App Store Connect API Key to JSON
+          cat <<EOF > api_key.json
+          {
+            "key_id": "${APP_STORE_CONNECT_KEY_ID}",
+            "issuer_id": "${APP_STORE_CONNECT_ISSUER_ID}",
+            "key": "${APP_STORE_CONNECT_API_KEY}",
+            "duration": 1200,
+            "in_house": false
+          }
+          EOF
+          
+          # Create directory for profiles
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          
+          # Download profiles using fastlane sigh
+          fastlane sigh \
+            --api_key_path api_key.json \
+            --app_identifier "com.mehulhere.antirot" \
+            --development false \
+            --filename ~/Library/MobileDevice/Provisioning\ Profiles/main_app.mobileprovision
+            
+          fastlane sigh \
+            --api_key_path api_key.json \
+            --app_identifier "com.mehulhere.antirot.DeviceActivityReport" \
+            --development false \
+            --filename ~/Library/MobileDevice/Provisioning\ Profiles/report.mobileprovision
+            
+          fastlane sigh \
+            --api_key_path api_key.json \
+            --app_identifier "com.mehulhere.antirot.CurrentTaskWidget" \
+            --development false \
+            --filename ~/Library/MobileDevice/Provisioning\ Profiles/widget.mobileprovision
+
+      - name: Build and Archive App
+        run: |
+          set -euo pipefail
+          
+          # Archive project
+          xcodebuild \
+            -project Antirot.xcodeproj \
+            -scheme Antirot \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/Antirot.xcarchive \
+            OTHER_CODE_SIGN_FLAGS="--keychain ${RUNNER_TEMP}/app-signing.keychain-db" \
+            archive
+
+      - name: Generate ExportOptions.plist
+        run: |
+          set -euo pipefail
+          
+          # Extract profile names from downloaded mobileprovision files
+          MAIN_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/main_app.mobileprovision))
+          WIDGET_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/widget.mobileprovision))
+          REPORT_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/report.mobileprovision))
+          
+          echo "Main App Profile: ${MAIN_PROFILE_NAME}"
+          echo "Widget Profile: ${WIDGET_PROFILE_NAME}"
+          echo "Report Profile: ${REPORT_PROFILE_NAME}"
+          
+          cat <<EOF > ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>destination</key>
+              <string>export</string>
+              <key>method</key>
+              <string>app-store</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.mehulhere.antirot</key>
+                  <string>${MAIN_PROFILE_NAME}</string>
+                  <key>com.mehulhere.antirot.CurrentTaskWidget</key>
+                  <string>${WIDGET_PROFILE_NAME}</string>
+                  <key>com.mehulhere.antirot.DeviceActivityReport</key>
+                  <string>${REPORT_PROFILE_NAME}</string>
+              </dict>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>teamID</key>
+              <string>7564AJPLF4</string>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export App Store IPA
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/Antirot.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/Exported
+
+      - name: Upload to TestFlight
+        run: |
+          set -euo pipefail
+          fastlane pilot upload \
+            --api_key_path api_key.json \
+            --ipa build/Exported/Antirot.ipa \
+            --skip_waiting_for_build_processing true
+
+      - name: Clean Up Credentials
+        if: always()
+        run: |
+          rm -f api_key.json
+          rm -f ExportOptions.plist
+          security delete-keychain "${RUNNER_TEMP}/app-signing.keychain-db" || true
