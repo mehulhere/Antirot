@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var screenTimeMessage = "Not requested"
     @State private var showDeveloperSettings = false
     @State private var showFullError = false
+    @State private var showConsole = false
 
     var body: some View {
         ZStack {
@@ -23,7 +24,7 @@ struct SettingsView: View {
                     widgetSection
                     deviceSection
                     developerSection
-                    errorSection
+                    consoleSection
                     statusToast
                 }
                 .padding(.horizontal, 20)
@@ -346,23 +347,76 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Error Display
+    // MARK: - Console Section
 
     @ViewBuilder
-    private var errorSection: some View {
-        if alarmCenter.lastErrorDetails != nil {
-            Button {
-                showFullError = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.antirotAccentRed)
-                    Text("Show full error")
-                        .foregroundStyle(.antirotAccentRed)
+    private var consoleSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            AntirotSectionHeader(title: "Console", icon: "terminal")
+
+            VStack(spacing: 0) {
+                Toggle(isOn: $showConsole.animation(.easeInOut(duration: 0.25))) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "terminal")
+                            .font(.caption)
+                            .foregroundStyle(.antirotAccentOrange)
+                        Text("See Console")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.antirotTextPrimary)
+                    }
                 }
-                .frame(maxWidth: .infinity)
+                .tint(.antirotAccentRed)
+
+                if showConsole {
+                    Divider()
+                        .overlay(Color.antirotBorder)
+                        .padding(.vertical, 14)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let error = alarmCenter.lastErrorDetails {
+                                    Text(error)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.red)
+                                } else {
+                                    Text("[SYSTEM OK] No errors reported.")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.green)
+                                }
+                                
+                                Text("\n[DIAGNOSTICS]\nDevice ID: \(settings.deviceId)\nServer: \(settings.effectiveServerURL)\nPush Token: \(settings.pushToken.isEmpty ? "None" : settings.pushToken)\nApp Group: \(SharedTaskStore.canAccessAppGroup() ? "Available" : "Unavailable")")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.antirotTextSecondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                        }
+                        .frame(height: 150)
+                        .background(Color.black.opacity(0.4))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(Color.antirotBorder, lineWidth: 1)
+                        )
+
+                        if alarmCenter.lastErrorDetails != nil {
+                            Button {
+                                alarmCenter.lastErrorDetails = nil
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Clear Error Log")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(AntirotDestructiveButtonStyle())
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-            .buttonStyle(AntirotDestructiveButtonStyle())
+            .glassCard()
         }
     }
 
