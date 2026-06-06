@@ -108,27 +108,30 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Create directory for profiles
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          
-          # Download profiles using fastlane sigh
+          # Download profiles using fastlane sigh into local working directory
           fastlane sigh \
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot" \
             --development false \
-            --filename ~/Library/MobileDevice/Provisioning\ Profiles/main_app.mobileprovision
+            --filename "main_app.mobileprovision"
             
           fastlane sigh \
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot.DeviceActivityReport" \
             --development false \
-            --filename ~/Library/MobileDevice/Provisioning\ Profiles/report.mobileprovision
+            --filename "report.mobileprovision"
             
           fastlane sigh \
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot.CurrentTaskWidget" \
             --development false \
-            --filename ~/Library/MobileDevice/Provisioning\ Profiles/widget.mobileprovision
+            --filename "widget.mobileprovision"
+
+          # Install profiles to Xcode default location
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp main_app.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp report.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp widget.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
       - name: Build and Archive App
         run: |
@@ -149,9 +152,9 @@ jobs:
           set -euo pipefail
           
           # Extract profile names from downloaded mobileprovision files
-          MAIN_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/main_app.mobileprovision))
-          WIDGET_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/widget.mobileprovision))
-          REPORT_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/report.mobileprovision))
+          MAIN_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i main_app.mobileprovision))
+          WIDGET_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i widget.mobileprovision))
+          REPORT_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< $(security cms -D -i report.mobileprovision))
           
           echo "Main App Profile: ${MAIN_PROFILE_NAME}"
           echo "Widget Profile: ${WIDGET_PROFILE_NAME}"
@@ -211,4 +214,7 @@ jobs:
         run: |
           rm -f api_key.json
           rm -f ExportOptions.plist
+          rm -f main_app.mobileprovision
+          rm -f report.mobileprovision
+          rm -f widget.mobileprovision
           security delete-keychain "${RUNNER_TEMP}/app-signing.keychain-db" || true
