@@ -8,6 +8,7 @@ settings:
     SWIFT_VERSION: "5.10"
     CURRENT_PROJECT_VERSION: "1"
     MARKETING_VERSION: "0.1.0"
+    DEVELOPMENT_TEAM: 7564AJPLF4
 packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
