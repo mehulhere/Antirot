@@ -50,9 +50,18 @@ jobs:
       - name: Set Build Number
         run: |
           python3 -c "
+          import sys
+          run_number = '${{ github.run_number }}'
+          print(f'Injecting build number: {run_number}')
           with open('project.yml', 'r') as f:
               content = f.read()
-          content = content.replace('CURRENT_PROJECT_VERSION: \"1\"', 'CURRENT_PROJECT_VERSION: \"${{ github.run_number }}\"')
+          target = 'CURRENT_PROJECT_VERSION: \"1\"'
+          replacement = f'CURRENT_PROJECT_VERSION: \"{run_number}\"'
+          if target in content:
+              content = content.replace(target, replacement)
+              print('Successfully updated project.yml')
+          else:
+              print('WARNING: Target string not found in project.yml!')
           with open('project.yml', 'w') as f:
               f.write(content)
           "
