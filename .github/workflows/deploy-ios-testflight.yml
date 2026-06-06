@@ -113,18 +113,21 @@ jobs:
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot" \
             --development false \
+            --force \
             --filename "main_app.mobileprovision"
             
           fastlane sigh \
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot.DeviceActivityReport" \
             --development false \
+            --force \
             --filename "report.mobileprovision"
             
           fastlane sigh \
             --api_key_path api_key.json \
             --app_identifier "com.mehulhere.antirot.CurrentTaskWidget" \
             --development false \
+            --force \
             --filename "widget.mobileprovision"
 
           # Install profiles to Xcode default location
