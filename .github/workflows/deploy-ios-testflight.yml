@@ -47,6 +47,16 @@ jobs:
             brew install xcodegen
           fi
 
+      - name: Set Build Number
+        run: |
+          python3 -c "
+          with open('project.yml', 'r') as f:
+              content = f.read()
+          content = content.replace('CURRENT_PROJECT_VERSION: \"1\"', 'CURRENT_PROJECT_VERSION: \"${{ github.run_number }}\"')
+          with open('project.yml', 'w') as f:
+              f.write(content)
+          "
+
       - name: Generate Xcode Project
         run: xcodegen generate
 
