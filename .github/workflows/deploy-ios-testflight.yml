@@ -85,24 +85,28 @@ jobs:
           # Allow codesign to access the keychain without user interaction
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-      - name: Download Provisioning Profiles
+      - name: Create App Store Connect API Key JSON
         env:
-          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          python3 -c '
+          import os, json
+          api_key = {
+              "key_id": os.environ["KEY_ID"],
+              "issuer_id": os.environ["ISSUER_ID"],
+              "key": os.environ["KEY_CONTENT"],
+              "duration": 1200,
+              "in_house": False
+          }
+          with open("api_key.json", "w") as f:
+              json.dump(api_key, f)
+          '
+
+      - name: Download Provisioning Profiles
         run: |
           set -euo pipefail
-          
-          # Write App Store Connect API Key to JSON
-          cat <<EOF > api_key.json
-          {
-            "key_id": "${APP_STORE_CONNECT_KEY_ID}",
-            "issuer_id": "${APP_STORE_CONNECT_ISSUER_ID}",
-            "key": "${APP_STORE_CONNECT_API_KEY}",
-            "duration": 1200,
-            "in_house": false
-          }
-          EOF
           
           # Create directory for profiles
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
