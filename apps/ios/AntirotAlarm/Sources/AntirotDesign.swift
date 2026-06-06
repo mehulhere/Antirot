@@ -22,6 +22,26 @@ extension Color {
     static let antirotSuccess = Color(red: 0.133, green: 0.773, blue: 0.369)       // #22c55e
 }
 
+extension ShapeStyle where Self == Color {
+    static var antirotBg: Color { .antirotBg }
+    static var antirotBgSecondary: Color { .antirotBgSecondary }
+    static var antirotCard: Color { .antirotCard }
+    static var antirotCardHover: Color { .antirotCardHover }
+    static var antirotGlass: Color { .antirotGlass }
+    static var antirotBorder: Color { .antirotBorder }
+    static var antirotBorderAccent: Color { .antirotBorderAccent }
+    static var antirotTextPrimary: Color { .antirotTextPrimary }
+    static var antirotTextSecondary: Color { .antirotTextSecondary }
+    static var antirotTextMuted: Color { .antirotTextMuted }
+    static var antirotAccentRed: Color { .antirotAccentRed }
+    static var antirotAccentRedDim: Color { .antirotAccentRedDim }
+    static var antirotAccentOrange: Color { .antirotAccentOrange }
+    static var antirotAccentAmber: Color { .antirotAccentAmber }
+    static var antirotGlowRed: Color { .antirotGlowRed }
+    static var antirotGlowOrange: Color { .antirotGlowOrange }
+    static var antirotSuccess: Color { .antirotSuccess }
+}
+
 // MARK: - Gradient Presets
 
 extension LinearGradient {
