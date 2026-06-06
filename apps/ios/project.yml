@@ -31,6 +31,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot
         INFOPLIST_FILE: AntirotAlarm/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: AntirotAlarm/Resources/AntirotAlarm.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "com.mehulhere.antirot AppStore"
     info:
       path: AntirotAlarm/Resources/Info.plist
       properties:
@@ -62,6 +65,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot.DeviceActivityReport
         INFOPLIST_FILE: AntirotDeviceActivityReport/Resources/Info.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "com.mehulhere.antirot.DeviceActivityReport AppStore"
     info:
       path: AntirotDeviceActivityReport/Resources/Info.plist
       properties:
@@ -80,6 +86,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot.CurrentTaskWidget
         INFOPLIST_FILE: AntirotCurrentTaskWidget/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: AntirotCurrentTaskWidget/Resources/AntirotCurrentTaskWidget.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "com.mehulhere.antirot.CurrentTaskWidget AppStore"
     info:
       path: AntirotCurrentTaskWidget/Resources/Info.plist
       properties:
