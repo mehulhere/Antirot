@@ -47,21 +47,28 @@ jobs:
             brew install xcodegen
           fi
 
+      - name: Calculate Build Version
+        run: |
+          BUILD_VERSION=$(( ${{ github.run_number }} + 100 ))
+          echo "BUILD_VERSION=${BUILD_VERSION}" >> $GITHUB_ENV
+
       - name: Set Build Number
         run: |
           python3 -c "
-          import sys
-          run_number = '${{ github.run_number }}'
+          import sys, re
+          run_number = '${{ env.BUILD_VERSION }}'
           print(f'Injecting build number: {run_number}')
           with open('project.yml', 'r') as f:
               content = f.read()
-          target = 'CURRENT_PROJECT_VERSION: \"1\"'
-          replacement = f'CURRENT_PROJECT_VERSION: \"{run_number}\"'
-          if target in content:
-              content = content.replace(target, replacement)
-              print('Successfully updated project.yml')
+          content, count = re.subn(
+              r'(CURRENT_PROJECT_VERSION\s*:\s*)\"[^\"]*\"',
+              f'\\1\"{run_number}\"',
+              content
+          )
+          if count > 0:
+              print(f'Successfully updated {count} occurrences of CURRENT_PROJECT_VERSION in project.yml')
           else:
-              print('WARNING: Target string not found in project.yml!')
+              print('WARNING: CURRENT_PROJECT_VERSION not found in project.yml!')
           with open('project.yml', 'w') as f:
               f.write(content)
           "
@@ -176,6 +183,7 @@ jobs:
             -derivedDataPath build/DerivedData \
             -archivePath build/Antirot.xcarchive \
             OTHER_CODE_SIGN_FLAGS="--keychain ${RUNNER_TEMP}/app-signing.keychain-db" \
+            CURRENT_PROJECT_VERSION="${{ env.BUILD_VERSION }}" \
             archive
 
       - name: Generate ExportOptions.plist
