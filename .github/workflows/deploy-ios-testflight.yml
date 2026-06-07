@@ -206,6 +206,8 @@ jobs:
               <string>Apple Distribution</string>
               <key>signingStyle</key>
               <string>manual</string>
+              <key>manageAppVersionAndBuildNumber</key>
+              <false/>
               <key>stripSwiftSymbols</key>
               <true/>
               <key>teamID</key>
