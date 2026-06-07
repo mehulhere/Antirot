@@ -119,7 +119,13 @@ struct SettingsView: View {
                 value: screenTimeMessage,
                 statusColor: screenTimeStatusColor
             ) {
-                Task { screenTimeMessage = await ScreenTimeCenter.requestAuthorization() }
+                Task {
+                    let result = await ScreenTimeCenter.requestAuthorization()
+                    screenTimeMessage = result
+                    if !result.contains("authorized") && result != "Not requested" {
+                        alarmCenter.lastErrorDetails = result
+                    }
+                }
             }
         }
     }
