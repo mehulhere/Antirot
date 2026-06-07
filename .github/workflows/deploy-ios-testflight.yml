@@ -61,8 +61,8 @@ jobs:
           with open('project.yml', 'r') as f:
               content = f.read()
           content, count = re.subn(
-              r'(CURRENT_PROJECT_VERSION\s*:\s*)\"[^\"]*\"',
-              f'\\1\"{run_number}\"',
+              r'CURRENT_PROJECT_VERSION\s*:\s*\"[^\"]*\"',
+              f'CURRENT_PROJECT_VERSION: \"{run_number}\"',
               content
           )
           if count > 0:
