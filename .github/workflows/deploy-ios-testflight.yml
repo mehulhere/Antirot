@@ -52,14 +52,35 @@ jobs:
           BUILD_VERSION=$(( ${{ github.run_number }} + 100 ))
           echo "BUILD_VERSION=${BUILD_VERSION}" >> $GITHUB_ENV
 
-      - name: Set Build Number
+      - name: Set Build Number in project.yml
         run: |
           echo "Injecting build number: ${BUILD_VERSION}"
           sed -i.bak "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"${BUILD_VERSION}\"/g" project.yml
-          cat project.yml | grep CURRENT_PROJECT_VERSION
+          echo "--- project.yml after sed ---"
+          grep CURRENT_PROJECT_VERSION project.yml
 
       - name: Generate Xcode Project
         run: xcodegen generate
+
+      - name: Force Build Number in Xcode Project and Info.plists
+        run: |
+          set -euo pipefail
+          echo "=== Forcing CURRENT_PROJECT_VERSION=${BUILD_VERSION} everywhere ==="
+
+          # 1) Overwrite every CURRENT_PROJECT_VERSION in the generated pbxproj
+          sed -i.bak "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = ${BUILD_VERSION}/g" Antirot.xcodeproj/project.pbxproj
+          echo "--- pbxproj occurrences after sed ---"
+          grep -c "CURRENT_PROJECT_VERSION = ${BUILD_VERSION}" Antirot.xcodeproj/project.pbxproj || true
+
+          # 2) Directly set CFBundleVersion in every Info.plist so it is not dependent on build settings at all
+          for plist in \
+            AntirotAlarm/Resources/Info.plist \
+            AntirotDeviceActivityReport/Resources/Info.plist \
+            AntirotCurrentTaskWidget/Resources/Info.plist; do
+            echo "Patching ${plist} -> CFBundleVersion = ${BUILD_VERSION}"
+            plutil -replace CFBundleVersion -string "${BUILD_VERSION}" "${plist}"
+            plutil -p "${plist}" | grep -i version
+          done
 
       - name: Install Apple Certificate
         env:
@@ -218,6 +239,16 @@ jobs:
           </plist>
           EOF
 
+      - name: Verify Archive Version
+        run: |
+          set -euo pipefail
+          echo "=== Checking version in archive ==="
+          ARCHIVE_PLIST="build/Antirot.xcarchive/Products/Applications/Antirot.app/Info.plist"
+          echo "Archive CFBundleVersion:"
+          /usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$ARCHIVE_PLIST"
+          echo "Archive CFBundleShortVersionString:"
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$ARCHIVE_PLIST"
+
       - name: Export App Store IPA
         run: |
           set -euo pipefail
@@ -226,6 +257,25 @@ jobs:
             -archivePath build/Antirot.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath build/Exported
+
+      - name: Verify Exported IPA Version
+        run: |
+          set -euo pipefail
+          echo "=== Checking version in exported IPA ==="
+          mkdir -p /tmp/ipa_check
+          unzip -o build/Exported/Antirot.ipa -d /tmp/ipa_check > /dev/null
+          IPA_PLIST="/tmp/ipa_check/Payload/Antirot.app/Info.plist"
+          echo "IPA CFBundleVersion:"
+          /usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$IPA_PLIST"
+          echo "IPA CFBundleShortVersionString:"
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$IPA_PLIST"
+          # Fail fast if the version is still 1
+          IPA_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$IPA_PLIST")
+          if [ "$IPA_VERSION" = "1" ]; then
+            echo "🔴 FATAL: IPA still has CFBundleVersion=1 after export. Version injection failed."
+            exit 1
+          fi
+          echo "✅ IPA version looks correct: ${IPA_VERSION}"
 
       - name: Upload to TestFlight
         run: |
