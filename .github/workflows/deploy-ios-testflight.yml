@@ -54,24 +54,9 @@ jobs:
 
       - name: Set Build Number
         run: |
-          python3 -c "
-          import sys, re
-          run_number = '${{ env.BUILD_VERSION }}'
-          print(f'Injecting build number: {run_number}')
-          with open('project.yml', 'r') as f:
-              content = f.read()
-          content, count = re.subn(
-              r'CURRENT_PROJECT_VERSION\s*:\s*\"[^\"]*\"',
-              f'CURRENT_PROJECT_VERSION: \"{run_number}\"',
-              content
-          )
-          if count > 0:
-              print(f'Successfully updated {count} occurrences of CURRENT_PROJECT_VERSION in project.yml')
-          else:
-              print('WARNING: CURRENT_PROJECT_VERSION not found in project.yml!')
-          with open('project.yml', 'w') as f:
-              f.write(content)
-          "
+          echo "Injecting build number: ${BUILD_VERSION}"
+          sed -i.bak "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"${BUILD_VERSION}\"/g" project.yml
+          cat project.yml | grep CURRENT_PROJECT_VERSION
 
       - name: Generate Xcode Project
         run: xcodegen generate
