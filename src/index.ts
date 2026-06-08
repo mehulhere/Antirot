@@ -7,7 +7,7 @@ import {
     type PluginCommandContext
 } from "openclaw/plugin-sdk/plugin-entry";
 import { getLinearPlan } from "./plan.js";
-import { scheduleBridgeAlarm, triggerAlarmCommand, triggerNormalAlarmCommand } from "./runtime.js";
+import { scheduleBridgeAlarm, triggerAlarmCommand, triggerNormalAlarmCommand, cancelBridgeAlarmsByKind } from "./runtime.js";
 import {
     beginSleep,
     completeSleep,
@@ -768,6 +768,35 @@ function registerTools(api: OpenClawPluginApi): void {
                 }
             });
             const config = resolveRuntimeConfig(api);
+
+            // Auto-schedule session alarms
+            await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
+            const alarmsToSchedule: Promise<unknown>[] = [];
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "WORK SESSION FINISHED",
+                message: "Antirot Coach: Finish your session and check in now!",
+                fireDelayMins: targetDuration
+            }));
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "WORK SESSION FINISHED",
+                message: "Antirot Coach: Finish your session and check in now!",
+                fireDelayMins: targetDuration + 5
+            }));
+            for (let offset = 10; offset <= 300; offset += 5) {
+                alarmsToSchedule.push(scheduleBridgeAlarm({
+                    config,
+                    severity: "loud",
+                    title: "WORK SESSION ESCALATION",
+                    message: "Antirot Coach: Finish your session and check in now!",
+                    fireDelayMins: targetDuration + offset
+                }));
+            }
+            await Promise.all(alarmsToSchedule);
+
             const endTrigger = await createAntirotTrigger({
                 workspaceDir,
                 config,
@@ -814,6 +843,9 @@ function registerTools(api: OpenClawPluginApi): void {
             const wastedMins = readNumber(values, "on_table_wasted_mins");
             const outputSummary = readString(values, "output_summary");
             await ensureWorkspace(workspaceDir);
+            const config = resolveRuntimeConfig(api);
+            await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
+
             const day = today();
             const stats = await readStats(workspaceDir);
             stats.productiveMins[day] = (stats.productiveMins[day] ?? 0) + productiveMins;
@@ -832,7 +864,7 @@ function registerTools(api: OpenClawPluginApi): void {
             });
             await clearMatchingTriggers({
                 workspaceDir,
-                config: resolveRuntimeConfig(api),
+                config,
                 kinds: ["session", "alignment_check"],
                 label: state.activeBlock?.kind === "session" ? state.activeBlock.name : undefined,
                 reason: "session ended early or completed"
@@ -922,6 +954,9 @@ function registerTools(api: OpenClawPluginApi): void {
             const values = params as ToolParams;
             const workspaceDir = resolveWorkspace(api, ctx);
             await ensureWorkspace(workspaceDir);
+            const config = resolveRuntimeConfig(api);
+            await cancelBridgeAlarmsByKind({ config, kind: "wake_alarm" });
+
             const result = await completeSleep({
                 workspaceDir,
                 wokeAt: readOptionalString(values.woke_at),
@@ -937,7 +972,7 @@ function registerTools(api: OpenClawPluginApi): void {
             });
             await clearMatchingTriggers({
                 workspaceDir,
-                config: resolveRuntimeConfig(api),
+                config,
                 kinds: ["sleep_normal_alarm", "sleep_loud_alarm"],
                 reason: "wake confirmed"
             });
@@ -959,6 +994,89 @@ function registerTools(api: OpenClawPluginApi): void {
             return textResult(await getSleepSummary(workspaceDir, readOptionalNumber(values, "tiredness_level")));
         }
     }), { name: "get_sleep_report" });
+
+    api.registerTool((ctx) => ({
+        name: "wake_up_alarm",
+        label: "Wake Up Alarm",
+        description: "Set wake-up alarms based on the sleep ledger estimation.",
+        parameters: Type.Object({
+            wake_time: Type.Optional(Type.String({ description: "Optional target wake-up time in RFC3339 format. If not provided, it is computed from the sleep ledger's last start entry." }))
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+
+            const sleepText = await readTextIfExists(path.join(workspaceDir, "sleep.md"));
+            let targetWakeTime = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8-hour fallback
+            let parsedFromLedger = false;
+
+            const lines = sleepText.split(/\r?\n/u).reverse();
+            for (const line of lines) {
+                if (line.includes("sleep_start:")) {
+                    const estMatch = /estimated\s+(?<hrs>\d+(?:\.\d+)?)\s+hours\s+at\s+(?<at>\S+)/i.exec(line);
+                    if (estMatch?.groups) {
+                        const hrs = parseFloat(estMatch.groups.hrs);
+                        const at = estMatch.groups.at;
+                        const bedtime = Date.parse(at);
+                        if (!isNaN(bedtime)) {
+                            targetWakeTime = new Date(bedtime + hrs * 60 * 60 * 1000);
+                            parsedFromLedger = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const wakeTimeParam = readOptionalString(values.wake_time);
+            if (wakeTimeParam) {
+                const parsedParam = Date.parse(wakeTimeParam);
+                if (!isNaN(parsedParam)) {
+                    targetWakeTime = new Date(parsedParam);
+                    parsedFromLedger = true;
+                }
+            }
+
+            const config = resolveRuntimeConfig(api);
+            // Cancel existing wake alarms
+            await cancelBridgeAlarmsByKind({ config, kind: "wake_alarm" });
+
+            const delayToWakeMins = Math.max(0, Math.round((targetWakeTime.getTime() - Date.now()) / 60000));
+            const alarmsToSchedule: Promise<unknown>[] = [];
+
+            // Alarm 1: normal at target time
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "Wake Up Alarm",
+                message: "Antirot Coach: Wake up and check in now!",
+                fireDelayMins: delayToWakeMins
+            }));
+            // Alarm 2: normal at target time + 5 mins
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "Wake Up Alarm",
+                message: "Antirot Coach: Wake up and check in now!",
+                fireDelayMins: delayToWakeMins + 5
+            }));
+            // Alarms 3 to N: loud at target time + 10..300 mins
+            for (let offset = 10; offset <= 300; offset += 5) {
+                alarmsToSchedule.push(scheduleBridgeAlarm({
+                    config,
+                    severity: "loud",
+                    title: "WAKE UP ESCALATION",
+                    message: "Antirot Coach: Wake up and check in now!",
+                    fireDelayMins: delayToWakeMins + offset
+                }));
+            }
+
+            await Promise.all(alarmsToSchedule);
+
+            const source = parsedFromLedger ? "computed from sleep ledger" : "default 8-hour fallback";
+            return textResult(`Success: Scheduled wake-up alarms starting at ${targetWakeTime.toISOString()} (${source}).`);
+        }
+    }), { name: "wake_up_alarm" });
 
     api.registerTool((ctx) => ({
         name: "list_active_triggers",

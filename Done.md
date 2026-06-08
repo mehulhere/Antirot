@@ -40,4 +40,5 @@
 
 - Deploy the updated `apps/bridge`, configure subscription tier (BYOK or Tailored) at `/v1/subscription`, send a test message to `/v1/chat`, and verify memory files are initialized and tools update `user_memories` correctly.
 - Verify that calling `start_session` fails if the `task_id` does not match active tasks in `tasks.md`, `log_wake` accepts `sleep_quality` (1-5) instead of tiredness, weekly override records are appended to weekly override files, and legacy alarm triggers are removed from the coach tool definitions.
+- Verify that calling `start_session` auto-sets a sequence of session alarms (silent for the first two, loud for subsequent ones up to 5 hours) and that `end_session` auto-deletes them; verify that calling `wake_up_alarm` schedules morning alarms based on `sleep` ledger estimates and that acknowledging an alarm or calling `log_wake` cancels the remaining pending alarms.
 

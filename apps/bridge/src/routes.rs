@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -41,6 +41,7 @@ pub fn router() -> Router<AppState> {
         .route("/workspaces/{workspace_id}/devices", get(workspace_devices))
         .route("/alarms", post(create_alarm))
         .route("/alarms/pending", get(pending_alarms))
+        .route("/alarms/cancel", post(cancel_alarms_by_kind))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/visits", get(get_and_increment_visits))
         .route("/subscription", get(get_subscription).post(update_subscription))
@@ -56,6 +57,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/v1/alarms", post(create_alarm))
         .route("/v1/alarms/pending", get(pending_alarms))
+        .route("/v1/alarms/cancel", post(cancel_alarms_by_kind))
         .route("/v1/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/v1/visits", get(get_and_increment_visits))
         .route("/v1/subscription", get(get_subscription).post(update_subscription))
@@ -681,6 +683,27 @@ async fn record_alarm_action(
                     &[&alarm_id],
                 )
                 .await?;
+
+            let alarm_info = transaction
+                .query_opt(
+                    "SELECT kind, device_id FROM alarms WHERE id = $1",
+                    &[&alarm_id],
+                )
+                .await?;
+
+            if let Some(row) = alarm_info {
+                let kind: String = row.get("kind");
+                let device_id: String = row.get("device_id");
+                if kind == "session_alarm" || kind == "wake_alarm" {
+                    transaction
+                        .execute(
+                            "DELETE FROM alarms WHERE device_id = $1 AND kind = $2 AND status = 'pending'",
+                            &[&device_id, &kind],
+                        )
+                        .await?;
+                }
+            }
+
             "acknowledged".to_string()
         }
         other => {
@@ -1068,5 +1091,38 @@ async fn chat_coach(
     let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
     let reply = chat_with_coach(&state.pool, &state.config, &user_id, &req.message).await?;
     Ok(Json(ChatResponse { ok: true, reply }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelAlarmsRequest {
+    pub device_id: String,
+    pub kind: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CancelAlarmsResponse {
+    pub ok: bool,
+    pub count: i64,
+}
+
+async fn cancel_alarms_by_kind(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<CancelAlarmsRequest>,
+) -> AppResult<Json<CancelAlarmsResponse>> {
+    require_admin_auth(&headers, &state.config)?;
+    validate_non_empty("deviceId", &request.device_id)?;
+    validate_non_empty("kind", &request.kind)?;
+
+    let client = state.pool.get().await?;
+    let count = client
+        .execute(
+            "DELETE FROM alarms WHERE device_id = $1 AND kind = $2 AND status = 'pending'",
+            &[&request.device_id, &request.kind],
+        )
+        .await? as i64;
+
+    Ok(Json(CancelAlarmsResponse { ok: true, count }))
 }
 

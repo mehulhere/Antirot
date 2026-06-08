@@ -30,3 +30,9 @@ export declare function scheduleBridgeAlarm(params: {
     deviceId?: string;
     alarmId?: string;
 }>;
+export declare function cancelBridgeAlarmsByKind(params: {
+    config: AntirotConfig;
+    kind: string;
+}): Promise<CronResult & {
+    count?: number;
+}>;

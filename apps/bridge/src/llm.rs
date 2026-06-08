@@ -610,15 +610,79 @@ async fn execute_tool_locally(
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
+
+            // Query user's registered devices
+            let devices = match client
+                .query(
+                    "SELECT device_id FROM devices WHERE user_id = $1",
+                    &[&user_id],
+                )
+                .await
+            {
+                Ok(rows) => rows,
+                Err(err) => return format!("Error querying user devices: {}", err),
+            };
+
+            // Cancel any pending session alarms first
+            for row in &devices {
+                let dev_id: String = row.get("device_id");
+                let _ = client.execute(
+                    "DELETE FROM alarms WHERE device_id = $1 AND kind = 'session_alarm' AND status = 'pending'",
+                    &[&dev_id],
+                ).await;
+            }
+
+            // Auto set work session alarms (silent for first 2, subsequent loud every 5 mins up to 5 hours)
+            let mut alarms_created = 0;
+            for row in &devices {
+                let dev_id: String = row.get("device_id");
+                for offset in (0..=300).step_by(5) {
+                    let severity = if offset <= 5 { "normal" } else { "loud" };
+                    let alarm_id = format!("alarm_session_{}_{}", severity, Uuid::new_v4().simple());
+                    let fire_at = Utc::now() + chrono::Duration::minutes(est_mins + offset);
+                    let expires_at = fire_at + chrono::Duration::hours(2);
+                    let title = if severity == "loud" { "WORK SESSION ESCALATION" } else { "Work Session Finished" };
+                    let message = "Antirot Coach: Finish your session and check in now!";
+                    
+                    let insert_result = client
+                        .execute(
+                            "
+                            INSERT INTO alarms (id, device_id, kind, severity, title, message, fire_at, expires_at, status)
+                            VALUES ($1, $2, 'session_alarm', $3, $4, $5, $6, $7, 'pending')
+                            ",
+                            &[
+                                &alarm_id,
+                                &dev_id,
+                                &severity,
+                                &title,
+                                &message,
+                                &fire_at,
+                                &Some(expires_at),
+                            ],
+                        )
+                        .await;
+                    if insert_result.is_ok() {
+                        alarms_created += 1;
+                    }
+                }
+            }
+
             work.push_str(&format!("- session_start: {} (estimated {} mins) at {}\n", task_id, est_mins, now));
             if let Err(err) = save_memory(&client, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
-            "Success: Work session started.".to_string()
+            format!("Success: Work session started and {} alarms scheduled.", alarms_created)
         }
         "end_session" => {
             let actual = args["actual_minutes"].as_i64().unwrap_or(0);
             let productivity = args["productive_level"].as_i64().unwrap_or(100);
+
+            // Delete pending session alarms
+            let _ = client.execute(
+                "DELETE FROM alarms WHERE device_id IN (SELECT device_id FROM devices WHERE user_id = $1) AND kind = 'session_alarm' AND status = 'pending'",
+                &[&user_id],
+            ).await;
+
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
@@ -630,7 +694,7 @@ async fn execute_tool_locally(
             if let Err(err) = save_memory(&client, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
-            "Success: Work session ended.".to_string()
+            "Success: Work session ended and session alarms deleted.".to_string()
         }
         "start_sleep" => {
             let est_hours = args["estimated_hours"].as_f64().unwrap_or(8.0);
@@ -647,6 +711,13 @@ async fn execute_tool_locally(
         }
         "log_wake" => {
             let sleep_quality = args["sleep_quality"].as_i64().unwrap_or(3);
+
+            // Delete pending wake alarms
+            let _ = client.execute(
+                "DELETE FROM alarms WHERE device_id IN (SELECT device_id FROM devices WHERE user_id = $1) AND kind = 'wake_alarm' AND status = 'pending'",
+                &[&user_id],
+            ).await;
+
             let now = Utc::now().to_rfc3339();
             let mut sleep = match get_memory_or_init(&client, user_id, "sleep", "# Sleep Ledger\n").await {
                 Ok(c) => c,
@@ -656,7 +727,7 @@ async fn execute_tool_locally(
             if let Err(err) = save_memory(&client, user_id, "sleep", &sleep).await {
                 return format!("Error: {}", err);
             }
-            "Success: Wake log saved.".to_string()
+            "Success: Wake log saved and wake alarms deleted.".to_string()
         }
         "log_override" => {
             let override_what = args["override_what"].as_str().unwrap_or("");
@@ -676,6 +747,109 @@ async fn execute_tool_locally(
                 return format!("Error: {}", err);
             }
             "Success: Override logged.".to_string()
+        }
+        "wake_up_alarm" => {
+            let sleep_text = match get_memory_or_init(&client, user_id, "sleep", "# Sleep Ledger\n").await {
+                Ok(c) => c,
+                Err(err) => return format!("Error: {}", err),
+            };
+
+            let mut target_wake_time = Utc::now() + chrono::Duration::hours(8); // default fallback
+            let mut parsed_from_ledger = false;
+
+            for line in sleep_text.lines().rev() {
+                if line.contains("sleep_start:") {
+                    if let Some(est_idx) = line.find("estimated ") {
+                        if let Some(hrs_idx) = line.find(" hours") {
+                            let hrs_str = line[est_idx + 10..hrs_idx].trim();
+                            if let Ok(hrs) = hrs_str.parse::<f64>() {
+                                if let Some(at_idx) = line.find(" at ") {
+                                    let time_str = line[at_idx + 4..].trim();
+                                    if let Ok(dt) = DateTime::parse_from_rfc3339(time_str) {
+                                        let dt_utc = dt.with_timezone(&Utc);
+                                        target_wake_time = dt_utc + chrono::Duration::seconds((hrs * 3600.0) as i64);
+                                        parsed_from_ledger = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(w_time_str) = args["wake_time"].as_str() {
+                if let Ok(dt) = DateTime::parse_from_rfc3339(w_time_str) {
+                    target_wake_time = dt.with_timezone(&Utc);
+                    parsed_from_ledger = true;
+                }
+            }
+
+            // Query user's registered devices
+            let devices = match client
+                .query(
+                    "SELECT device_id FROM devices WHERE user_id = $1",
+                    &[&user_id],
+                )
+                .await
+            {
+                Ok(rows) => rows,
+                Err(err) => return format!("Error querying user devices: {}", err),
+            };
+
+            if devices.is_empty() {
+                return "Fallback: No paired devices found. Cannot schedule wake-up alarms on device.".to_string();
+            }
+
+            let mut success_count = 0;
+            for row in &devices {
+                let dev_id: String = row.get("device_id");
+
+                // Delete any existing pending wake alarms first
+                let _ = client.execute(
+                    "DELETE FROM alarms WHERE device_id = $1 AND kind = 'wake_alarm' AND status = 'pending'",
+                    &[&dev_id],
+                ).await;
+
+                // Schedule the series of wake alarms (silent for first 2, subsequent loud every 5 mins up to 5 hours)
+                for offset in (0..=300).step_by(5) {
+                    let severity = if offset <= 5 { "normal" } else { "loud" };
+                    let alarm_id = format!("alarm_wake_{}_{}", severity, Uuid::new_v4().simple());
+                    let fire_at = target_wake_time + chrono::Duration::minutes(offset);
+                    let expires_at = fire_at + chrono::Duration::hours(2);
+                    let title = if severity == "loud" { "WAKE UP ESCALATION" } else { "Wake Up Alarm" };
+                    let message = "Antirot Coach: Wake up and check in now!";
+
+                    let insert_result = client
+                        .execute(
+                            "
+                            INSERT INTO alarms (id, device_id, kind, severity, title, message, fire_at, expires_at, status)
+                            VALUES ($1, $2, 'wake_alarm', $3, $4, $5, $6, $7, 'pending')
+                            ",
+                            &[
+                                &alarm_id,
+                                &dev_id,
+                                &severity,
+                                &title,
+                                &message,
+                                &fire_at,
+                                &Some(expires_at),
+                            ],
+                        )
+                        .await;
+                    if insert_result.is_ok() {
+                        success_count += 1;
+                    }
+                }
+            }
+
+            let source = if parsed_from_ledger { "computed from sleep ledger" } else { "default 8-hour fallback" };
+            format!(
+                "Success: Scheduled {} wake-up alarms starting at {} ({}).",
+                success_count,
+                target_wake_time.to_rfc3339(),
+                source
+            )
         }
         other => format!("Error: Unknown tool {}", other),
     }
@@ -796,6 +970,20 @@ fn get_tool_definitions() -> Value {
                         "reasoning": { "type": "string", "description": "The justification for the override." }
                     },
                     "required": ["override_what", "reasoning"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "wake_up_alarm",
+                "description": "Sets wake-up alarms based on the sleep ledger estimation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "wake_time": { "type": "string", "description": "Optional target wake-up time in RFC3339 format. If not provided, it is computed from the sleep ledger's last start entry." }
+                    },
+                    "required": []
                 }
             }
         }

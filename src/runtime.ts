@@ -309,3 +309,58 @@ function normalizeBridgeUrl(value: string | undefined): string | undefined {
     const trimmed = value?.trim() || process.env.ANTIROT_BRIDGE_URL?.trim() || "https://api.antirot.org";
     return trimmed.replace(/\/+$/, "");
 }
+
+export async function cancelBridgeAlarmsByKind(params: {
+    config: AntirotConfig;
+    kind: string;
+}): Promise<CronResult & { count?: number }> {
+    const bridgeUrl = normalizeBridgeUrl(params.config.bridgeUrl);
+    const adminToken = params.config.bridgeAdminToken?.trim() || process.env.ANTIROT_ADMIN_TOKEN?.trim();
+    if (!bridgeUrl || !adminToken) {
+        return {
+            ok: false,
+            message: "🔴 FALLBACK: cancel alarms skipped - Reason: bridgeUrl/bridgeAdminToken is not configured - Impact: alarms not cleared from bridge"
+        };
+    }
+
+    const deviceResult = await resolveBridgeDeviceId({
+        bridgeUrl,
+        adminToken,
+        config: params.config
+    });
+    if (!deviceResult.ok || !deviceResult.deviceId) {
+        return deviceResult;
+    }
+
+    try {
+        const response = await fetch(`${bridgeUrl}/v1/alarms/cancel`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${adminToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                deviceId: deviceResult.deviceId,
+                kind: params.kind
+            })
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            return {
+                ok: false,
+                message: `🔴 FALLBACK: cancel alarms failed - Reason: bridge returned HTTP ${response.status}: ${body.slice(0, 300)}`
+            };
+        }
+        const parsed = JSON.parse(body) as { count?: number };
+        return {
+            ok: true,
+            message: `Cancelled alarms of kind ${params.kind} on bridge.`,
+            count: parsed.count
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            message: `🔴 FALLBACK: cancel alarms failed - Reason: ${error instanceof Error ? error.message : String(error)}`
+        };
+    }
+}

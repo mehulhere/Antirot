@@ -346,6 +346,12 @@ The system extracts:
 - expected output
 - context
 
+Upon starting a session:
+- The system automatically registers a work timer/alarm at the target work duration.
+- It automatically schedules additional reminder/escalation alarms every 5 minutes following the duration, continuing for up to 5 hours.
+- The first 2 alarms in this sequence are silent (normal severity), and all subsequent alarms are loud.
+- When `end_session` is called, all pending session alarms are automatically deleted.
+
 ---
 
 # Session Metrics
@@ -424,6 +430,12 @@ Purpose:
 - restore awareness
 - correct sleep failure
 
+Work Session Alarm Auto-Set and Auto-Delete:
+- When a user starts a work session, a series of alarms is automatically scheduled on the paired device.
+- The first alarm matches the session target duration. Additional alarms are scheduled every 5 minutes after that, continuing for up to 5 hours.
+- The first two alarms are silent (normal severity), while subsequent alarms are loud.
+- When the `end_session` tool is called (or if the user finishes early), all pending session alarms are automatically deleted.
+
 ---
 
 # Override System
@@ -468,6 +480,13 @@ Purpose:
 - decompression
 
 Avoid anxiety generation before sleep.
+
+Wake-Up Alarm Auto-Set and Auto-Delete:
+- When the user goes to bed, the LLM calls the `wake_up_alarm` tool.
+- Based on `sleep.md` and the user's bedtime/estimated hours, it sets a series of wake-up alarms.
+- The first alarm fires at the target wake time. Additional alarms are scheduled every 5 minutes after that, continuing for up to 5 hours.
+- The first two alarms are silent (normal severity), while subsequent alarms are loud.
+- When the user presses "I am up" (dismisses the alarm in the app) or the `log_wake` tool is called, all pending wake-up alarms are automatically deleted.
 
 ---
 

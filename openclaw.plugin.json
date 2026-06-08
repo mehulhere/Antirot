@@ -39,7 +39,8 @@
             "get_linear_plan",
             "log_strategy_result",
             "log_override",
-            "patch_file"
+            "patch_file",
+            "wake_up_alarm"
         ]
     },
     "skills": [

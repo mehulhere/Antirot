@@ -34,8 +34,8 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - Starts breakfast, shower, commute, meditation, or another non-work routine: call `start_routine`.
 - Starts a work block: call `start_session`.
 - Finishes a work block or reports output: call `end_session`.
-- Says they are going to sleep: call `start_sleep`.
-- Says a good morning variant or reports waking up: call `log_wake`.
+- Says they are going to sleep: call `start_sleep`, followed by `wake_up_alarm` to queue the morning wake-up alarms.
+- Says a good morning variant or reports waking up: call `log_wake` (which automatically cancels all pending wake-up alarms).
 - Asks about sleep debt, sleep requirement, or tiredness: call `get_sleep_report`.
 - Asks what is running, what reminders exist, or whether anything is active: call `list_active_triggers`.
 - Finishes a routine/task early, wakes early, cancels a break, or makes a reminder unnecessary: call `list_active_triggers`, then `clear_active_trigger` for the matching trigger.
