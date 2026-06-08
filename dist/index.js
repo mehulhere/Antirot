@@ -1,7 +1,7 @@
 import path from "node:path";
 import { Type } from "typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { addPipelineTask, getLinearPlan, updatePipelineTaskStatus } from "./plan.js";
+import { getLinearPlan } from "./plan.js";
 import { scheduleBridgeAlarm, triggerAlarmCommand, triggerNormalAlarmCommand } from "./runtime.js";
 import { beginSleep, completeSleep, getSleepSummary, isGoodMorningVariant } from "./sleep.js";
 import { addMiscTask, listMiscTasks, popMiscTasks } from "./misc.js";
@@ -83,6 +83,51 @@ function readOptionalBoolean(params, key) {
         throw new Error(`${key} must be true or false.`);
     }
     return value;
+}
+function applyPatch(content, patch) {
+    const searchMarker = "<<<<<<< SEARCH";
+    const dividerMarker = "=======";
+    const replaceMarker = ">>>>>>> REPLACE";
+    const searchStart = patch.indexOf(searchMarker);
+    const dividerPos = patch.indexOf(dividerMarker);
+    const replaceEnd = patch.indexOf(replaceMarker);
+    if (searchStart === -1) {
+        throw new Error("Patch error: Missing '<<<<<<< SEARCH' marker");
+    }
+    if (dividerPos === -1) {
+        throw new Error("Patch error: Missing '=======' marker");
+    }
+    if (replaceEnd === -1) {
+        throw new Error("Patch error: Missing '>>>>>>> REPLACE' marker");
+    }
+    if (searchStart >= dividerPos || dividerPos >= replaceEnd) {
+        throw new Error("Patch error: Markers are in incorrect order");
+    }
+    const searchBlock = patch.slice(searchStart + searchMarker.length, dividerPos);
+    const searchBlockTrimmed = searchBlock.replace(/^[\r\n]+/, "").replace(/[\r\n]+$/, "");
+    const replaceBlock = patch.slice(dividerPos + dividerMarker.length, replaceEnd);
+    const replaceBlockTrimmed = replaceBlock.replace(/^[\r\n]+/, "").replace(/[\r\n]+$/, "");
+    if (searchBlockTrimmed === "") {
+        let newContent = content;
+        if (!newContent.endsWith("\n") && newContent.length > 0) {
+            newContent += "\n";
+        }
+        newContent += replaceBlockTrimmed;
+        newContent += "\n";
+        return newContent;
+    }
+    const contentNormalized = content.replaceAll("\r\n", "\n");
+    const searchNormalized = searchBlockTrimmed.replaceAll("\r\n", "\n");
+    const replaceNormalized = replaceBlockTrimmed.replaceAll("\r\n", "\n");
+    const pos = contentNormalized.indexOf(searchNormalized);
+    if (pos === -1) {
+        throw new Error(`Patch error: Exact search block match not found.\n\nExpected Search Block:\n${searchNormalized}\n\nEnsure exact character and whitespace match.`);
+    }
+    const lastPos = contentNormalized.lastIndexOf(searchNormalized);
+    if (pos !== lastPos) {
+        throw new Error("Patch error: Search block matches multiple parts of the file. Make it more specific.");
+    }
+    return contentNormalized.slice(0, pos) + replaceNormalized + contentNormalized.slice(pos + searchNormalized.length);
 }
 function readBoolean(params, key) {
     const value = params[key];
@@ -1289,153 +1334,58 @@ function registerTools(api) {
         }
     }), { name: "request_protected_edit" });
     api.registerTool((ctx) => ({
-        name: "add_long_term_goal",
-        label: "Add Long Term Goal",
-        description: "Appends a new long-term goal to the user's longterm.md memory.",
+        name: "patch_file",
+        label: "Patch File",
+        description: "Applies a SEARCH/REPLACE patch block to one of the user's memory markdown files.",
         parameters: Type.Object({
-            goal_text: Type.String({ minLength: 1 })
+            file_path: Type.String({
+                enum: [
+                    "longterm.md",
+                    "shortterm.md",
+                    "behavior.md",
+                    "tasks.md",
+                    "sleep.md",
+                    "work.md",
+                    "miscellaneous_todo.md"
+                ]
+            }),
+            patch: Type.String({ minLength: 1 })
         }),
         async execute(_toolCallId, params) {
             const values = params;
             const workspaceDir = resolveWorkspace(api, ctx);
             await ensureWorkspace(workspaceDir);
-            const goalText = readString(values, "goal_text");
-            let longterm = await readTextIfExists(path.join(workspaceDir, "longterm.md"));
-            const needle = "## Direction\n";
-            const idx = longterm.indexOf(needle);
-            if (idx !== -1) {
-                const insertPos = idx + needle.length;
-                longterm = longterm.slice(0, insertPos) + `- ${goalText}\n` + longterm.slice(insertPos);
+            const filePath = readString(values, "file_path");
+            const patch = readString(values, "patch");
+            const allowed = [
+                "longterm.md",
+                "shortterm.md",
+                "behavior.md",
+                "tasks.md",
+                "sleep.md",
+                "work.md",
+                "miscellaneous_todo.md"
+            ];
+            if (!allowed.includes(filePath)) {
+                return textResult(`Error: invalid file_path. Allowed: ${allowed.join(", ")}`);
             }
-            else {
-                longterm += `\n## Direction\n- ${goalText}\n`;
+            const fullPath = path.join(workspaceDir, filePath);
+            const content = await readTextIfExists(fullPath);
+            try {
+                const newContent = applyPatch(content, patch);
+                await writeWorkspaceTextFile(workspaceDir, filePath, newContent);
+                await appendEvent(workspaceDir, {
+                    type: "file_patched",
+                    details: { file_path: filePath }
+                });
+                return textResult(`Success: File ${filePath} patched successfully.`);
             }
-            await writeWorkspaceTextFile(workspaceDir, "longterm.md", longterm);
-            await appendEvent(workspaceDir, {
-                type: "long_term_goal_added",
-                details: { goalText }
-            });
-            return textResult("Success: Long term goal successfully added.");
-        }
-    }), { name: "add_long_term_goal" });
-    api.registerTool((ctx) => ({
-        name: "set_identity_framing",
-        label: "Set Identity Framing",
-        description: "Updates direction and standards in the user's longterm.md memory.",
-        parameters: Type.Object({
-            direction_text: Type.String({ minLength: 1 }),
-            standards_text: Type.String({ minLength: 1 })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const direction = readString(values, "direction_text");
-            const standards = readString(values, "standards_text");
-            const content = `# Long-Term Goals\n\n## Direction\n- ${direction}\n\n## Standards\n- ${standards}\n`;
-            await writeWorkspaceTextFile(workspaceDir, "longterm.md", content);
-            await appendEvent(workspaceDir, {
-                type: "identity_framing_updated",
-                details: { direction, standards }
-            });
-            return textResult("Success: Identity framing updated.");
-        }
-    }), { name: "set_identity_framing" });
-    api.registerTool((ctx) => ({
-        name: "set_short_term_priority",
-        label: "Set Short Term Priority",
-        description: "Sets current priorities in shortterm.md memory.",
-        parameters: Type.Object({
-            priority_text: Type.String({ minLength: 1 })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const priority = readString(values, "priority_text");
-            const content = `# Short-Term State\n\n## Current Priorities\n- ${priority}\n\n## Constraints\n- Suppressed pressures go here.\n`;
-            await writeWorkspaceTextFile(workspaceDir, "shortterm.md", content);
-            await appendEvent(workspaceDir, {
-                type: "short_term_priority_updated",
-                details: { priority }
-            });
-            return textResult("Success: Short-term priority updated.");
-        }
-    }), { name: "set_short_term_priority" });
-    api.registerTool((ctx) => ({
-        name: "set_current_constraint",
-        label: "Set Current Constraint",
-        description: "Sets health, sleep, or travel constraints in shortterm.md memory.",
-        parameters: Type.Object({
-            constraint_text: Type.String({ minLength: 1 })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const constraint = readString(values, "constraint_text");
-            let shortterm = await readTextIfExists(path.join(workspaceDir, "shortterm.md"));
-            const needle = "## Constraints\n";
-            const idx = shortterm.indexOf(needle);
-            if (idx !== -1) {
-                const insertPos = idx + needle.length;
-                shortterm = shortterm.slice(0, insertPos) + `- ${constraint}\n` + shortterm.slice(insertPos);
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                return textResult(msg);
             }
-            else {
-                shortterm += `\n## Constraints\n- ${constraint}\n`;
-            }
-            await writeWorkspaceTextFile(workspaceDir, "shortterm.md", shortterm);
-            await appendEvent(workspaceDir, {
-                type: "constraint_added",
-                details: { constraint }
-            });
-            return textResult("Success: Constraint added to shortterm.md.");
         }
-    }), { name: "set_current_constraint" });
-    api.registerTool((ctx) => ({
-        name: "add_pipeline_task",
-        label: "Add Pipeline Task",
-        description: "Appends a new task to the user's task pipeline (tasks.md).",
-        parameters: Type.Object({
-            title: Type.String({ minLength: 1 }),
-            hours: Type.Number({ minimum: 0.1 })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const title = readString(values, "title");
-            const hours = readNumber(values, "hours");
-            await addPipelineTask(workspaceDir, title, hours);
-            await appendEvent(workspaceDir, {
-                type: "pipeline_task_added",
-                details: { title, hours }
-            });
-            return textResult("Success: Task added to tasks.md pipeline.");
-        }
-    }), { name: "add_pipeline_task" });
-    api.registerTool((ctx) => ({
-        name: "update_pipeline_task_status",
-        label: "Update Pipeline Task Status",
-        description: "Marks a task in tasks.md as completed or deleted.",
-        parameters: Type.Object({
-            task_index: Type.Number({ minimum: 1 }),
-            status: Type.String({ pattern: "^(completed|deleted)$" })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const taskIndex = readNumber(values, "task_index");
-            const status = readString(values, "status");
-            await updatePipelineTaskStatus(workspaceDir, taskIndex, status);
-            await appendEvent(workspaceDir, {
-                type: "pipeline_task_status_updated",
-                details: { taskIndex, status }
-            });
-            return textResult(`Success: Task index ${taskIndex} set to status ${status}.`);
-        }
-    }), { name: "update_pipeline_task_status" });
+    }), { name: "patch_file" });
 }
 function registerHooks(api) {
     api.on("before_prompt_build", async (event) => {

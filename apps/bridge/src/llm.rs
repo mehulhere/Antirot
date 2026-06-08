@@ -382,6 +382,54 @@ async fn get_memory_or_init(
     }
 }
 
+fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
+    let search_marker = "<<<<<<< SEARCH";
+    let divider_marker = "=======";
+    let replace_marker = ">>>>>>> REPLACE";
+
+    let search_start = patch.find(search_marker).ok_or("Patch error: Missing '<<<<<<< SEARCH' marker")?;
+    let divider_pos = patch.find(divider_marker).ok_or("Patch error: Missing '=======' marker")?;
+    let replace_end = patch.find(replace_marker).ok_or("Patch error: Missing '>>>>>>> REPLACE' marker")?;
+
+    if search_start >= divider_pos || divider_pos >= replace_end {
+        return Err("Patch error: Markers are in incorrect order".to_string());
+    }
+
+    let search_block = &patch[search_start + search_marker.len()..divider_pos];
+    let search_block_trimmed = search_block.trim_start_matches('\n').trim_start_matches('\r').trim_end_matches('\n').trim_end_matches('\r');
+
+    let replace_block = &patch[divider_pos + divider_marker.len()..replace_end];
+    let replace_block_trimmed = replace_block.trim_start_matches('\n').trim_start_matches('\r').trim_end_matches('\n').trim_end_matches('\r');
+
+    if search_block_trimmed.is_empty() {
+        let mut new_content = content.to_string();
+        if !new_content.ends_with('\n') && !new_content.is_empty() {
+            new_content.push('\n');
+        }
+        new_content.push_str(replace_block_trimmed);
+        new_content.push('\n');
+        return Ok(new_content);
+    }
+
+    let content_normalized = content.replace("\r\n", "\n");
+    let search_normalized = search_block_trimmed.replace("\r\n", "\n");
+    let replace_normalized = replace_block_trimmed.replace("\r\n", "\n");
+
+    if let Some(pos) = content_normalized.find(&search_normalized) {
+        if content_normalized.rfind(&search_normalized) != Some(pos) {
+            return Err("Patch error: Search block matches multiple parts of the file. Make it more specific.".to_string());
+        }
+        let mut new_content = content_normalized;
+        new_content.replace_range(pos..pos + search_normalized.len(), &replace_normalized);
+        Ok(new_content)
+    } else {
+        Err(format!(
+            "Patch error: Exact search block match not found.\n\nExpected Search Block:\n{}\n\nEnsure exact character and whitespace match.",
+            search_normalized
+        ))
+    }
+}
+
 async fn execute_tool_locally(
     pool: &Pool,
     config: &Config,
@@ -396,176 +444,42 @@ async fn execute_tool_locally(
     };
 
     match name {
-        "add_long_term_goal" => {
-            let goal_text = args["goal_text"].as_str().unwrap_or("").trim();
-            if goal_text.is_empty() {
-                return "Error: goal_text parameter is required and cannot be empty".to_string();
-            }
-            let mut longterm = match get_memory_or_init(&client, user_id, "longterm", DEFAULT_LONGTERM).await {
-                Ok(c) => c,
-                Err(err) => return format!("Error reading longterm memory: {}", err),
-            };
-            // Append under Direction header
-            let needle = "## Direction\n";
-            if let Some(idx) = longterm.find(needle) {
-                let insert_pos = idx + needle.len();
-                longterm.insert_str(insert_pos, &format!("- {}\n", goal_text));
-            } else {
-                longterm.push_str(&format!("\n## Direction\n- {}\n", goal_text));
-            }
-            if let Err(err) = save_memory(&client, user_id, "longterm", &longterm).await {
-                return format!("Error saving memory: {}", err);
-            }
-            "Success: Long term goal successfully added.".to_string()
-        }
-        "set_identity_framing" => {
-            let direction = args["direction_text"].as_str().unwrap_or("").trim();
-            let standards = args["standards_text"].as_str().unwrap_or("").trim();
-            let content = format!(
-                "# Long-Term Goals\n\n## Direction\n- {}\n\n## Standards\n- {}\n",
-                direction, standards
-            );
-            if let Err(err) = save_memory(&client, user_id, "longterm", &content).await {
-                return format!("Error saving memory: {}", err);
-            }
-            "Success: Identity framing updated.".to_string()
-        }
-        "set_short_term_priority" => {
-            let priority = args["priority_text"].as_str().unwrap_or("").trim();
-            let content = format!(
-                "# Short-Term State\n\n## Current Priorities\n- {}\n\n## Constraints\n- Suppressed pressures go here.\n",
-                priority
-            );
-            if let Err(err) = save_memory(&client, user_id, "shortterm", &content).await {
-                return format!("Error saving memory: {}", err);
-            }
-            "Success: Short-term priority updated.".to_string()
-        }
-        "set_current_constraint" => {
-            let constraint = args["constraint_text"].as_str().unwrap_or("").trim();
-            let mut shortterm = match get_memory_or_init(&client, user_id, "shortterm", DEFAULT_SHORTTERM).await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            let needle = "## Constraints\n";
-            if let Some(idx) = shortterm.find(needle) {
-                let insert_pos = idx + needle.len();
-                shortterm.insert_str(insert_pos, &format!("- {}\n", constraint));
-            } else {
-                shortterm.push_str(&format!("\n## Constraints\n- {}\n", constraint));
-            }
-            if let Err(err) = save_memory(&client, user_id, "shortterm", &shortterm).await {
-                return format!("Error: {}", err);
-            }
-            "Success: Constraint added to shortterm.md.".to_string()
-        }
-        "log_behavior_pattern" => {
-            let ptype = args["pattern_type"].as_str().unwrap_or("pattern");
-            let desc = args["description"].as_str().unwrap_or("");
-            let now = Utc::now().to_rfc3339();
-            let mut behavior = match get_memory_or_init(&client, user_id, "behavior", DEFAULT_BEHAVIOR).await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            let needle = match ptype {
-                "drift" => "## Drift Tendencies\n",
-                "tactic" => "## Accountability Styles\n",
-                _ => "## Recurring Patterns\n",
-            };
-            if let Some(idx) = behavior.find(needle) {
-                let insert_pos = idx + needle.len();
-                behavior.insert_str(insert_pos, &format!("- {} (logged at {})\n", desc, now));
-            } else {
-                behavior.push_str(&format!("\n{} - {} (logged at {})\n", needle, desc, now));
-            }
-            if let Err(err) = save_memory(&client, user_id, "behavior", &behavior).await {
-                return format!("Error: {}", err);
-            }
-            "Success: Behavior pattern recorded.".to_string()
-        }
-        "add_pipeline_task" => {
-            let title = args["title"].as_str().unwrap_or("");
-            let hours = args["hours"].as_f64().unwrap_or(1.0);
-            let mut tasks = match get_memory_or_init(&client, user_id, "tasks", "# Task Pipeline\n").await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            tasks.push_str(&format!("[ ] {:.1}h - {}\n", hours, title));
-            if let Err(err) = save_memory(&client, user_id, "tasks", &tasks).await {
-                return format!("Error: {}", err);
-            }
-            "Success: Task added to tasks.md pipeline.".to_string()
-        }
-        "update_pipeline_task_status" => {
-            let task_idx = args["task_index"].as_i64().unwrap_or(1) as usize;
-            let status = args["status"].as_str().unwrap_or("completed");
-            let tasks = match get_memory_or_init(&client, user_id, "tasks", "# Task Pipeline\n").await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            
-            let mut lines: Vec<String> = tasks.lines().map(String::from).collect();
-            let mut task_lines_indices = Vec::new();
-            for (idx, line) in lines.iter().enumerate() {
-                if line.starts_with("[ ]") || line.starts_with("[x]") {
-                    task_lines_indices.push(idx);
-                }
+        "patch_file" => {
+            let file_path = args["file_path"].as_str().unwrap_or("");
+            let patch = args["patch"].as_str().unwrap_or("");
+
+            match file_path {
+                "longterm.md" | "shortterm.md" | "behavior.md" | "tasks.md" | "sleep.md" | "work.md" | "miscellaneous_todo.md" => {}
+                _ => return "Error: invalid file_path. Allowed: longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, work.md, miscellaneous_todo.md".to_string(),
             }
 
-            if task_idx == 0 || task_idx > task_lines_indices.len() {
-                return format!("Error: Task index {} is out of range. Total active/completed tasks: {}.", task_idx, task_lines_indices.len());
+            let db_key = file_path.strip_suffix(".md").unwrap_or(file_path);
+            let mut content = match get_memory_or_init(&client, user_id, db_key, "").await {
+                Ok(c) => c,
+                Err(err) => return format!("Error reading memory: {}", err),
+            };
+
+            if content.is_empty() {
+                content = match db_key {
+                    "longterm" => DEFAULT_LONGTERM.to_string(),
+                    "shortterm" => DEFAULT_SHORTTERM.to_string(),
+                    "behavior" => DEFAULT_BEHAVIOR.to_string(),
+                    "tasks" => "# Task Pipeline\n".to_string(),
+                    "sleep" => "# Sleep Ledger\n".to_string(),
+                    "work" => "# Work Ledger\n".to_string(),
+                    _ => "# Miscellaneous Todo\n".to_string(),
+                };
             }
 
-            let target_line_idx = task_lines_indices[task_idx - 1];
-            if status == "completed" {
-                if let Some(remainder) = lines[target_line_idx].strip_prefix("[ ]") {
-                    lines[target_line_idx] = format!("[x]{}", remainder);
+            match apply_patch(&content, patch) {
+                Ok(new_content) => {
+                    if let Err(err) = save_memory(&client, user_id, db_key, &new_content).await {
+                        return format!("Error saving memory: {}", err);
+                    }
+                    format!("Success: File {} patched successfully.", file_path)
                 }
-            } else if status == "deleted" {
-                lines.remove(target_line_idx);
+                Err(err) => err,
             }
-
-            let new_content = lines.join("\n") + "\n";
-            if let Err(err) = save_memory(&client, user_id, "tasks", &new_content).await {
-                return format!("Error: {}", err);
-            }
-            format!("Success: Task index {} set to status {}.", task_idx, status)
-        }
-        "add_misc_todo" => {
-            let todo_text = args["todo_text"].as_str().unwrap_or("");
-            let mut todo = match get_memory_or_init(&client, user_id, "miscellaneous_todo", "# Miscellaneous Todo\n").await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            todo.push_str(&format!("- {}\n", todo_text));
-            if let Err(err) = save_memory(&client, user_id, "miscellaneous_todo", &todo).await {
-                return format!("Error: {}", err);
-            }
-            "Success: Todo added to miscellaneous_todo.md list.".to_string()
-        }
-        "pop_misc_todo" => {
-            let todo_idx = args["todo_index"].as_i64().unwrap_or(1) as usize;
-            let todo = match get_memory_or_init(&client, user_id, "miscellaneous_todo", "# Miscellaneous Todo\n").await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
-            let mut lines: Vec<String> = todo.lines().map(String::from).collect();
-            let mut todo_indices = Vec::new();
-            for (idx, line) in lines.iter().enumerate() {
-                if line.trim().starts_with("- ") {
-                    todo_indices.push(idx);
-                }
-            }
-            if todo_idx == 0 || todo_idx > todo_indices.len() {
-                return format!("Error: index {} is out of range.", todo_idx);
-            }
-            let target_line_idx = todo_indices[todo_idx - 1];
-            lines.remove(target_line_idx);
-            let new_content = lines.join("\n") + "\n";
-            if let Err(err) = save_memory(&client, user_id, "miscellaneous_todo", &new_content).await {
-                return format!("Error: {}", err);
-            }
-            "Success: Item removed from miscellaneous_todo.md list.".to_string()
         }
         "start_session" => {
             let task_id = args["task_id"].as_str().unwrap_or("Unknown Task");
@@ -724,130 +638,22 @@ fn get_tool_definitions() -> Value {
         {
             "type": "function",
             "function": {
-                "name": "add_long_term_goal",
-                "description": "Appends a new long-term goal to the user's longterm.md memory.",
+                "name": "patch_file",
+                "description": "Edits a user memory file (longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, work.md, miscellaneous_todo.md) using a git-conflict style SEARCH/REPLACE block. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "goal_text": { "type": "string", "description": "The goal description." }
+                        "file_path": {
+                            "type": "string",
+                            "enum": ["longterm.md", "shortterm.md", "behavior.md", "tasks.md", "sleep.md", "work.md", "miscellaneous_todo.md"],
+                            "description": "The target memory file to update."
+                        },
+                        "patch": {
+                            "type": "string",
+                            "description": "The SEARCH/REPLACE block. Example: <<<<<<< SEARCH\n[search text]\n=======\n[replace text]\n>>>>>>> REPLACE"
+                        }
                     },
-                    "required": ["goal_text"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "set_identity_framing",
-                "description": "Updates direction and standards in the user's longterm.md memory.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "direction_text": { "type": "string", "description": "New long-term direction/vision." },
-                        "standards_text": { "type": "string", "description": "Core standards and non-negotiables." }
-                    },
-                    "required": ["direction_text", "standards_text"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "set_short_term_priority",
-                "description": "Sets current priorities in shortterm.md memory.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "priority_text": { "type": "string", "description": "Current active priorities." }
-                    },
-                    "required": ["priority_text"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "set_current_constraint",
-                "description": "Sets health, sleep, or travel constraints in shortterm.md memory.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "constraint_text": { "type": "string", "description": "Current constraints or barriers." }
-                    },
-                    "required": ["constraint_text"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "log_behavior_pattern",
-                "description": "Appends a behavioral observation (drift loop, pattern, or coaching style) to behavior.md.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "pattern_type": { "type": "string", "enum": ["pattern", "drift", "tactic"], "description": "Type of pattern." },
-                        "description": { "type": "string", "description": "Details of the pattern/drift/tactic observed." }
-                    },
-                    "required": ["pattern_type", "description"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "add_pipeline_task",
-                "description": "Appends a new task to the user's task pipeline (tasks.md).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "title": { "type": "string", "description": "Task description." },
-                        "hours": { "type": "number", "description": "Estimated time in hours." }
-                    },
-                    "required": ["title", "hours"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "update_pipeline_task_status",
-                "description": "Marks a task in tasks.md as completed or deleted.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "task_index": { "type": "integer", "description": "The 1-based index of the task in tasks.md." },
-                        "status": { "type": "string", "enum": ["completed", "deleted"], "description": "Target status." }
-                    },
-                    "required": ["task_index", "status"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "add_misc_todo",
-                "description": "Appends an intrusive thought or small admin task to miscellaneous_todo.md.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "todo_text": { "type": "string", "description": "The administrative task or thought." }
-                    },
-                    "required": ["todo_text"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "pop_misc_todo",
-                "description": "Removes a todo task from the miscellaneous_todo.md list.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "todo_index": { "type": "integer", "description": "The 1-based index of the item." }
-                    },
-                    "required": ["todo_index"]
+                    "required": ["file_path", "patch"]
                 }
             }
         },
