@@ -108,8 +108,26 @@ pub async fn chat_with_coach(
     let behavior = get_memory_or_init(&client, user_id, "behavior", DEFAULT_BEHAVIOR).await?;
     let tasks = get_memory_or_init(&client, user_id, "tasks", "# Task Pipeline\n").await?;
     let sleep = get_memory_or_init(&client, user_id, "sleep", "# Sleep Ledger\n").await?;
-    let work = get_memory_or_init(&client, user_id, "work", "# Work Ledger\n").await?;
+    let achievements = get_memory_or_init(&client, user_id, "achievements", "# Achievements\n\n- Baseline established.\n").await?;
     let miscellaneous_todo = get_memory_or_init(&client, user_id, "miscellaneous_todo", "# Miscellaneous Todo\n").await?;
+
+    let now = Utc::now();
+    let today_key = now.format("%Y_%m_%d").to_string();
+    let today_log_key = format!("work_log_{}", today_key);
+    let today_log = get_memory_or_init(&client, user_id, &today_log_key, "# Work Log\n").await?;
+
+    let mut combined_summaries = String::new();
+    for i in 0..3 {
+        let d = now - chrono::Duration::days(i);
+        let day_str = d.format("%Y-%m-%d").to_string();
+        let summary_key = format!("work_summary_{}", d.format("%Y_%m_%d"));
+        let summary = get_memory_or_init(&client, user_id, &summary_key, "").await?;
+        if summary.is_empty() {
+            combined_summaries.push_str(&format!("### Daily Summary for {}\n(No summary logged for this day)\n\n", day_str));
+        } else {
+            combined_summaries.push_str(&format!("### Daily Summary for {}\n{}\n\n", day_str, summary.trim()));
+        }
+    }
 
     // 3. Load chat history
     let history_rows = client
@@ -164,8 +182,14 @@ pub async fn chat_with_coach(
 ### Sleep Log (sleep.md):
 {sleep}
 
-### Work Log (work.md):
-{work}
+### Achievements (achievements.md):
+{achievements}
+
+### Recent Daily Summaries (past 3 days):
+{combined_summaries}
+
+### Today's Session Logs:
+{today_log}
 "
     );
 
@@ -448,32 +472,58 @@ async fn execute_tool_locally(
             let file_path = args["file_path"].as_str().unwrap_or("");
             let patch = args["patch"].as_str().unwrap_or("");
 
-            match file_path {
-                "longterm.md" | "shortterm.md" | "behavior.md" | "tasks.md" | "sleep.md" | "work.md" | "miscellaneous_todo.md" => {}
-                _ => return "Error: invalid file_path. Allowed: longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, work.md, miscellaneous_todo.md".to_string(),
-            }
+            let db_key = if file_path == "longterm.md" {
+                "longterm".to_string()
+            } else if file_path == "shortterm.md" {
+                "shortterm".to_string()
+            } else if file_path == "behavior.md" {
+                "behavior".to_string()
+            } else if file_path == "tasks.md" {
+                "tasks".to_string()
+            } else if file_path == "sleep.md" {
+                "sleep".to_string()
+            } else if file_path == "achievements.md" {
+                "achievements".to_string()
+            } else if file_path == "miscellaneous_todo.md" {
+                "miscellaneous_todo".to_string()
+            } else if file_path.ends_with("_WorkLog.md") && file_path.len() == 21 {
+                let date_part = &file_path[0..10];
+                format!("work_log_{}", date_part.replace("-", "_"))
+            } else if file_path.ends_with("_Summary.md") && file_path.len() == 21 {
+                let date_part = &file_path[0..10];
+                format!("work_summary_{}", date_part.replace("-", "_"))
+            } else {
+                return "Error: invalid file_path. Allowed: longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md".to_string();
+            };
 
-            let db_key = file_path.strip_suffix(".md").unwrap_or(file_path);
-            let mut content = match get_memory_or_init(&client, user_id, db_key, "").await {
+            let mut content = match get_memory_or_init(&client, user_id, &db_key, "").await {
                 Ok(c) => c,
                 Err(err) => return format!("Error reading memory: {}", err),
             };
 
             if content.is_empty() {
-                content = match db_key {
+                content = match db_key.as_str() {
                     "longterm" => DEFAULT_LONGTERM.to_string(),
                     "shortterm" => DEFAULT_SHORTTERM.to_string(),
                     "behavior" => DEFAULT_BEHAVIOR.to_string(),
                     "tasks" => "# Task Pipeline\n".to_string(),
                     "sleep" => "# Sleep Ledger\n".to_string(),
-                    "work" => "# Work Ledger\n".to_string(),
-                    _ => "# Miscellaneous Todo\n".to_string(),
+                    "achievements" => "# Achievements\n\n- Baseline established.\n".to_string(),
+                    _ => {
+                        if db_key.starts_with("work_log_") {
+                            "# Work Log\n".to_string()
+                        } else if db_key.starts_with("work_summary_") {
+                            "# Daily Summary\n".to_string()
+                        } else {
+                            "# Miscellaneous Todo\n".to_string()
+                        }
+                    }
                 };
             }
 
             match apply_patch(&content, patch) {
                 Ok(new_content) => {
-                    if let Err(err) = save_memory(&client, user_id, db_key, &new_content).await {
+                    if let Err(err) = save_memory(&client, user_id, &db_key, &new_content).await {
                         return format!("Error saving memory: {}", err);
                     }
                     format!("Success: File {} patched successfully.", file_path)
@@ -485,12 +535,14 @@ async fn execute_tool_locally(
             let task_id = args["task_id"].as_str().unwrap_or("Unknown Task");
             let est_mins = args["estimated_minutes"].as_i64().unwrap_or(30);
             let now = Utc::now().to_rfc3339();
-            let mut work = match get_memory_or_init(&client, user_id, "work", "# Work Ledger\n").await {
+            let today = Utc::now().format("%Y_%m_%d").to_string();
+            let db_key = format!("work_log_{}", today);
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
             work.push_str(&format!("- session_start: {} (estimated {} mins) at {}\n", task_id, est_mins, now));
-            if let Err(err) = save_memory(&client, user_id, "work", &work).await {
+            if let Err(err) = save_memory(&client, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
             "Success: Work session started.".to_string()
@@ -499,12 +551,14 @@ async fn execute_tool_locally(
             let actual = args["actual_minutes"].as_i64().unwrap_or(0);
             let productivity = args["productive_level"].as_i64().unwrap_or(100);
             let now = Utc::now().to_rfc3339();
-            let mut work = match get_memory_or_init(&client, user_id, "work", "# Work Ledger\n").await {
+            let today = Utc::now().format("%Y_%m_%d").to_string();
+            let db_key = format!("work_log_{}", today);
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
             work.push_str(&format!("- session_end: {} actual mins, productivity level {}% at {}\n", actual, productivity, now));
-            if let Err(err) = save_memory(&client, user_id, "work", &work).await {
+            if let Err(err) = save_memory(&client, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
             "Success: Work session ended.".to_string()
@@ -639,14 +693,13 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "patch_file",
-                "description": "Edits a user memory file (longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, work.md, miscellaneous_todo.md) using a git-conflict style SEARCH/REPLACE block. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
+                "description": "Edits a user memory file (longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, achievements.md, miscellaneous_todo.md, or a date-based log like YYYY-MM-DD_WorkLog.md or YYYY-MM-DD_Summary.md) using a git-conflict style SEARCH/REPLACE block. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "enum": ["longterm.md", "shortterm.md", "behavior.md", "tasks.md", "sleep.md", "work.md", "miscellaneous_todo.md"],
-                            "description": "The target memory file to update."
+                            "description": "The target memory file to update. Allowed: longterm.md, shortterm.md, behavior.md, tasks.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md"
                         },
                         "patch": {
                             "type": "string",

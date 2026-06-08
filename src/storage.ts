@@ -18,7 +18,7 @@ const protectedMarkdownFiles = [
     "behavior.md",
     "sleep.md",
     "tasks.md",
-    "work.md",
+    "achievements.md",
     "miscellaneous_todo.md"
 ] as const;
 
@@ -28,7 +28,7 @@ const defaultMarkdown: Record<(typeof protectedMarkdownFiles)[number], string> =
     "behavior.md": "# Behavior Memory\n\n## Recurring Patterns\n- Onboarding will ask what helps or derails the user, then Antirot will summarize stable patterns here.\n\n## Drift Tendencies\n- Known drift loops go here.\n\n## Accountability Styles\n- Tactics that work or fail go here.\n",
     "sleep.md": "# Sleep Ledger\n\n## Rules\n- Planning tomorrow and going to sleep are different states.\n- Sleep recovery is calculated from recent sleep debt and tiredness.\n\n",
     "tasks.md": "# Task Pipeline\n\n[ ] 1.0h - Define the first serious task\n",
-    "work.md": "# Work Ledger\n\n",
+    "achievements.md": "# Achievements\n\n- Baseline established.\n",
     "miscellaneous_todo.md": "# Miscellaneous Todo\n\n- Drink water\n- Clear one tiny admin task\n"
 };
 
@@ -293,8 +293,16 @@ export async function appendEvent(workspaceDir: string, event: Omit<AntirotEvent
     );
 }
 
+export function getDailyWorkLogName(date = new Date()): string {
+    return `${todayKey(date)}_WorkLog.md`;
+}
+
+export function getDailySummaryName(date = new Date()): string {
+    return `${todayKey(date)}_Summary.md`;
+}
+
 export async function appendWorkEntry(workspaceDir: string, markdown: string): Promise<void> {
-    const workPath = path.join(workspaceDir, "work.md");
+    const workPath = path.join(workspaceDir, getDailyWorkLogName());
     await appendFile(workPath, markdown, "utf8");
 }
 
@@ -342,7 +350,11 @@ export function normalizeWorkspaceRelativePath(value: string): string {
 export function isProtectedPath(value: string, workspaceDir: string): boolean {
     const normalized = normalizeWorkspaceRelativePath(path.relative(workspaceDir, path.resolve(workspaceDir, value)));
     const direct = normalizeWorkspaceRelativePath(value);
-    return protectedFileNames.has(normalized) || protectedFileNames.has(direct);
+    if (protectedFileNames.has(normalized) || protectedFileNames.has(direct)) {
+        return true;
+    }
+    const dailyFilePattern = /^\d{4}-\d{2}-\d{2}_(WorkLog|Summary)\.md$/;
+    return dailyFilePattern.test(normalized) || dailyFilePattern.test(direct);
 }
 
 export async function hasFreshProtectedIntent(

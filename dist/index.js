@@ -7,7 +7,7 @@ import { beginSleep, completeSleep, getSleepSummary, isGoodMorningVariant } from
 import { addMiscTask, listMiscTasks, popMiscTasks } from "./misc.js";
 import { rolloverTasks } from "./rollover.js";
 import { clearMatchingTriggers, clearTrigger, createAntirotTrigger, formatActiveTriggersForModel, listActiveTriggers, rescheduleTrigger } from "./triggers.js";
-import { addProtectedIntent, appendBehaviorEntry, appendEvent, appendLongtermEntry, appendShorttermEntry, appendWorkEntry, ensureWorkspace, hasFreshProtectedIntent, isProtectedPath, normalizeWorkspaceRelativePath, nowIso, readState, readStats, readStrategyPerformance, readTextIfExists, resolveWorkspaceDir, todayKey, writeState, writeStats, writeStrategyPerformance, writeWorkspaceTextFile } from "./storage.js";
+import { addProtectedIntent, appendBehaviorEntry, appendEvent, appendLongtermEntry, appendShorttermEntry, appendWorkEntry, ensureWorkspace, getDailySummaryName, getDailyWorkLogName, hasFreshProtectedIntent, isProtectedPath, normalizeWorkspaceRelativePath, nowIso, readState, readStats, readStrategyPerformance, readTextIfExists, resolveWorkspaceDir, todayKey, writeState, writeStats, writeStrategyPerformance, writeWorkspaceTextFile } from "./storage.js";
 const ordinaryRoutineCapMins = 30;
 const goalReviewIntervalDays = 14;
 const fallbackStrategies = [
@@ -346,20 +346,35 @@ function buildPersonaContext() {
 }
 async function buildStateContext(workspaceDir, config) {
     await ensureWorkspace(workspaceDir);
-    const [rawState, stats, work, longterm, shortterm, behavior, sleepSummary, activeTriggers] = await Promise.all([
+    const dates = [];
+    for (let i = 0; i < 3; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(todayKey(d));
+    }
+    const summaryFiles = dates.map((d) => `${d}_Summary.md`);
+    const [rawState, stats, achievements, longterm, shortterm, behavior, sleepSummary, activeTriggers, todayLog, ...pastSummaries] = await Promise.all([
         readState(workspaceDir),
         readStats(workspaceDir),
-        readTextIfExists(path.join(workspaceDir, "work.md")),
+        readTextIfExists(path.join(workspaceDir, "achievements.md")),
         readTextIfExists(path.join(workspaceDir, "longterm.md")),
         readTextIfExists(path.join(workspaceDir, "shortterm.md")),
         readTextIfExists(path.join(workspaceDir, "behavior.md")),
         getSleepSummary(workspaceDir),
-        listActiveTriggers(workspaceDir)
+        listActiveTriggers(workspaceDir),
+        readTextIfExists(path.join(workspaceDir, getDailyWorkLogName())),
+        ...summaryFiles.map((file) => readTextIfExists(path.join(workspaceDir, file)))
     ]);
     const state = await selectDailyStrategies(workspaceDir, rawState, config);
     const onboarding = await getOnboardingStatus(workspaceDir, state);
     const day = today();
-    const recentWork = work.split(/\r?\n/u).slice(-24).join("\n").trim();
+    const combinedSummaries = dates.map((d, index) => {
+        const text = pastSummaries[index].trim();
+        if (!text) {
+            return `### Daily Summary for ${d}\n(No summary logged for this day)`;
+        }
+        return `### Daily Summary for ${d}\n${text}`;
+    }).join("\n\n");
     return [
         "Antirot compact runtime state:",
         `- mode: ${state.mode}`,
@@ -378,8 +393,12 @@ async function buildStateContext(workspaceDir, config) {
         shortterm.slice(0, 1000).trim() || "(empty)",
         "Behavior memory excerpt:",
         behavior.slice(0, 1200).trim() || "(empty)",
-        "Recent work evidence:",
-        recentWork.slice(-1500) || "(empty)",
+        "Achievements (achievements.md):",
+        achievements.slice(0, 1500).trim() || "(empty)",
+        "Recent Daily Summaries (past 3 days):",
+        combinedSummaries,
+        "Today's session logs:",
+        todayLog.trim() || "(no sessions logged today)",
         "Sleep status:",
         sleepSummary,
         "Active Antirot triggers:",
@@ -1042,15 +1061,32 @@ function registerTools(api) {
             const failures = readOptionalStringArray(values, "failures") ?? [];
             const behaviorNotes = readOptionalStringArray(values, "behavior_notes") ?? [];
             const day = today();
-            await appendWorkEntry(workspaceDir, [
-                `\n## ${day} Nightly Summary`,
+            const summaryText = [
+                `## Daily Summary for ${day}`,
                 "",
                 `- Summary: ${readString(values, "summary")}`,
                 wins.length ? "\n### Wins" : undefined,
                 ...wins.map((item) => `- ${item}`),
                 failures.length ? "\n### Failures" : undefined,
                 ...failures.map((item) => `- ${item}`)
-            ].filter(Boolean).join("\n") + "\n");
+            ].filter(Boolean).join("\n") + "\n";
+            const summaryFileName = getDailySummaryName();
+            await writeWorkspaceTextFile(workspaceDir, summaryFileName, summaryText);
+            if (wins.length > 0) {
+                const achievementsPath = path.join(workspaceDir, "achievements.md");
+                const currentAchievementsText = await readTextIfExists(achievementsPath);
+                let achievementLines = currentAchievementsText
+                    .split(/\r?\n/u)
+                    .map((line) => line.trim())
+                    .filter((line) => line.startsWith("-") && line.slice(1).trim() !== "");
+                const newLines = wins.map((item) => `- [${day}] ${item}`);
+                achievementLines = [...newLines, ...achievementLines];
+                if (achievementLines.length > 50) {
+                    achievementLines = achievementLines.slice(0, 50);
+                }
+                const newAchievementsText = `# Achievements\n\n${achievementLines.join("\n")}\n`;
+                await writeWorkspaceTextFile(workspaceDir, "achievements.md", newAchievementsText);
+            }
             if (behaviorNotes.length > 0) {
                 await appendBehaviorEntry(workspaceDir, [
                     `\n## ${day} Nightly Behavioral Extraction`,
@@ -1339,15 +1375,7 @@ function registerTools(api) {
         description: "Applies a SEARCH/REPLACE patch block to one of the user's memory markdown files.",
         parameters: Type.Object({
             file_path: Type.String({
-                enum: [
-                    "longterm.md",
-                    "shortterm.md",
-                    "behavior.md",
-                    "tasks.md",
-                    "sleep.md",
-                    "work.md",
-                    "miscellaneous_todo.md"
-                ]
+                description: "The target memory file. E.g. longterm.md, achievements.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md"
             }),
             patch: Type.String({ minLength: 1 })
         }),
@@ -1363,11 +1391,12 @@ function registerTools(api) {
                 "behavior.md",
                 "tasks.md",
                 "sleep.md",
-                "work.md",
+                "achievements.md",
                 "miscellaneous_todo.md"
             ];
-            if (!allowed.includes(filePath)) {
-                return textResult(`Error: invalid file_path. Allowed: ${allowed.join(", ")}`);
+            const dailyFilePattern = /^\d{4}-\d{2}-\d{2}_(WorkLog|Summary)\.md$/;
+            if (!allowed.includes(filePath) && !dailyFilePattern.test(filePath)) {
+                return textResult(`Error: invalid file_path. Allowed standard memory files, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md.`);
             }
             const fullPath = path.join(workspaceDir, filePath);
             const content = await readTextIfExists(fullPath);
