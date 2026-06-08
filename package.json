@@ -1,7 +1,7 @@
 {
-    "name": "openclaw-plugin-antirot",
+    "name": "antirot",
     "version": "0.1.0",
-    "description": "Strict coach accountability plugin for OpenClaw.",
+    "description": "AI-powered ADHD accountability coach. Includes an optional OpenClaw plugin for self-hosted setups.",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -43,11 +43,12 @@
         }
     },
     "keywords": [
-        "openclaw",
-        "plugin",
-        "accountability",
         "adhd",
-        "productivity"
+        "accountability",
+        "productivity",
+        "coaching",
+        "openclaw",
+        "plugin"
     ],
     "license": "AGPL-3.0-or-later OR LicenseRef-commercial",
     "peerDependencies": {

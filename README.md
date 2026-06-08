@@ -1,8 +1,85 @@
 # Antirot
 
-Antirot is an OpenClaw plugin for strict personal accountability. It behaves like a tough, moody sports coach: high standards, rare praise, sharp reminders, and deterministic state tools so cheap LLMs do not manually rewrite memory or timers.
+Antirot is an AI-powered ADHD accountability coach. It acts as a strict, intelligent sports coach — high standards, rare praise, sharp reminders, and adaptive behavioral strategies.
 
-## Development
+The system provides:
+
+- Morning planning and session tracking
+- Escalating alarm reminders via AlarmKit (iOS 26+)
+- Behavioral memory and strategy adaptation
+- Screen Time awareness (when authorized by Apple)
+- In-app chat with a persistent coaching personality
+- Home screen widget showing the current task
+
+## Architecture
+
+Antirot runs as a native iOS app backed by a lightweight Rust API server.
+
+```text
+iOS App (SwiftUI)        Antirot Backend (Rust)       LLM Provider
+  AlarmKit alarms    <-->   api.antirot.org        <-->  OpenAI / Gemini
+  Screen Time               Postgres                    OpenRouter
+  Widget                    APNs
+  Chat UI                   Auth (Google)
+```
+
+**For self-hosted power users**, Antirot also ships an OpenClaw plugin that runs on your own VPS and uses the iOS app as a message relay. See the [Self-Hosted Setup](#self-hosted-with-openclaw) section below.
+
+## iOS App
+
+The native SwiftUI app lives in `apps/ios/`. It uses XcodeGen to generate the Xcode project.
+
+```bash
+cd apps/ios
+brew install xcodegen
+xcodegen generate
+open Antirot.xcodeproj
+```
+
+See [apps/ios/README.md](apps/ios/README.md) for capabilities, alarm setup, widget usage, and Screen Time.
+
+## Backend
+
+The Rust API server lives in `apps/bridge/`. It handles device registration, alarm delivery, APNs push, Google auth, and user/workspace management.
+
+```bash
+cd apps/bridge
+cp ../../env.example.txt .env
+# Edit .env with your Postgres and APNs credentials
+cargo run
+```
+
+Required environment:
+
+```text
+DATABASE_URL=postgres://antirot_bridge:secret@localhost/antirot_bridge
+ANTIROT_ADMIN_TOKEN=long-random-admin-token
+ANTIROT_DEVICE_TOKEN=long-random-device-token
+ANTIROT_BRIDGE_BIND=127.0.0.1:8787
+GOOGLE_IOS_CLIENT_ID=your-google-client-id
+```
+
+See [apps/bridge/README.md](apps/bridge/README.md) for the full API, pairing flow, and APNs configuration.
+
+## Website
+
+The landing page lives in `website/`. Served from `antirot.org`.
+
+## CI/CD
+
+GitHub Actions workflows in `.github/workflows/`:
+
+- `deploy-ios-testflight.yml`: Builds and uploads to TestFlight on every push to main.
+- `build-ios-ipa.yml`: Builds an unsigned IPA artifact for sideloading.
+- `build-android-apk.yml`: Builds the Android APK.
+
+## VPS Deployment
+
+See [setup_VPS.md](setup_VPS.md) for full server setup including the backend, Nginx, APNs keys, and iPhone pairing.
+
+## Self-Hosted with OpenClaw
+
+For power users who want to run the coaching brain on their own VPS using OpenClaw:
 
 ```bash
 npm install
@@ -10,132 +87,35 @@ npm run build
 npx openclaw plugins install --link .
 npx openclaw plugins enable antirot
 npx openclaw gateway restart
-npx openclaw plugins inspect antirot --runtime --json
 ```
 
-## Install From GitHub
+The iOS app acts as a message relay in this mode — it displays coach messages from your OpenClaw instance and relays your responses back through the bridge.
 
-```bash
-npx openclaw plugins install https://github.com/mehulhere/Antirot.git
-npx openclaw plugins enable antirot
-npx openclaw gateway restart
-npx openclaw plugins inspect antirot --runtime --json
-```
-
-Use `--link .` while developing locally. Use the GitHub URL when installing the published plugin on another machine.
-
-## OpenClaw Config
-
-Configure the workspace explicitly when possible:
-
-```json
-{
-    "plugins": {
-        "entries": {
-            "antirot": {
-                "enabled": true,
-                "config": {
-                    "workspaceDir": "/absolute/path/to/openclaw/workspace",
-                    "openclawCommand": "openclaw",
-                    "enableCron": true,
-                    "normalAlarmCommand": "paplay /path/to/normal-alarm.wav",
-                    "alarmCommand": "paplay /path/to/alarm.wav"
-                }
-            }
-        }
-    }
-}
-```
-
-Sleep is tracked separately in `sleep.md` and `.antirot/sleep_stats.json`. Saying "I am going to sleep" should start sleep mode and schedule a normal wake alarm after required sleep plus a hidden buffer, followed by loud escalation after another hidden buffer if no good morning variant is received. User-facing replies should not pre-tell exact alarm or reminder times.
-
-Daily runtime triggers are tracked in `.antirot/triggers.json`. The agent should inspect, clear, and reschedule triggers only through Antirot tools (`list_active_triggers`, `clear_active_trigger`, `reschedule_trigger`) instead of calling OpenClaw cron directly.
-
-Behavior memory is kept in `behavior.md` and injected into the compact prompt context. Use `log_behavior_note` for stable drift patterns or accountability tactics, and use the misc queue tools (`add_to_misc_queue`, `list_misc_queue`, `pop_misc_task`) to park intrusive thoughts without derailing focus.
-
-Onboarding should happen in chat. The agent should call `get_onboarding_status`, ask simple questions in user language, and save answers through `save_onboarding_answers` instead of telling the user to manually edit `longterm.md`, `shortterm.md`, or `behavior.md`. The user should not have to classify answers as long-term, short-term, or behavior; the agent does that split. The same flow is used later for periodic goal reviews or when priorities change.
-
-Night cleanup should use `run_nightly_rollover` and `write_nightly_summary` so completed tasks are cleared, unfinished tasks carry forward, and summaries land in `work.md`/`behavior.md` without manual file rewrites.
-
-The plugin blocks ordinary file-tool edits to protected Antirot files unless the agent first records a justified protected edit intent. Shell access can still bypass ordinary file-tool hooks, so use OpenClaw tool policy to deny `exec` or `group:runtime` when you want stronger protection.
-
-## Mobile Apps
-
-- `apps/ios`: iOS client with notification alarms, alarm actions, and Screen Time scaffolding.
-- `apps/android`: Android client with exact alarms, alarm screen, acknowledgement actions, and usage-access summary.
-- `apps/bridge`: low-resource Rust alarm bridge for `api.antirot.org`, device registration, alarm delivery queueing, and acknowledgement/snooze events.
-
-## Alarm Bridge
-
-The Rust bridge is the phone-facing API. It is meant to run separately from the homepage process, usually behind Nginx/Caddy:
-
-```text
-antirot.org      -> homepage
-api.antirot.org  -> 127.0.0.1:8787
-```
-
-Development:
-
-```bash
-cd apps/bridge
-cp ../../env.example.txt .env
-cargo run
-```
-
-Required environment variables:
-
-```text
-DATABASE_URL=postgres://antirot_bridge:secret@localhost/antirot_bridge
-ANTIROT_ADMIN_TOKEN=long-random-token-used-by-openclaw
-ANTIROT_DEVICE_TOKEN=long-random-token-used-by-mobile-apps
-ANTIROT_BRIDGE_BIND=127.0.0.1:8787
-GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
-```
-
-Mobile apps currently call the compatibility endpoints `/devices/register`, `/alarms/pending`, and `/alarms/{id}/{action}`. The bridge also exposes `/v1/...` aliases for future clients.
-
-For iOS remote alarm delivery, the VPS does not schedule AlarmKit directly. It queues the alarm, sends an APNs background wake when configured, and the iOS app fetches the pending alarm and schedules AlarmKit locally.
-
-OpenClaw plugin alarm tools:
-
-- `startAlarm`: queues a normal phone alarm through the bridge for roughly one minute later and arms the next hidden escalation check.
-- `startLoudAlarm`: queues a loud phone alarm through the bridge for roughly one minute later and arms the next hidden escalation check.
-
-The plugin resolves the target phone from `bridgeDeviceId` when configured, otherwise from the paired `bridgeWorkspaceId` using `/v1/workspaces/:workspaceId/devices`. User replies do not automatically stop escalation; the LLM must inspect context and explicitly clear or reschedule the active `alarm_escalation` trigger.
-
-To pair a signed-in phone with the VPS/plugin workspace:
-
-```bash
-set -a
-. /etc/antirot/bridge.env
-set +a
-/opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
-```
-
-For VPS deployment, `git push production main`, systemd, Nginx setup, OpenClaw plugin config, iPhone pairing, and phone alarm escalation, see `setup_VPS.md` and `apps/bridge/README.md`.
+See [setup_VPS.md](setup_VPS.md) for OpenClaw plugin configuration on your server.
 
 ## Testing
 
-Recent alarm escalation and bridge delivery behavior can be validated with:
-
 ```bash
-npm run test:recent
+# Plugin lint and typecheck
+npm run lint
+npm run typecheck
+npm run build
+
+# Bridge
 cargo test --manifest-path apps/bridge/Cargo.toml
-```
 
-To validate a real OpenClaw agent turn with one persistent chat history and real model provider API keys:
+# Alarm escalation flow
+npm run test:recent
 
-```bash
+# Real agent chat (requires provider API keys)
 ANTIROT_RUN_REAL_AGENT_TESTS=1 npm run test:agent-real
 ```
-
-This test uses `openclaw agent --local --session-id ...` for three turns in the same session, reads provider API keys from your shell, starts a local mock bridge, asks the agent to call `startAlarm`, verifies a bridge alarm was queued, verifies the `alarm_escalation` trigger survives a user reply, then asks the agent to clear it. It skips unless `ANTIROT_RUN_REAL_AGENT_TESTS=1` is set.
 
 ## License
 
 Antirot is dual licensed:
 
 - AGPL-3.0-or-later for open source use.
-- A separate commercial license for users who do not want to comply with AGPL terms. Commercial use is negotiated case by case and, unless otherwise agreed in writing, is subject to a royalty capped at 10% of revenue attributable to Antirot use.
+- A separate commercial license for users who do not want to comply with AGPL terms.
 
-See `LICENSE`, `LICENSE-AGPL-3.0`, and `COMMERCIAL-LICENSE.md`.
+See `LICENSE`, `LICENSE-DUAL.md`, and `COMMERCIAL-LICENSE.md`.

@@ -4,6 +4,28 @@ Thanks for helping build Antirot.
 
 ## Local Setup
 
+### Backend (Rust)
+
+```bash
+cd apps/bridge
+cp ../../env.example.txt .env
+cargo build
+cargo test
+```
+
+### iOS App
+
+```bash
+cd apps/ios
+brew install xcodegen
+xcodegen generate
+open Antirot.xcodeproj
+```
+
+Or use the GitHub Actions workflow to build via CI (no Mac needed).
+
+### OpenClaw Plugin (optional)
+
 ```bash
 npm install
 npm run build
@@ -17,9 +39,14 @@ npx openclaw plugins inspect antirot --runtime --json
 Before opening a pull request, run:
 
 ```bash
+# Plugin
 npm run lint
 npm run typecheck
 npm run build
+
+# Backend
+cargo check --manifest-path apps/bridge/Cargo.toml
+cargo test --manifest-path apps/bridge/Cargo.toml
 ```
 
 For behavior changes, also run the focused scenario script when relevant:

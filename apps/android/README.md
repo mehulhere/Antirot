@@ -1,6 +1,6 @@
 # Antirot Android App
 
-Antirot is the Android client for the Antirot coach. The VPS/OpenClaw plugin remains the brain; this app handles local alarm execution, acknowledgement actions, and optional recent usage evidence.
+Antirot is the Android client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, and coach intelligence. It also supports acting as a message relay for self-hosted OpenClaw setups.
 
 ## Setup
 

@@ -33,3 +33,7 @@
 - Configure APNs env vars on the VPS, sign into the iOS app so it registers an APNs token, create a bridge alarm for the device, and verify the app wakes/fetches/schedules the pending alarm.
 - In OpenClaw, call `startAlarm`, verify the paired iOS app schedules a normal alarm about a minute later, then let the hidden escalation callback fire and confirm the LLM decides whether to clear, repeat normal, or call `startLoudAlarm`.
 - Build the iOS app after `xcodegen generate`, verify the login screen shows the animated Antirot branding with ambient gradient and Google sign-in button, then sign in and verify the 3-tab layout (Home/Alarms/Settings) with dark theme, glassmorphism cards, severity-colored alarm cards, permission status dots, developer tools toggle, and dark-themed widget all render correctly.
+
+---
+
+**Architecture Pivot (2026-06-08):** Antirot is now a standalone iOS app + managed backend. The OpenClaw plugin remains as an optional self-hosted path for power users. Primary development focus moves to the iOS app (`apps/ios/`) and backend (`apps/bridge/`).

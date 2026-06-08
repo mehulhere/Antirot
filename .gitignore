@@ -6,9 +6,10 @@ apps/bridge/target/
 *.log
 .firecrawl/
 test-workspace/
+test-workspace-recent/
 
-# Personal Antirot runtime memory. Keep these in a configured workspace,
-# not in the public plugin repository.
+# Personal Antirot runtime memory (OpenClaw workspace files).
+# Keep these in a configured workspace, not in the repository.
 behavior.md
 longterm.md
 shortterm.md

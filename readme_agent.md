@@ -8,31 +8,29 @@ The product should feel like a strict but intelligent sports coach: demanding, s
 
 The system should enforce self-justification more than obedience. When the user wants to do something low-value, the product should make them explain how it serves their primary goals. If they can justify it, the schedule adapts. If not, the friction should interrupt unconscious drift.
 
+## Architecture
+
+Antirot runs as a **standalone iOS app + managed backend**, with an optional OpenClaw plugin path for power users.
+
+### Primary Path (Standalone)
+- **iOS App** (`apps/ios/`): Native SwiftUI, AlarmKit, Screen Time, widgets, in-app chat
+- **Backend** (`apps/bridge/`): Rust API at `api.antirot.org`, Postgres, APNs, Google auth
+- **LLM Routing**: Backend proxies coaching conversations to LLM providers (OpenAI, Gemini, etc.)
+- **User Memory**: Per-user behavioral memory stored in Postgres (longterm, shortterm, behavior, work, sleep, tasks, misc)
+
+### Secondary Path (Self-Hosted OpenClaw)
+- **OpenClaw Plugin** (`src/`, `openclaw.plugin.json`): Runs on user's VPS
+- **iOS App as Relay**: Displays coach messages from OpenClaw, relays responses through the bridge
+- **Memory Files**: Stored as markdown files in the OpenClaw workspace directory
+
 ## Core Files
 
 - `AGENTS.md`: repository workflow, style, validation, response, and safety rules.
 - `product_spec.md`: full product specification for the adaptive behavioral OS.
 - `readme_agent.md`: this orientation file for future agents.
-
-## Expected Memory Files
-
-These may not exist yet, but the product architecture expects them:
-
-- `longterm.md`: primary goals, standards, identity framing, motivational triggers, non-negotiables.
-- `short.md`: current priorities, temporary goals, active constraints, daily state.
-- `behavior.md`: recurring focus patterns, drift tendencies, emotional triggers, effective accountability styles.
-- `work.md`: day-wise work summaries, achievements, failures, focus trends, and evidence for future motivation.
-
-Prefer structured summaries and event logs over raw chat history. Cheap models should receive compact, explicit context rather than large unstructured transcripts.
-
-## Product Architecture Notes
-
-- Scheduler and timer behavior should be deterministic code, not model memory.
-- The model can decide when a timer or reminder is needed, but code should execute the timer.
-- State tracking matters: working, idle, sleeping, vacation, travel, break, deep focus, burnout risk, and similar modes should prevent stupid reminders.
-- Reminders should escalate with variation: strict, persistent, disappointed, challenge-based, achievement-based, and only later alarm-like.
-- Vacation or relationship time should disable accountability pressure unless the user explicitly opts in.
-- Night interactions should reduce anxiety and support closure. Morning interactions can be firmer and more activating.
+- `apps/ios/project.yml`: XcodeGen spec for the iOS app (3 targets: main app, widget, device activity report).
+- `apps/bridge/src/`: Rust backend source code.
+- `src/`: OpenClaw plugin code (secondary path, maintained but not the primary focus).
 
 ## MVP Scope
 
@@ -50,12 +48,22 @@ Do not overbuild multi-agent sophistication before validating the behavioral loo
 
 ## Validation Commands
 
-No app scaffold exists yet. When code is added, follow the repo baseline:
+### Backend (primary)
+```bash
+cargo check --manifest-path apps/bridge/Cargo.toml
+cargo test --manifest-path apps/bridge/Cargo.toml
+```
 
-- `npx eslint <changed-files>`
-- `npx tsc --noEmit`
-- relevant focused script or manual flow
-- `npm run build` only at meaningful checkpoints
+### OpenClaw Plugin (secondary)
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+### iOS App
+- Build via GitHub Actions → TestFlight (`deploy-ios-testflight.yml`)
+- Local: `cd apps/ios && xcodegen generate && open Antirot.xcodeproj`
 
 ## Gotchas
 
@@ -63,3 +71,4 @@ No app scaffold exists yet. When code is added, follow the repo baseline:
 - Avoid fake praise. Praise should be rare, specific, and grounded in work history.
 - Fallbacks must never be silent. Use the repository's required fallback log format when adding runtime code.
 - For non-trivial manual/product verification, add one crisp verification line to `Done.md`.
+- The iOS app has no Mac requirement for development — all builds happen on GitHub Actions `macos-26` runners.

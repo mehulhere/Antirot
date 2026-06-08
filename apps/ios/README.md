@@ -1,6 +1,6 @@
 # Antirot iOS App
 
-Antirot is the iOS client for the Antirot coach. The VPS/OpenClaw plugin remains the brain; this app is the local notification, wake acknowledgement, and future Screen Time permission surface.
+Antirot is the iOS client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, and coach intelligence. It also supports acting as a message relay for self-hosted OpenClaw setups.
 
 ## Setup
 

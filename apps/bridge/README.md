@@ -1,8 +1,8 @@
-# Antirot Bridge
+# Antirot Backend
 
-Low-resource Rust alarm forwarding bridge for Antirot mobile clients.
+The Antirot backend API server. Handles device registration, Google auth, alarm delivery, APNs push, and user/workspace management.
 
-The bridge accepts alarms from OpenClaw or future Antirot services, stores them in Postgres, exposes pending alarms to mobile clients, and records ack/snooze/scheduled events. It supports the current iOS/Android app paths plus `/v1` aliases.
+The backend accepts alarms from admin services (including the optional OpenClaw plugin), stores them in Postgres, exposes pending alarms to mobile clients, and records ack/snooze/scheduled events. It supports the current iOS/Android app paths plus `/v1` aliases.
 
 For iOS, the bridge can also send a best-effort APNs background wake. APNs does not schedule the alarm directly; it wakes the app so the app can fetch pending alarms and schedule AlarmKit locally.
 
@@ -30,7 +30,7 @@ ANTIROT_APNS_PRIVATE_KEY_PATH=/etc/antirot/AuthKey_KEYID1234.p8
 ANTIROT_APNS_TOPIC=com.mehulhere.Antirot
 ```
 
-Use `ANTIROT_ADMIN_TOKEN` from the OpenClaw plugin or future backend when creating alarms. Use `ANTIROT_DEVICE_TOKEN` in the iOS/Android app while the app still has a single API-token field.
+Use `ANTIROT_ADMIN_TOKEN` for admin operations like creating alarms (used by the OpenClaw plugin or future backend services). Use `ANTIROT_DEVICE_TOKEN` in the iOS/Android app while the app still has a single API-token field.
 Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`; the bridge verifies the Google ID token and returns a per-device Antirot token.
 Set APNs variables to enable VPS-to-iPhone wake delivery. Use `sandbox` for development/sideload builds and `production` for App Store/TestFlight production-signed builds.
 
@@ -62,7 +62,7 @@ set +a
 
 The command prints a 6-digit code, waits for the app to claim it, then prints the paired device. The app must enter the code within the timeout. Codes are one-time use, hashed in Postgres, and mapped to the workspace id.
 
-After pairing, OpenClaw can resolve the phone with:
+After pairing, admin services can resolve the phone with:
 
 ```bash
 curl -H "Authorization: Bearer $ANTIROT_ADMIN_TOKEN" \
@@ -154,7 +154,7 @@ GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleus
 RUST_LOG=antirot_bridge=info,tower_http=info
 ```
 
-Use `ANTIROT_DEVICE_TOKEN` as the API token in the iOS/Android app. Use `ANTIROT_ADMIN_TOKEN` from OpenClaw or a future backend when creating alarms.
+Use `ANTIROT_DEVICE_TOKEN` as the API token in the iOS/Android app. Use `ANTIROT_ADMIN_TOKEN` for admin operations like creating alarms.
 
 ### 4. Create Bare Git Repo
 

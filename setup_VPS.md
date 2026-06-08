@@ -1,14 +1,13 @@
 # Antirot VPS Setup
 
-This guide configures the Antirot Rust bridge, OpenClaw plugin, iOS pairing, and phone alarm escalation on the VPS.
+This guide configures the Antirot backend, APNs delivery, and iPhone pairing on a VPS.
 
 Assumptions:
 
 - VPS user: `antirot`
 - App checkout: `/opt/antirot`
-- Bridge API: `https://api.antirot.org`
-- Bridge systemd service: `antirot-bridge`
-- OpenClaw is already installed on the VPS
+- Backend API: `https://api.antirot.org`
+- Backend systemd service: `antirot-bridge`
 
 ## 1. Build Current Code
 
@@ -19,12 +18,10 @@ cd /opt/antirot
 git status
 git log --oneline -3
 
-npm ci
-npm run build
 cargo build --release --manifest-path apps/bridge/Cargo.toml
 ```
 
-## 2. Configure Bridge Environment
+## 2. Configure Backend Environment
 
 ```bash
 sudo nano /etc/antirot/bridge.env
@@ -63,7 +60,7 @@ sudo chmod 600 /etc/antirot/AuthKey_YOUR_APNS_KEY_ID.p8
 sudo chown antirot-bridge:antirot-bridge /etc/antirot/AuthKey_YOUR_APNS_KEY_ID.p8
 ```
 
-## 4. Restart And Verify Bridge
+## 4. Restart And Verify Backend
 
 ```bash
 sudo systemctl restart antirot-bridge
@@ -77,14 +74,61 @@ Expected:
 {"ok":true,"service":"antirot-bridge"}
 ```
 
-## 5. Install Or Update OpenClaw Plugin
+## 5. Pair The iPhone
+
+The phone must be signed in with Google inside the Antirot iOS app before pairing.
 
 ```bash
+set -a
+. /etc/antirot/bridge.env
+set +a
+
+/opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
+```
+
+Enter the printed 6-digit code in the iOS app.
+
+Verify pairing:
+
+```bash
+curl -H "Authorization: Bearer $ANTIROT_ADMIN_TOKEN" \
+  https://api.antirot.org/v1/workspaces/main/devices
+```
+
+## 6. Useful Validation Commands
+
+From `/opt/antirot`:
+
+```bash
+cargo build --release --manifest-path apps/bridge/Cargo.toml
+cargo test --manifest-path apps/bridge/Cargo.toml
+cargo check --manifest-path apps/bridge/Cargo.toml
+```
+
+## 7. Logs
+
+```bash
+sudo journalctl -u antirot-bridge -n 100 --no-pager
+```
+
+---
+
+## Optional: OpenClaw Plugin Setup
+
+For power users who want to run the coaching brain via OpenClaw on the same VPS.
+
+### Install Plugin
+
+```bash
+cd /opt/antirot
+npm ci
+npm run build
+
 openclaw plugins install --link /opt/antirot
 openclaw plugins enable antirot
 ```
 
-## 6. Configure Plugin Bridge Settings
+### Configure Plugin
 
 ```bash
 set -a
@@ -126,28 +170,7 @@ If paired-device lookup has trouble, add this manually to the same plugin config
 }
 ```
 
-## 7. Pair The iPhone
-
-The phone must be signed in with Google inside the Antirot iOS app before pairing.
-
-```bash
-set -a
-. /etc/antirot/bridge.env
-set +a
-
-/opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
-```
-
-Enter the printed 6-digit code in the iOS app.
-
-Verify pairing:
-
-```bash
-curl -H "Authorization: Bearer $ANTIROT_ADMIN_TOKEN" \
-  https://api.antirot.org/v1/workspaces/main/devices
-```
-
-## 8. Test Phone Alarm Escalation
+### Test Phone Alarm Escalation (via OpenClaw)
 
 In OpenClaw chat, ask:
 
@@ -158,38 +181,23 @@ Use startAlarm now for test non-response.
 Expected flow:
 
 1. Plugin calls `startAlarm`.
-2. Bridge queues a normal phone alarm for roughly one minute later.
-3. Bridge sends APNs wake when APNs is configured and the app has an APNs token.
+2. Backend queues a normal phone alarm for roughly one minute later.
+3. Backend sends APNs wake when APNs is configured and the app has an APNs token.
 4. iOS app fetches pending alarms and schedules AlarmKit/local fallback.
 5. Plugin arms a hidden 10-minute `alarm_escalation` trigger.
 6. LLM decides later whether to clear, repeat `startAlarm`, or call `startLoudAlarm`.
 
 User replies do not automatically stop escalation. The LLM must explicitly call `clear_active_trigger` when it decides the situation is resolved.
 
-## 9. Useful Validation Commands
-
-From `/opt/antirot`:
+### OpenClaw Validation
 
 ```bash
 npm run build
 npm run test:recent
-cargo test --manifest-path apps/bridge/Cargo.toml
-cargo check --manifest-path apps/bridge/Cargo.toml
-```
-
-Real-agent chat test, only when provider API keys are available:
-
-```bash
 ANTIROT_RUN_REAL_AGENT_TESTS=1 npm run test:agent-real
-```
-
-## 10. Logs
-
-```bash
-sudo journalctl -u antirot-bridge -n 100 --no-pager
 openclaw logs --tail 100
 ```
 
 ## Bottom Line
 
-Configure bridge env, install APNs key, restart the bridge, configure the OpenClaw plugin with `bridgeAdminToken`, pair the iPhone, then test `startAlarm`.
+Configure bridge env, install APNs key, restart the backend, pair the iPhone. Optionally install the OpenClaw plugin for self-hosted coaching.
