@@ -29,18 +29,15 @@ import {
     rescheduleTrigger
 } from "./triggers.js";
 import {
-    addProtectedIntent,
     appendBehaviorEntry,
     appendEvent,
     appendLongtermEntry,
     appendShorttermEntry,
+    appendWeeklyOverrideEntry,
     appendWorkEntry,
     ensureWorkspace,
     getDailySummaryName,
     getDailyWorkLogName,
-    hasFreshProtectedIntent,
-    isProtectedPath,
-    normalizeWorkspaceRelativePath,
     nowIso,
     readState,
     readStats,
@@ -385,39 +382,7 @@ async function toggleVacation(workspaceDir: string, enabled: boolean): Promise<A
     return nextState;
 }
 
-function protectedToolNames(): Set<string> {
-    return new Set([
-        "write",
-        "edit",
-        "apply_patch",
-        "exec",
-        "exec_command",
-        "shell",
-        "bash"
-    ]);
-}
 
-function collectPathCandidates(toolName: string, params: ToolParams, derivedPaths: readonly string[] | undefined): string[] {
-    const candidates = new Set<string>();
-    for (const candidate of derivedPaths ?? []) {
-        candidates.add(candidate);
-    }
-    for (const key of ["path", "file", "file_path", "filepath", "target", "target_file", "targetPath"]) {
-        const value = params[key];
-        if (typeof value === "string" && value.trim()) {
-            candidates.add(value.trim());
-        }
-    }
-    const command = params.command ?? params.cmd;
-    if (toolName.includes("exec") && typeof command === "string") {
-        for (const token of command.split(/\s+/u)) {
-            if (token.includes(".md") || token.includes(".json")) {
-                candidates.add(token.replace(/^['"]|['"]$/gu, ""));
-            }
-        }
-    }
-    return [...candidates];
-}
 
 function buildPersonaContext(): string {
     return [
@@ -757,6 +722,40 @@ function registerTools(api: OpenClawPluginApi): void {
             const taskId = readString(values, "task_id");
             const targetDuration = readNumber(values, "target_duration");
             await ensureWorkspace(workspaceDir);
+
+            const tasksText = await readTextIfExists(path.join(workspaceDir, "tasks.md"));
+            const activeTaskTitles: string[] = [];
+            const taskLinePattern = /^\s*[-*]?\s*\[(?<checked>[ xX])\]\s*(?<hours>\d+(?:\.\d+)?)h\s*-\s*(?<title>.+?)\s*$/u;
+            for (const line of tasksText.split(/\r?\n/u)) {
+                const match = taskLinePattern.exec(line);
+                if (match?.groups && match.groups.checked.trim().toLowerCase() !== "x") {
+                    activeTaskTitles.push(match.groups.title.trim().toLowerCase());
+                }
+            }
+
+            if (activeTaskTitles.length > 0) {
+                let matchedTask = false;
+                const inputLower = taskId.trim().toLowerCase();
+                const hasSubMatch = activeTaskTitles.some((title) => title.includes(inputLower) || inputLower.includes(title));
+                if (hasSubMatch) {
+                    matchedTask = true;
+                } else {
+                    const inputWords = inputLower.split(/\s+/u).filter((w) => w.length >= 3);
+                    matchedTask = activeTaskTitles.some((title) => {
+                        const titleWords = title.split(/\s+/u);
+                        return inputWords.some((word) => titleWords.includes(word));
+                    });
+                }
+                if (!matchedTask) {
+                    return textResult(
+                        `Error: task_id "${taskId}" does not match any active task in tasks.md.\n` +
+                        `Available active tasks:\n` +
+                        activeTaskTitles.map((t) => `- ${t}`).join("\n") +
+                        `\nVerify the task_id or add it to tasks.md first.`
+                    );
+                }
+            }
+
             const state = await readState(workspaceDir);
             await writeState(workspaceDir, {
                 ...state,
@@ -842,49 +841,6 @@ function registerTools(api: OpenClawPluginApi): void {
         }
     }), { name: "end_session" });
 
-    api.registerTool((ctx) => ({
-        name: "set_state_timer",
-        label: "Set State Timer",
-        description: "Set a state timer that wakes Antirot for a callback reason.",
-        parameters: Type.Object({
-            duration_mins: Type.Number({ minimum: 1 }),
-            callback_reason: Type.String({ minLength: 1 })
-        }),
-        async execute(_toolCallId, params) {
-            const values = params as ToolParams;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            const durationMins = readNumber(values, "duration_mins");
-            const callbackReason = readString(values, "callback_reason");
-            await ensureWorkspace(workspaceDir);
-            const state = await readState(workspaceDir);
-            await writeState(workspaceDir, {
-                ...state,
-                activeBlock: {
-                    kind: "timer",
-                    name: callbackReason,
-                    startedAt: nowIso(),
-                    durationMins,
-                    callbackReason
-                }
-            });
-            const trigger = await createAntirotTrigger({
-                workspaceDir,
-                config: resolveRuntimeConfig(api),
-                kind: "timer",
-                scope: "daily",
-                label: callbackReason,
-                reason: callbackReason,
-                delayMins: durationMins,
-                cronName: "antirot-state-timer",
-                systemEvent: `Antirot timer callback: ${callbackReason}`
-            });
-            await appendEvent(workspaceDir, {
-                type: "timer_set",
-                details: { durationMins, callbackReason, trigger }
-            });
-            return textResult(`Timer set with a small hidden buffer. Do not track it like a prison sentence. Trigger id: ${trigger.trigger.id}. ${trigger.cron.message}`);
-        }
-    }), { name: "set_state_timer" });
 
     api.registerTool((ctx) => ({
         name: "start_sleep",
@@ -1385,63 +1341,6 @@ function registerTools(api: OpenClawPluginApi): void {
         }
     }), { name: "startLoudAlarm" });
 
-    api.registerTool((ctx) => ({
-        name: "trigger_loud_alarm",
-        label: "Trigger Loud Alarm",
-        description: "Trigger the configured local loud alarm command or log a fallback urgent reminder.",
-        parameters: Type.Object({}),
-        async execute() {
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const result = await triggerAlarmCommand(resolveRuntimeConfig(api));
-            const stats = await readStats(workspaceDir);
-            const day = today();
-            stats.loudAlarmsTriggered[day] = (stats.loudAlarmsTriggered[day] ?? 0) + 1;
-            await writeStats(workspaceDir, stats);
-            await appendEvent(workspaceDir, {
-                type: "loud_alarm",
-                details: result
-            });
-            await clearMatchingTriggers({
-                workspaceDir,
-                config: resolveRuntimeConfig(api),
-                kinds: ["sleep_loud_alarm"],
-                reason: "loud alarm fired"
-            });
-            return textResult(result.ok
-                ? `${result.message} I gave you the buffer. Loud alarm now.`
-                : `${result.message}\nI gave you the buffer. Loud alarm fallback now. Three hours silent is not a plan.`);
-        }
-    }), { name: "trigger_loud_alarm" });
-
-    api.registerTool((ctx) => ({
-        name: "trigger_normal_alarm",
-        label: "Trigger Normal Alarm",
-        description: "Trigger the configured normal wake alarm command or log a wake-up fallback.",
-        parameters: Type.Object({}),
-        async execute() {
-            const workspaceDir = resolveWorkspace(api, ctx);
-            await ensureWorkspace(workspaceDir);
-            const result = await triggerNormalAlarmCommand(resolveRuntimeConfig(api));
-            const stats = await readStats(workspaceDir);
-            const day = today();
-            stats.normalAlarmsTriggered[day] = (stats.normalAlarmsTriggered[day] ?? 0) + 1;
-            await writeStats(workspaceDir, stats);
-            await appendEvent(workspaceDir, {
-                type: "normal_alarm",
-                details: result
-            });
-            await clearMatchingTriggers({
-                workspaceDir,
-                config: resolveRuntimeConfig(api),
-                kinds: ["sleep_normal_alarm"],
-                reason: "normal alarm fired"
-            });
-            return textResult(result.ok
-                ? `${result.message} I gave you the buffer. Wake up and say good morning.`
-                : `${result.message}\nI gave you the buffer. Wake check now. Say good morning if you are up.`);
-        }
-    }), { name: "trigger_normal_alarm" });
 
     api.registerTool((ctx) => ({
         name: "get_linear_plan",
@@ -1497,62 +1396,36 @@ function registerTools(api: OpenClawPluginApi): void {
     }), { name: "log_strategy_result" });
 
     api.registerTool((ctx) => ({
-        name: "toggle_vacation_mode",
-        label: "Toggle Vacation Mode",
-        description: "Enable or disable vacation mode and suppress Antirot pressure loops.",
-        parameters: Type.Object({
-            status_binary: Type.Boolean()
-        }),
-        async execute(_toolCallId, params) {
-            const values = params as ToolParams;
-            const workspaceDir = resolveWorkspace(api, ctx);
-            const enabled = readBoolean(values, "status_binary");
-            await toggleVacation(workspaceDir, enabled);
-            return textResult(enabled
-                ? "Vacation mode enabled. No pressure loops, no penalties."
-                : "Vacation mode disabled. The system is awake again.");
-        }
-    }), { name: "toggle_vacation_mode" });
-
-    api.registerTool((ctx) => ({
         name: "log_override",
         label: "Log Override",
-        description: "Log an override without requiring a reason.",
-        parameters: Type.Object({}),
-        async execute() {
-            const workspaceDir = resolveWorkspace(api, ctx);
-            const count = await logOverride(workspaceDir);
-            return textResult(`Override logged. Count today: ${count}.`);
-        }
-    }), { name: "log_override" });
-
-    api.registerTool((ctx) => ({
-        name: "request_protected_edit",
-        label: "Request Protected Edit",
-        description: "Record a short-lived approved intent before editing Antirot protected files.",
+        description: "Log an override bypass action with detailed justification to the weekly override ledger.",
         parameters: Type.Object({
-            file: Type.String({ minLength: 1 }),
-            requested_change: Type.String({ minLength: 1 }),
-            explanation: Type.String({ minLength: 1 })
+            override_what: Type.String({ minLength: 1 }),
+            reasoning: Type.String({ minLength: 1 })
         }),
         async execute(_toolCallId, params) {
             const values = params as ToolParams;
             const workspaceDir = resolveWorkspace(api, ctx);
-            const file = normalizeWorkspaceRelativePath(readString(values, "file"));
-            const requestedChange = readString(values, "requested_change");
-            const explanation = readString(values, "explanation");
+            const overrideWhat = readString(values, "override_what");
+            const reasoning = readString(values, "reasoning");
+
             await ensureWorkspace(workspaceDir);
-            if (!isProtectedPath(file, workspaceDir)) {
-                throw new Error(`${file} is not an Antirot protected file.`);
-            }
-            const intent = await addProtectedIntent(workspaceDir, {
-                file,
-                requestedChange,
-                explanation
+            const count = await logOverride(workspaceDir);
+
+            const day = today();
+            const now = new Date().toLocaleTimeString();
+            const overrideText = `\n- [${day} ${now}] Override: ${overrideWhat}\n  - Reasoning: ${reasoning}\n`;
+
+            await appendWeeklyOverrideEntry(workspaceDir, overrideText);
+
+            await appendEvent(workspaceDir, {
+                type: "override_logged",
+                details: { overrideWhat, reasoning, count }
             });
-            return textResult(`Protected edit intent approved for ${file} until ${intent.expiresAt}. Make the edit cleanly, then stop.`);
+
+            return textResult(`Override registered. Weekly override log updated. Count today: ${count}. Acceptable only if your reasoning is bulletproof.`);
         }
-    }), { name: "request_protected_edit" });
+    }), { name: "log_override" });
 
     api.registerTool((ctx) => ({
         name: "patch_file",
@@ -1630,29 +1503,6 @@ function registerHooks(api: OpenClawPluginApi): void {
             appendContext: `${wakeNote}${await buildStateContext(workspaceDir, resolveRuntimeConfig(api))}`
         };
     });
-
-    api.on("before_tool_call", async (event) => {
-        if (!protectedToolNames().has(event.toolName)) {
-            return undefined;
-        }
-        const workspaceDir = eventWorkspace(api);
-        await ensureWorkspace(workspaceDir);
-        const candidates = collectPathCandidates(event.toolName, event.params, event.derivedPaths);
-        for (const candidate of candidates) {
-            if (!isProtectedPath(candidate, workspaceDir)) {
-                continue;
-            }
-            const relative = normalizeWorkspaceRelativePath(path.relative(workspaceDir, path.resolve(workspaceDir, candidate)));
-            if (await hasFreshProtectedIntent(workspaceDir, relative)) {
-                return undefined;
-            }
-            return {
-                block: true,
-                blockReason: `Antirot blocked direct edit to ${relative}. Ask the user why this protected change matters, then call request_protected_edit first. /override bypasses objections but still logs the choice.`
-            };
-        }
-        return undefined;
-    }, { priority: 90_000 });
 }
 
 export default definePluginEntry({

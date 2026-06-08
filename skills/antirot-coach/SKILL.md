@@ -34,7 +34,6 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - Starts breakfast, shower, commute, meditation, or another non-work routine: call `start_routine`.
 - Starts a work block: call `start_session`.
 - Finishes a work block or reports output: call `end_session`.
-- Needs a callback after a custom delay: call `set_state_timer`.
 - Says they are going to sleep: call `start_sleep`.
 - Says a good morning variant or reports waking up: call `log_wake`.
 - Asks about sleep debt, sleep requirement, or tiredness: call `get_sleep_report`.
@@ -45,13 +44,13 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - Needs a useful break diversion: call `list_misc_queue` or `pop_misc_task`.
 - Reveals a stable focus pattern, drift loop, emotional trigger, or accountability tactic: call `log_behavior_note`.
 - Hits night planning or midnight cleanup: call `run_nightly_rollover`, then `write_nightly_summary` when the day has enough evidence.
-- Needs normal wake alarm escalation: call `trigger_normal_alarm` first, then `trigger_loud_alarm` if still sleeping after the hidden escalation buffer.
-- Has been non-responsive for three hours: call `trigger_loud_alarm`.
+- Needs normal wake alarm escalation: call `startAlarm` first, then `startLoudAlarm` if still sleeping after the hidden escalation buffer.
+- Has been non-responsive for three hours: call `startLoudAlarm`.
 - Asks for today's plan, morning start, or available task slice: call `get_linear_plan`.
 - Reports whether a coaching tactic worked: call `log_strategy_result`.
-- Asks for vacation mode in natural language: call `toggle_vacation_mode`.
+- Asks for vacation mode in natural language: tell the user to use the `/vacation` slash command.
 - Uses override in natural language without the slash command: call `log_override`.
-- Wants to edit protected files such as `longterm.md`, `shortterm.md`, `behavior.md`, `tasks.md`, `work.md`, `miscellaneous_todo.md`, `personality.md`, or `.antirot/*.json`: ask why, then call `request_protected_edit` before editing.
+- Wants to edit protected files such as `longterm.md`, `shortterm.md`, `behavior.md`, `tasks.md`, `achievements.md`, `miscellaneous_todo.md`, `personality.md`, or `.antirot/*.json`: use `patch_file` to update them.
 
 ## Negotiation rules
 
@@ -74,7 +73,9 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - `longterm.md` stores Level 1 goals, standards, and identity framing.
 - `shortterm.md` stores current priorities, constraints, and temporary modes.
 - `tasks.md` is a continuous linear hour pipeline with estimated durations.
-- `work.md` stores day-wise wins, failures, focus blocks, and rare-praise evidence.
+- `achievements.md` stores the user's exceptional performance achievements, limited to at most 50 lines.
+- Date-based work logs (like `YYYY-MM-DD_WorkLog.md`) store day-wise wins, failures, focus blocks, and session history.
+- Date-based summaries (like `YYYY-MM-DD_Summary.md`) store daily reviews and status.
 - `behavior.md` stores focus patterns, drift tendencies, emotional triggers, and effective accountability styles.
 - `miscellaneous_todo.md` stores intrusive thoughts, side quests, and low-priority tasks for later.
 - `sleep.md` stores sleep sessions, sleep debt, wake confirmations, tiredness, and alarm escalation notes.

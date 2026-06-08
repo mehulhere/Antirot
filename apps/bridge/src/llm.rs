@@ -1,5 +1,5 @@
 use std::time::Duration;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Datelike};
 use deadpool_postgres::Pool;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -456,7 +456,7 @@ fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
 
 async fn execute_tool_locally(
     pool: &Pool,
-    config: &Config,
+    _config: &Config,
     user_id: &str,
     name: &str,
     args_str: &str,
@@ -534,6 +534,75 @@ async fn execute_tool_locally(
         "start_session" => {
             let task_id = args["task_id"].as_str().unwrap_or("Unknown Task");
             let est_mins = args["estimated_minutes"].as_i64().unwrap_or(30);
+
+            // Task validation logic
+            let tasks_text = match get_memory_or_init(&client, user_id, "tasks", "# Task Pipeline\n").await {
+                Ok(c) => c,
+                Err(err) => return format!("Error: {}", err),
+            };
+
+            let mut active_task_titles = Vec::new();
+            for line in tasks_text.lines() {
+                let line_trimmed = line.trim();
+                let mut rest = line_trimmed;
+                if rest.starts_with('-') || rest.starts_with('*') {
+                    rest = rest[1..].trim();
+                }
+                if rest.starts_with('[') {
+                    if let Some(close_idx) = rest.find(']') {
+                        let checked_part = rest[1..close_idx].trim().to_lowercase();
+                        if checked_part != "x" {
+                            let after_brackets = rest[close_idx + 1..].trim();
+                            let mut title = after_brackets;
+                            if let Some(h_idx) = after_brackets.find("h -") {
+                                let prefix = after_brackets[..h_idx].trim();
+                                if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                                    title = after_brackets[h_idx + 3..].trim();
+                                }
+                            } else if let Some(dash_idx) = after_brackets.find('-') {
+                                let prefix = after_brackets[..dash_idx].trim();
+                                if prefix.is_empty() || prefix.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'h') {
+                                    title = after_brackets[dash_idx + 1..].trim();
+                                }
+                            }
+                            if !title.is_empty() {
+                                active_task_titles.push(title.to_lowercase());
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !active_task_titles.is_empty() {
+                let input_lower = task_id.trim().to_lowercase();
+                let mut matched_task = false;
+
+                if active_task_titles.iter().any(|title| title.contains(&input_lower) || input_lower.contains(title)) {
+                    matched_task = true;
+                } else {
+                    let input_words: Vec<&str> = input_lower.split_whitespace().filter(|w| w.len() >= 3).collect();
+                    for title in &active_task_titles {
+                        let title_words: Vec<&str> = title.split_whitespace().collect();
+                        if input_words.iter().any(|word| title_words.contains(word)) {
+                            matched_task = true;
+                            break;
+                        }
+                    }
+                }
+
+                if !matched_task {
+                    let mut err_msg = format!(
+                        "Error: task_id \"{}\" does not match any active task in tasks.md.\nAvailable active tasks:\n",
+                        task_id
+                    );
+                    for t in &active_task_titles {
+                        err_msg.push_str(&format!("- {}\n", t));
+                    }
+                    err_msg.push_str("Verify the task_id or add it to tasks.md first.");
+                    return err_msg;
+                }
+            }
+
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
@@ -577,91 +646,38 @@ async fn execute_tool_locally(
             "Success: Sleep start logged.".to_string()
         }
         "log_wake" => {
-            let tired = args["tiredness_level"].as_i64().unwrap_or(5);
+            let sleep_quality = args["sleep_quality"].as_i64().unwrap_or(3);
             let now = Utc::now().to_rfc3339();
             let mut sleep = match get_memory_or_init(&client, user_id, "sleep", "# Sleep Ledger\n").await {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            sleep.push_str(&format!("- wake_log: tiredness level {}/10 at {}\n", tired, now));
+            sleep.push_str(&format!("- wake_log: sleep quality {}/5 at {}\n", sleep_quality, now));
             if let Err(err) = save_memory(&client, user_id, "sleep", &sleep).await {
                 return format!("Error: {}", err);
             }
             "Success: Wake log saved.".to_string()
         }
-        "trigger_normal_alarm" | "trigger_loud_alarm" => {
-            // Find user's registered devices and create a pending alarm
-            let severity = if name == "trigger_loud_alarm" { "loud" } else { "normal" };
-            let title = if name == "trigger_loud_alarm" { "LOUD ESCALATION" } else { "Wake Alarm Escalation" };
-            let message = "Antirot Coach: Wake up and respond now!";
+        "log_override" => {
+            let override_what = args["override_what"].as_str().unwrap_or("");
+            let reasoning = args["reasoning"].as_str().unwrap_or("");
+            let now = Utc::now().to_rfc3339();
             
-            let devices = match client
-                .query(
-                    "SELECT device_id FROM devices WHERE user_id = $1",
-                    &[&user_id],
-                )
-                .await
-            {
-                Ok(rows) => rows,
-                Err(err) => return format!("Error querying user devices: {}", err),
+            let iso_week = Utc::now().iso_week();
+            let db_key = format!("override_{}_W{:02}", iso_week.year(), iso_week.week());
+            
+            let mut overrides = match get_memory_or_init(&client, user_id, &db_key, "# Weekly Override Log\n").await {
+                Ok(c) => c,
+                Err(err) => return format!("Error: {}", err),
             };
-
-            if devices.is_empty() {
-                return "Fallback: No paired devices found for this user. Escalation logged, but cannot trigger phone alarm.".to_string();
+            
+            overrides.push_str(&format!("\n- [{}] Override: {}\n  - Reasoning: {}\n", now, override_what, reasoning));
+            if let Err(err) = save_memory(&client, user_id, &db_key, &overrides).await {
+                return format!("Error: {}", err);
             }
-
-            let mut success_count = 0;
-            for row in devices {
-                let dev_id: String = row.get("device_id");
-                let alarm_id = format!("alarm_{}_{}", severity, Uuid::new_v4().simple());
-                let fire_at = Utc::now();
-                let expires_at = fire_at + chrono::Duration::hours(2);
-
-                let insert_result = client
-                    .execute(
-                        "
-                        INSERT INTO alarms (id, device_id, kind, severity, title, message, fire_at, expires_at, status)
-                        VALUES ($1, $2, 'coaching_escalation', $3, $4, $5, $6, $7, 'pending')
-                        ",
-                        &[
-                            &alarm_id,
-                            &dev_id,
-                            &severity,
-                            &title,
-                            &message,
-                            &fire_at,
-                            &Some(expires_at),
-                        ],
-                    )
-                    .await;
-
-                if insert_result.is_ok() {
-                    success_count += 1;
-                    // Trigger push notification if available
-                    trigger_push_wake_background(pool, config, &dev_id, &alarm_id).await;
-                }
-            }
-            format!("Success: Queued coaching escalation alarm for {} devices.", success_count)
+            "Success: Override logged.".to_string()
         }
         other => format!("Error: Unknown tool {}", other),
-    }
-}
-
-async fn trigger_push_wake_background(pool: &Pool, config: &Config, device_id: &str, alarm_id: &str) {
-    let client = match pool.get().await {
-        Ok(c) => c,
-        Err(_) => return,
-    };
-    let row = match client.query_opt("SELECT push_token, push_provider FROM devices WHERE device_id = $1", &[&device_id]).await {
-        Ok(Some(r)) => r,
-        _ => return,
-    };
-    let push_provider: Option<String> = row.get("push_provider");
-    let push_token: Option<String> = row.get("push_token");
-    if push_provider.as_deref() == Some("apns") {
-        if let Some(token) = push_token.filter(|t| !t.trim().is_empty()) {
-            let _ = crate::apns::send_alarm_wake(config, &token, alarm_id).await;
-        }
     }
 }
 
@@ -762,26 +778,25 @@ fn get_tool_definitions() -> Value {
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "tiredness_level": { "type": "integer", "description": "Tiredness level from 1 (refreshed) to 10 (exhausted)." }
+                        "sleep_quality": { "type": "integer", "description": "Sleep quality rating from 1 (poor) to 5 (excellent)." }
                     },
-                    "required": ["tiredness_level"]
+                    "required": ["sleep_quality"]
                 }
             }
         },
         {
             "type": "function",
             "function": {
-                "name": "trigger_normal_alarm",
-                "description": "Triggers a regular warning alarm callback.",
-                "parameters": { "type": "object", "properties": {} }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "trigger_loud_alarm",
-                "description": "Triggers a loud alarm immediately.",
-                "parameters": { "type": "object", "properties": {} }
+                "name": "log_override",
+                "description": "Log an override bypass action with detailed justification to the weekly override ledger.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "override_what": { "type": "string", "description": "What was overridden." },
+                        "reasoning": { "type": "string", "description": "The justification for the override." }
+                    },
+                    "required": ["override_what", "reasoning"]
+                }
             }
         }
     ])

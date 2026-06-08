@@ -39,4 +39,5 @@
 **Architecture Pivot (2026-06-08):** Antirot is now a standalone iOS app + managed backend. The OpenClaw plugin remains as an optional self-hosted path for power users. Primary development focus moves to the iOS app (`apps/ios/`) and backend (`apps/bridge/`).
 
 - Deploy the updated `apps/bridge`, configure subscription tier (BYOK or Tailored) at `/v1/subscription`, send a test message to `/v1/chat`, and verify memory files are initialized and tools update `user_memories` correctly.
+- Verify that calling `start_session` fails if the `task_id` does not match active tasks in `tasks.md`, `log_wake` accepts `sleep_quality` (1-5) instead of tiredness, weekly override records are appended to weekly override files, and legacy alarm triggers are removed from the coach tool definitions.
 

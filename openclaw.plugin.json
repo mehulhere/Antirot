@@ -22,7 +22,6 @@
             "start_routine",
             "start_session",
             "end_session",
-            "set_state_timer",
             "start_sleep",
             "log_wake",
             "get_sleep_report",
@@ -35,13 +34,12 @@
             "log_behavior_note",
             "run_nightly_rollover",
             "write_nightly_summary",
-            "trigger_normal_alarm",
-            "trigger_loud_alarm",
+            "startAlarm",
+            "startLoudAlarm",
             "get_linear_plan",
             "log_strategy_result",
-            "toggle_vacation_mode",
             "log_override",
-            "request_protected_edit"
+            "patch_file"
         ]
     },
     "skills": [

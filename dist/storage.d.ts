@@ -31,7 +31,9 @@ export declare function writeProtectedIntents(workspaceDir: string, intents: Pro
 export declare function appendEvent(workspaceDir: string, event: Omit<AntirotEvent, "at">): Promise<void>;
 export declare function getDailyWorkLogName(date?: Date): string;
 export declare function getDailySummaryName(date?: Date): string;
+export declare function getWeeklyOverrideLogName(date?: Date): string;
 export declare function appendWorkEntry(workspaceDir: string, markdown: string): Promise<void>;
+export declare function appendWeeklyOverrideEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function appendBehaviorEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function appendLongtermEntry(workspaceDir: string, markdown: string): Promise<void>;
 export declare function appendShorttermEntry(workspaceDir: string, markdown: string): Promise<void>;

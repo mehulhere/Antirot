@@ -240,9 +240,22 @@ export function getDailyWorkLogName(date = new Date()) {
 export function getDailySummaryName(date = new Date()) {
     return `${todayKey(date)}_Summary.md`;
 }
+export function getWeeklyOverrideLogName(date = new Date()) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    const paddedWeek = String(weekNo).padStart(2, "0");
+    return `${d.getUTCFullYear()}_W${paddedWeek}_Override.md`;
+}
 export async function appendWorkEntry(workspaceDir, markdown) {
     const workPath = path.join(workspaceDir, getDailyWorkLogName());
     await appendFile(workPath, markdown, "utf8");
+}
+export async function appendWeeklyOverrideEntry(workspaceDir, markdown) {
+    const fullPath = path.join(workspaceDir, getWeeklyOverrideLogName());
+    await appendFile(fullPath, markdown, "utf8");
 }
 export async function appendBehaviorEntry(workspaceDir, markdown) {
     const behaviorPath = path.join(workspaceDir, "behavior.md");
@@ -282,7 +295,11 @@ export function isProtectedPath(value, workspaceDir) {
         return true;
     }
     const dailyFilePattern = /^\d{4}-\d{2}-\d{2}_(WorkLog|Summary)\.md$/;
-    return dailyFilePattern.test(normalized) || dailyFilePattern.test(direct);
+    if (dailyFilePattern.test(normalized) || dailyFilePattern.test(direct)) {
+        return true;
+    }
+    const weeklyOverridePattern = /^\d{4}_W\d{2}_Override\.md$/;
+    return weeklyOverridePattern.test(normalized) || weeklyOverridePattern.test(direct);
 }
 export async function hasFreshProtectedIntent(workspaceDir, file, requestedChange) {
     const now = Date.now();
