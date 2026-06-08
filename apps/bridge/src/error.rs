@@ -15,6 +15,8 @@ pub enum AppError {
     Database(#[from] tokio_postgres::Error),
     #[error("pool error")]
     Pool(#[from] deadpool_postgres::PoolError),
+    #[error("network error: {0}")]
+    Reqwest(#[from] reqwest::Error),
 }
 
 #[derive(Serialize)]
@@ -29,7 +31,9 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
-            AppError::Database(_) | AppError::Pool(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Database(_) | AppError::Pool(_) | AppError::Reqwest(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         };
         let body = Json(ErrorBody {
             error: self.to_string(),

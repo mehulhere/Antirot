@@ -95,3 +95,32 @@ fn constant_time_eq(left: &str, right: &str) -> bool {
     }
     diff == 0
 }
+
+pub async fn get_user_id_from_auth(
+    headers: &HeaderMap,
+    config: &Config,
+    pool: &Pool,
+) -> AppResult<String> {
+    let token = bearer_token(headers).ok_or(AppError::Unauthorized)?;
+    if constant_time_eq(token, &config.admin_token) || constant_time_eq(token, &config.device_token) {
+        return Ok("admin".to_string());
+    }
+
+    let client = pool.get().await?;
+    let token_hash = token_hash(token);
+    let row = client
+        .query_opt(
+            "SELECT user_id FROM devices WHERE api_token_hash = $1",
+            &[&token_hash],
+        )
+        .await?;
+
+    if let Some(row) = row {
+        let user_id: Option<String> = row.get("user_id");
+        if let Some(uid) = user_id {
+            return Ok(uid);
+        }
+    }
+    Err(AppError::Unauthorized)
+}
+

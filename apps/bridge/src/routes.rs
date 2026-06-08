@@ -9,15 +9,21 @@ use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::auth::{require_admin_auth, require_device_auth, require_device_auth_for, token_hash};
+use crate::auth::{
+    get_user_id_from_auth, require_admin_auth, require_device_auth, require_device_auth_for,
+    token_hash,
+};
 use crate::error::{AppError, AppResult};
+use crate::llm::chat_with_coach;
 use crate::models::{
-    AlarmActionRequest, AlarmActionResponse, AlarmJob, CreateAlarmRequest, CreateAlarmResponse,
-    DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
-    GoogleAuthResponse, HealthResponse, PairingClaimRequest, PairingClaimResponse, WorkspaceDevice,
-    WorkspaceDevicesResponse,
+    AlarmActionRequest, AlarmActionResponse, AlarmJob, ChatRequest, ChatResponse,
+    CreateAlarmRequest, CreateAlarmResponse, DeliveryState, DeviceRegistrationRequest,
+    DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
+    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SubscriptionResponse,
+    SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
 };
 use crate::AppState;
+
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +43,9 @@ pub fn router() -> Router<AppState> {
         .route("/alarms/pending", get(pending_alarms))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/visits", get(get_and_increment_visits))
+        .route("/subscription", get(get_subscription).post(update_subscription))
+        .route("/memory/{key}", get(get_memory).put(update_memory))
+        .route("/chat", post(chat_coach))
         .route("/v1/health", get(health))
         .route("/v1/auth/google", post(auth_google))
         .route("/v1/pairing/claim", post(claim_pairing))
@@ -49,6 +58,9 @@ pub fn router() -> Router<AppState> {
         .route("/v1/alarms/pending", get(pending_alarms))
         .route("/v1/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/v1/visits", get(get_and_increment_visits))
+        .route("/v1/subscription", get(get_subscription).post(update_subscription))
+        .route("/v1/memory/{key}", get(get_memory).put(update_memory))
+        .route("/v1/chat", post(chat_coach))
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -884,3 +896,177 @@ async fn get_and_increment_visits(
 
     Ok((headers, Json(VisitsResponse { count })))
 }
+
+// Antirot Standalone Endpoint Handlers
+async fn get_subscription(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<SubscriptionResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    let row = client
+        .query_opt(
+            "
+            SELECT subscription_tier, subscription_status, byok_provider, subscription_active_until
+            FROM users
+            WHERE id = $1
+            ",
+            &[&user_id],
+        )
+        .await?;
+
+    let Some(row) = row else {
+        return Err(AppError::NotFound);
+    };
+
+    Ok(Json(SubscriptionResponse {
+        ok: true,
+        tier: row.get("subscription_tier"),
+        status: row.get("subscription_status"),
+        byok_provider: row.get("byok_provider"),
+        active_until: row.get("subscription_active_until"),
+    }))
+}
+
+async fn update_subscription(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<SubscriptionUpdateRequest>,
+) -> AppResult<Json<SubscriptionResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+
+    let active_until = if let Some(days) = req.active_until_days {
+        Some(Utc::now() + Duration::days(days))
+    } else {
+        let row = client
+            .query_one("SELECT subscription_active_until FROM users WHERE id = $1", &[&user_id])
+            .await?;
+        row.get("subscription_active_until")
+    };
+
+    let status = req.status.unwrap_or_else(|| "active".to_string());
+
+    client
+        .execute(
+            "
+            UPDATE users
+            SET subscription_tier = $1,
+                subscription_status = $2,
+                byok_api_key = COALESCE($3, byok_api_key),
+                byok_provider = COALESCE($4, byok_provider),
+                subscription_active_until = $5,
+                updated_at = now()
+            WHERE id = $6
+            ",
+            &[
+                &req.tier,
+                &status,
+                &req.byok_api_key,
+                &req.byok_provider,
+                &active_until,
+                &user_id,
+            ],
+        )
+        .await?;
+
+    Ok(Json(SubscriptionResponse {
+        ok: true,
+        tier: req.tier,
+        status,
+        byok_provider: req.byok_provider,
+        active_until,
+    }))
+}
+
+async fn get_memory(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(key): Path<String>,
+) -> AppResult<Json<MemoryResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+
+    match key.as_str() {
+        "longterm" | "shortterm" | "behavior" | "tasks" | "sleep" | "work" | "miscellaneous_todo" => {}
+        _ => return Err(AppError::BadRequest("Invalid memory key".to_string())),
+    }
+
+    let row = client
+        .query_opt(
+            "SELECT content, updated_at FROM user_memories WHERE user_id = $1 AND memory_key = $2",
+            &[&user_id, &key],
+        )
+        .await?;
+
+    if let Some(row) = row {
+        Ok(Json(MemoryResponse {
+            ok: true,
+            key,
+            content: row.get("content"),
+            updated_at: row.get("updated_at"),
+        }))
+    } else {
+        let default_content = match key.as_str() {
+            "longterm" => "# Long-Term Goals\n\n## Direction\n- Distilled long-term goals go here.\n\n## Standards\n- High standards, honest recovery, no fake praise.\n",
+            "shortterm" => "# Short-Term State\n\n## Current Priorities\n- Near-term priorities go here.\n\n## Constraints\n- Sleep, health, vacation mode go here.\n",
+            "behavior" => "# Behavior Memory\n\n## Recurring Patterns\n- Stable patterns go here.\n\n## Drift Tendencies\n- Known drift loops go here.\n\n## Accountability Styles\n- Tactics that work/fail go here.\n",
+            "tasks" => "# Task Pipeline\n",
+            "sleep" => "# Sleep Ledger\n",
+            "work" => "# Work Ledger\n",
+            _ => "# Miscellaneous Todo\n",
+        };
+        Ok(Json(MemoryResponse {
+            ok: true,
+            key,
+            content: default_content.to_string(),
+            updated_at: Utc::now(),
+        }))
+    }
+}
+
+async fn update_memory(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(key): Path<String>,
+    Json(req): Json<UpdateMemoryRequest>,
+) -> AppResult<Json<MemoryResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+
+    match key.as_str() {
+        "longterm" | "shortterm" | "behavior" | "tasks" | "sleep" | "work" | "miscellaneous_todo" => {}
+        _ => return Err(AppError::BadRequest("Invalid memory key".to_string())),
+    }
+
+    client
+        .execute(
+            "
+            INSERT INTO user_memories (user_id, memory_key, content, updated_at)
+            VALUES ($1, $2, $3, now())
+            ON CONFLICT (user_id, memory_key) DO UPDATE SET
+                content = EXCLUDED.content,
+                updated_at = now()
+            ",
+            &[&user_id, &key, &req.content],
+        )
+        .await?;
+
+    Ok(Json(MemoryResponse {
+        ok: true,
+        key,
+        content: req.content,
+        updated_at: Utc::now(),
+    }))
+}
+
+async fn chat_coach(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ChatRequest>,
+) -> AppResult<Json<ChatResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let reply = chat_with_coach(&state.pool, &state.config, &user_id, &req.message).await?;
+    Ok(Json(ChatResponse { ok: true, reply }))
+}
+

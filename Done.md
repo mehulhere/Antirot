@@ -37,3 +37,6 @@
 ---
 
 **Architecture Pivot (2026-06-08):** Antirot is now a standalone iOS app + managed backend. The OpenClaw plugin remains as an optional self-hosted path for power users. Primary development focus moves to the iOS app (`apps/ios/`) and backend (`apps/bridge/`).
+
+- Deploy the updated `apps/bridge`, configure subscription tier (BYOK or Tailored) at `/v1/subscription`, send a test message to `/v1/chat`, and verify memory files are initialized and tools update `user_memories` correctly.
+

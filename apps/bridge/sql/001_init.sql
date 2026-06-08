@@ -117,3 +117,48 @@ CREATE TABLE IF NOT EXISTS page_views (
 INSERT INTO page_views (id, count)
 VALUES ('homepage', 0)
 ON CONFLICT (id) DO NOTHING;
+
+-- Standalone Antirot Orchestration, Subscriptions, and Memory updates
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAULT 'byok';
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'inactive';
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS byok_api_key TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS byok_provider TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS subscription_active_until TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS user_memories (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    memory_key TEXT NOT NULL,
+    content TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, memory_key)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT,
+    tool_calls JSONB,
+    tool_call_id TEXT,
+    name TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS chat_messages_user_id_created_at_idx
+    ON chat_messages (user_id, created_at ASC);
+
+-- Ensure fallback admin user exists for admin/device bypass tokens
+INSERT INTO users (id, email, display_name)
+VALUES ('admin', 'admin@antirot.org', 'Admin Bypass')
+ON CONFLICT (id) DO NOTHING;
+
+

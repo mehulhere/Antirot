@@ -3,6 +3,7 @@ mod auth;
 mod config;
 mod db;
 mod error;
+mod llm;
 mod models;
 mod pairing_cli;
 mod routes;

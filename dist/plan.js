@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readTextIfExists } from "./storage.js";
+import { readTextIfExists, writeWorkspaceTextFile } from "./storage.js";
 const taskLinePattern = /^\s*[-*]?\s*\[(?<checked>[ xX])\]\s*(?<hours>\d+(?:\.\d+)?)h\s*-\s*(?<title>.+?)\s*$/u;
 export function parseLinearTasks(text) {
     return text
@@ -38,4 +38,45 @@ export async function getLinearPlan(workspaceDir, remainingHours) {
         }
     }
     return { tasks: selected, totalHours, skippedCompleted };
+}
+export async function addPipelineTask(workspaceDir, title, hours) {
+    const tasksPath = path.join(workspaceDir, "tasks.md");
+    const text = await readTextIfExists(tasksPath);
+    const lines = text.split(/\r?\n/u);
+    // Remove last element if it's empty
+    if (lines.length > 0 && lines[lines.length - 1].trim() === "") {
+        lines.pop();
+    }
+    lines.push(`[ ] ${hours.toFixed(1)}h - ${title}`);
+    await writeWorkspaceTextFile(workspaceDir, "tasks.md", lines.join("\n") + "\n");
+}
+export async function updatePipelineTaskStatus(workspaceDir, taskIndex, status) {
+    const tasksPath = path.join(workspaceDir, "tasks.md");
+    const text = await readTextIfExists(tasksPath);
+    const lines = text.split(/\r?\n/u);
+    let currentTaskCount = 0;
+    const newLines = [];
+    for (const line of lines) {
+        const isTask = taskLinePattern.test(line);
+        if (isTask) {
+            currentTaskCount++;
+            if (currentTaskCount === taskIndex) {
+                if (status === "deleted") {
+                    continue;
+                }
+                else if (status === "completed") {
+                    const match = taskLinePattern.exec(line);
+                    if (match && match.groups) {
+                        newLines.push(`[x] ${match.groups.hours}h - ${match.groups.title}`);
+                    }
+                    else {
+                        newLines.push(line);
+                    }
+                    continue;
+                }
+            }
+        }
+        newLines.push(line);
+    }
+    await writeWorkspaceTextFile(workspaceDir, "tasks.md", newLines.join("\n") + "\n");
 }

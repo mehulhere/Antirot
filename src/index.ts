@@ -6,7 +6,7 @@ import {
     type OpenClawPluginToolContext,
     type PluginCommandContext
 } from "openclaw/plugin-sdk/plugin-entry";
-import { getLinearPlan } from "./plan.js";
+import { addPipelineTask, getLinearPlan, updatePipelineTaskStatus } from "./plan.js";
 import { scheduleBridgeAlarm, triggerAlarmCommand, triggerNormalAlarmCommand } from "./runtime.js";
 import {
     beginSleep,
@@ -48,7 +48,8 @@ import {
     todayKey,
     writeState,
     writeStats,
-    writeStrategyPerformance
+    writeStrategyPerformance,
+    writeWorkspaceTextFile
 } from "./storage.js";
 import type { AntirotConfig, AntirotState } from "./types.js";
 
@@ -1434,6 +1435,158 @@ function registerTools(api: OpenClawPluginApi): void {
             return textResult(`Protected edit intent approved for ${file} until ${intent.expiresAt}. Make the edit cleanly, then stop.`);
         }
     }), { name: "request_protected_edit" });
+
+    api.registerTool((ctx) => ({
+        name: "add_long_term_goal",
+        label: "Add Long Term Goal",
+        description: "Appends a new long-term goal to the user's longterm.md memory.",
+        parameters: Type.Object({
+            goal_text: Type.String({ minLength: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const goalText = readString(values, "goal_text");
+            let longterm = await readTextIfExists(path.join(workspaceDir, "longterm.md"));
+            const needle = "## Direction\n";
+            const idx = longterm.indexOf(needle);
+            if (idx !== -1) {
+                const insertPos = idx + needle.length;
+                longterm = longterm.slice(0, insertPos) + `- ${goalText}\n` + longterm.slice(insertPos);
+            } else {
+                longterm += `\n## Direction\n- ${goalText}\n`;
+            }
+            await writeWorkspaceTextFile(workspaceDir, "longterm.md", longterm);
+            await appendEvent(workspaceDir, {
+                type: "long_term_goal_added",
+                details: { goalText }
+            });
+            return textResult("Success: Long term goal successfully added.");
+        }
+    }), { name: "add_long_term_goal" });
+
+    api.registerTool((ctx) => ({
+        name: "set_identity_framing",
+        label: "Set Identity Framing",
+        description: "Updates direction and standards in the user's longterm.md memory.",
+        parameters: Type.Object({
+            direction_text: Type.String({ minLength: 1 }),
+            standards_text: Type.String({ minLength: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const direction = readString(values, "direction_text");
+            const standards = readString(values, "standards_text");
+            const content = `# Long-Term Goals\n\n## Direction\n- ${direction}\n\n## Standards\n- ${standards}\n`;
+            await writeWorkspaceTextFile(workspaceDir, "longterm.md", content);
+            await appendEvent(workspaceDir, {
+                type: "identity_framing_updated",
+                details: { direction, standards }
+            });
+            return textResult("Success: Identity framing updated.");
+        }
+    }), { name: "set_identity_framing" });
+
+    api.registerTool((ctx) => ({
+        name: "set_short_term_priority",
+        label: "Set Short Term Priority",
+        description: "Sets current priorities in shortterm.md memory.",
+        parameters: Type.Object({
+            priority_text: Type.String({ minLength: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const priority = readString(values, "priority_text");
+            const content = `# Short-Term State\n\n## Current Priorities\n- ${priority}\n\n## Constraints\n- Suppressed pressures go here.\n`;
+            await writeWorkspaceTextFile(workspaceDir, "shortterm.md", content);
+            await appendEvent(workspaceDir, {
+                type: "short_term_priority_updated",
+                details: { priority }
+            });
+            return textResult("Success: Short-term priority updated.");
+        }
+    }), { name: "set_short_term_priority" });
+
+    api.registerTool((ctx) => ({
+        name: "set_current_constraint",
+        label: "Set Current Constraint",
+        description: "Sets health, sleep, or travel constraints in shortterm.md memory.",
+        parameters: Type.Object({
+            constraint_text: Type.String({ minLength: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const constraint = readString(values, "constraint_text");
+            let shortterm = await readTextIfExists(path.join(workspaceDir, "shortterm.md"));
+            const needle = "## Constraints\n";
+            const idx = shortterm.indexOf(needle);
+            if (idx !== -1) {
+                const insertPos = idx + needle.length;
+                shortterm = shortterm.slice(0, insertPos) + `- ${constraint}\n` + shortterm.slice(insertPos);
+            } else {
+                shortterm += `\n## Constraints\n- ${constraint}\n`;
+            }
+            await writeWorkspaceTextFile(workspaceDir, "shortterm.md", shortterm);
+            await appendEvent(workspaceDir, {
+                type: "constraint_added",
+                details: { constraint }
+            });
+            return textResult("Success: Constraint added to shortterm.md.");
+        }
+    }), { name: "set_current_constraint" });
+
+    api.registerTool((ctx) => ({
+        name: "add_pipeline_task",
+        label: "Add Pipeline Task",
+        description: "Appends a new task to the user's task pipeline (tasks.md).",
+        parameters: Type.Object({
+            title: Type.String({ minLength: 1 }),
+            hours: Type.Number({ minimum: 0.1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const title = readString(values, "title");
+            const hours = readNumber(values, "hours");
+            await addPipelineTask(workspaceDir, title, hours);
+            await appendEvent(workspaceDir, {
+                type: "pipeline_task_added",
+                details: { title, hours }
+            });
+            return textResult("Success: Task added to tasks.md pipeline.");
+        }
+    }), { name: "add_pipeline_task" });
+
+    api.registerTool((ctx) => ({
+        name: "update_pipeline_task_status",
+        label: "Update Pipeline Task Status",
+        description: "Marks a task in tasks.md as completed or deleted.",
+        parameters: Type.Object({
+            task_index: Type.Number({ minimum: 1 }),
+            status: Type.String({ pattern: "^(completed|deleted)$" })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            await ensureWorkspace(workspaceDir);
+            const taskIndex = readNumber(values, "task_index");
+            const status = readString(values, "status") as "completed" | "deleted";
+            await updatePipelineTaskStatus(workspaceDir, taskIndex, status);
+            await appendEvent(workspaceDir, {
+                type: "pipeline_task_status_updated",
+                details: { taskIndex, status }
+            });
+            return textResult(`Success: Task index ${taskIndex} set to status ${status}.`);
+        }
+    }), { name: "update_pipeline_task_status" });
 }
 
 function registerHooks(api: OpenClawPluginApi): void {

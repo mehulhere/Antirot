@@ -167,3 +167,53 @@ impl CreateAlarmRequest {
             .unwrap_or_else(|| "normal".to_string())
     }
 }
+
+// Antirot Standalone Chat, Memory, and Subscription Models
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionUpdateRequest {
+    pub tier: String,
+    pub status: Option<String>,
+    pub byok_api_key: Option<String>,
+    pub byok_provider: Option<String>,
+    pub active_until_days: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionResponse {
+    pub ok: bool,
+    pub tier: String,
+    pub status: String,
+    pub byok_provider: Option<String>,
+    pub active_until: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMemoryRequest {
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryResponse {
+    pub ok: bool,
+    pub key: String,
+    pub content: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRequest {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatResponse {
+    pub ok: bool,
+    pub reply: String,
+}
+

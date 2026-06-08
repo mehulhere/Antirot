@@ -5,3 +5,5 @@ export declare function getLinearPlan(workspaceDir: string, remainingHours: numb
     totalHours: number;
     skippedCompleted: number;
 }>;
+export declare function addPipelineTask(workspaceDir: string, title: string, hours: number): Promise<void>;
+export declare function updatePipelineTaskStatus(workspaceDir: string, taskIndex: number, status: "completed" | "deleted"): Promise<void>;
