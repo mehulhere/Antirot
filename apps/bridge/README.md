@@ -4,7 +4,7 @@ The Antirot backend API server. Handles device registration, Google auth, alarm 
 
 The backend accepts alarms from admin services (including the optional OpenClaw plugin), stores them in Postgres, exposes pending alarms to mobile clients, and records ack/snooze/scheduled events. It supports the current iOS/Android app paths plus `/v1` aliases.
 
-For iOS, the bridge can also send a best-effort APNs background wake. APNs does not schedule the alarm directly; it wakes the app so the app can fetch pending alarms and schedule AlarmKit locally.
+For iOS, the backend can also send a best-effort APNs background wake. APNs does not schedule the alarm directly; it wakes the app so the app can fetch pending alarms and schedule AlarmKit locally.
 
 ## Stack
 
@@ -16,8 +16,8 @@ For iOS, the bridge can also send a best-effort APNs background wake. APNs does 
 ## Environment
 
 ```bash
-ANTIROT_BRIDGE_BIND=127.0.0.1:8787
-DATABASE_URL=postgres://antirot_bridge:change-me@localhost/antirot_bridge
+ANTIROT_BACKEND_BIND=127.0.0.1:8787
+DATABASE_URL=postgres://antirot_backend:change-me@localhost/antirot_backend
 ANTIROT_ADMIN_TOKEN=change-me-admin-token
 ANTIROT_DEVICE_TOKEN=change-me-device-token
 GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
@@ -31,7 +31,7 @@ ANTIROT_APNS_TOPIC=com.mehulhere.Antirot
 ```
 
 Use `ANTIROT_ADMIN_TOKEN` for admin operations like creating alarms (used by the OpenClaw plugin or future backend services). Use `ANTIROT_DEVICE_TOKEN` in the iOS/Android app while the app still has a single API-token field.
-Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`; the bridge verifies the Google ID token and returns a per-device Antirot token.
+Set `GOOGLE_IOS_CLIENT_ID` to enable native Google Sign-In at `/v1/auth/google`; the backend verifies the Google ID token and returns a per-device Antirot token.
 Set APNs variables to enable VPS-to-iPhone wake delivery. Use `sandbox` for development/sideload builds and `production` for App Store/TestFlight production-signed builds.
 
 ## Endpoints
@@ -55,7 +55,7 @@ After the phone signs in with Google, create a short-lived pairing code on the V
 
 ```bash
 set -a
-. /etc/antirot/bridge.env
+. /etc/antirot/backend.env
 set +a
 /opt/antirot/apps/bridge/antirot-bridge pair --workspace main --timeout 60
 ```
@@ -93,10 +93,10 @@ Recommended:
 
 ```text
 homepage user/process -> antirot.org
-bridge user/process   -> api.antirot.org -> 127.0.0.1:8787
+backend user/process  -> api.antirot.org -> 127.0.0.1:8787
 ```
 
-Run the bridge with a dedicated Linux user and `systemd` resource limits so it cannot starve the homepage.
+Run the backend with a dedicated Linux user and `systemd` resource limits so it cannot starve the homepage.
 
 ## VPS Deployment With `git push production main`
 
@@ -106,8 +106,8 @@ This deployment assumes:
 - VPS IP: `187.77.25.228`
 - bare deployment repo: `/srv/git/antirot.git`
 - checkout directory: `/opt/antirot`
-- bridge service user: `antirot-bridge`
-- bridge port: `127.0.0.1:8787`
+- backend service user: `antirot-bridge`
+- backend port: `127.0.0.1:8787`
 - public API domain: `api.antirot.org`
 
 ### 1. Install Packages

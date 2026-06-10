@@ -27,11 +27,20 @@ struct ErrorBody {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let status = match self {
+        let status = match &self {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
-            AppError::Database(_) | AppError::Pool(_) | AppError::Reqwest(_) => {
+            AppError::Database(err) => {
+                tracing::error!(error = %err, "Internal database error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::Pool(err) => {
+                tracing::error!(error = %err, "Internal connection pool error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::Reqwest(err) => {
+                tracing::error!(error = %err, "Internal HTTP client error");
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };

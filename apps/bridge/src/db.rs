@@ -24,5 +24,5 @@ pub async fn migrate(pool: &Pool) -> Result<()> {
     client
         .batch_execute(include_str!("../sql/001_init.sql"))
         .await
-        .context("failed to run bridge migrations")
+        .context("failed to run backend migrations")
 }

@@ -11,6 +11,7 @@ pub struct Config {
     pub device_token: String,
     pub google_allowed_client_ids: Vec<String>,
     pub apns: Option<ApnsConfig>,
+    pub memory_embeddings: MemoryEmbeddingConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -23,20 +24,32 @@ pub struct ApnsConfig {
     pub endpoint: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryEmbeddingConfig {
+    pub provider: String,
+    pub model: String,
+    pub fallback_provider: String,
+    pub fallback_model: String,
+    pub gemini_api_key: Option<String>,
+    pub voyage_api_key: Option<String>,
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let bind = env::var("ANTIROT_BRIDGE_BIND")
+        let bind = env::var("ANTIROT_BACKEND_BIND")
+            .or_else(|_| env::var("ANTIROT_BRIDGE_BIND"))
             .unwrap_or_else(|_| "127.0.0.1:8787".to_string())
             .parse()
-            .context("ANTIROT_BRIDGE_BIND must be a socket address like 127.0.0.1:8787")?;
+            .context("ANTIROT_BACKEND_BIND must be a socket address like 127.0.0.1:8787")?;
         let database_url = env::var("DATABASE_URL")
-            .context("DATABASE_URL is required, for example postgres://antirot:secret@localhost/antirot_bridge")?;
+            .context("DATABASE_URL is required, for example postgres://antirot:secret@localhost/antirot_backend")?;
         let admin_token =
             env::var("ANTIROT_ADMIN_TOKEN").context("ANTIROT_ADMIN_TOKEN is required")?;
         let device_token =
             env::var("ANTIROT_DEVICE_TOKEN").context("ANTIROT_DEVICE_TOKEN is required")?;
         let google_allowed_client_ids = google_allowed_client_ids();
         let apns = apns_config();
+        let memory_embeddings = memory_embedding_config();
 
         Ok(Self {
             bind,
@@ -45,7 +58,27 @@ impl Config {
             device_token,
             google_allowed_client_ids,
             apns,
+            memory_embeddings,
         })
+    }
+}
+
+fn memory_embedding_config() -> MemoryEmbeddingConfig {
+    MemoryEmbeddingConfig {
+        provider: "gemini".to_string(),
+        model: env::var("ANTIROT_MEMORY_EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "gemini-embedding-001".to_string()),
+        fallback_provider: "voyage".to_string(),
+        fallback_model: env::var("ANTIROT_MEMORY_EMBEDDING_FALLBACK_MODEL")
+            .unwrap_or_else(|_| "voyage-4-large".to_string()),
+        gemini_api_key: env::var("ANTIROT_MEMORY_GEMINI_API_KEY")
+            .or_else(|_| env::var("GEMINI_API_KEY"))
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
+        voyage_api_key: env::var("ANTIROT_MEMORY_VOYAGE_API_KEY")
+            .or_else(|_| env::var("VOYAGE_API_KEY"))
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
     }
 }
 
@@ -106,7 +139,8 @@ fn google_allowed_client_ids() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::apns_endpoint_for_environment;
+    use super::{apns_endpoint_for_environment, memory_embedding_config};
+    use std::env;
 
     #[test]
     fn apns_endpoint_uses_sandbox_by_default_for_unknown_values() {
@@ -134,5 +168,23 @@ mod tests {
             apns_endpoint_for_environment("prod"),
             "https://api.push.apple.com"
         );
+    }
+
+    #[test]
+    fn memory_embeddings_use_gemini_with_voyage_fallback() {
+        env::remove_var("ANTIROT_MEMORY_EMBEDDING_MODEL");
+        env::remove_var("ANTIROT_MEMORY_EMBEDDING_FALLBACK_MODEL");
+        env::remove_var("ANTIROT_MEMORY_GEMINI_API_KEY");
+        env::remove_var("ANTIROT_MEMORY_VOYAGE_API_KEY");
+        env::remove_var("GEMINI_API_KEY");
+        env::remove_var("VOYAGE_API_KEY");
+
+        let config = memory_embedding_config();
+        assert_eq!(config.provider, "gemini");
+        assert_eq!(config.model, "gemini-embedding-001");
+        assert_eq!(config.fallback_provider, "voyage");
+        assert_eq!(config.fallback_model, "voyage-4-large");
+        assert_eq!(config.gemini_api_key, None);
+        assert_eq!(config.voyage_api_key, None);
     }
 }

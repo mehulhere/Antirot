@@ -17,6 +17,8 @@ Never call OpenClaw cron interfaces directly. Use Antirot tools only:
 - `reschedule_trigger`
 - `start_routine`
 - `start_session`
+- `extend_session`
+- `start_break`
 - `start_sleep`
 - `log_wake`
 - `wake_up_alarm`

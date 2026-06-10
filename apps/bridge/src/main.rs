@@ -4,8 +4,10 @@ mod config;
 mod db;
 mod error;
 mod llm;
+mod memory;
 mod models;
 mod pairing_cli;
+mod prompt;
 mod routes;
 
 use std::env;
@@ -14,8 +16,10 @@ use anyhow::Result;
 use axum::Router;
 use deadpool_postgres::Pool;
 use tokio::net::TcpListener;
+use tokio::time::{sleep, Duration};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
@@ -47,13 +51,16 @@ async fn main() -> Result<()> {
 
     let bind = config.bind;
     let state = AppState { config, pool };
+    spawn_nightly_distillation_worker(state.clone());
     let app = Router::new()
         .merge(routes::router())
+        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let listener = TcpListener::bind(bind).await?;
-    info!(%bind, "Antirot bridge listening");
+    let local_addr = listener.local_addr()?;
+    info!(bind = %local_addr, "Antirot backend listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
@@ -62,4 +69,29 @@ async fn main() -> Result<()> {
 
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
+}
+
+fn spawn_nightly_distillation_worker(state: AppState) {
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(300)).await;
+            match crate::memory::distill_all_idle_users_due(&state.pool, &state.config).await {
+                Ok(outcomes) => {
+                    for outcome in outcomes {
+                        info!(
+                            user_id = %outcome.user_id,
+                            date = %outcome.date,
+                            "background nightly memory distillation completed"
+                        );
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        "🔴 FALLBACK: background nightly memory distillation skipped - Reason: worker scan failed - Impact: distillation will retry on next scan or chat"
+                    );
+                }
+            }
+        }
+    });
 }

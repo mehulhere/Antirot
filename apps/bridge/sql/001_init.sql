@@ -156,9 +156,57 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS chat_messages_user_id_created_at_idx
     ON chat_messages (user_id, created_at ASC);
 
+CREATE TABLE IF NOT EXISTS user_runtime_states (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK (state IN ('onboarding', 'idle', 'working', 'sleeping', 'break', 'vacation')),
+    entered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    source_tool TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS user_state_metrics (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    usual_sleep_start_minute_utc INTEGER,
+    average_sleep_minutes INTEGER,
+    average_sleep_quality DOUBLE PRECISION,
+    sleep_sample_count INTEGER NOT NULL DEFAULT 0,
+    last_sleep_started_at TIMESTAMPTZ,
+    last_woke_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE user_state_metrics
+    ALTER COLUMN average_sleep_quality TYPE DOUBLE PRECISION
+    USING average_sleep_quality::DOUBLE PRECISION;
+
+CREATE TABLE IF NOT EXISTS memory_distillations (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    distilled_date DATE NOT NULL,
+    trigger_source TEXT NOT NULL,
+    summary_key TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, distilled_date)
+);
+
+CREATE TABLE IF NOT EXISTS memory_chunks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    memory_key TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    embedding JSONB,
+    embedding_provider TEXT,
+    embedding_model TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, memory_key, chunk_index, content_hash)
+);
+
+CREATE INDEX IF NOT EXISTS memory_chunks_user_key_idx
+    ON memory_chunks (user_id, memory_key);
+
 -- Ensure fallback admin user exists for admin/device bypass tokens
 INSERT INTO users (id, email, display_name)
 VALUES ('admin', 'admin@antirot.org', 'Admin Bypass')
 ON CONFLICT (id) DO NOTHING;
-
-

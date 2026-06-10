@@ -5,6 +5,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -14,7 +15,8 @@ use crate::auth::{
     token_hash,
 };
 use crate::error::{AppError, AppResult};
-use crate::llm::chat_with_coach;
+use crate::llm::{build_context_report, build_context_report_for_test, chat_with_coach, run_tool_for_test};
+use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, ChatRequest, ChatResponse,
     CreateAlarmRequest, CreateAlarmResponse, DeliveryState, DeviceRegistrationRequest,
@@ -22,12 +24,13 @@ use crate::models::{
     MemoryResponse, PairingClaimRequest, PairingClaimResponse, SubscriptionResponse,
     SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
 };
+use crate::prompt::{allowed_memory_key, default_memory_for_key};
 use crate::AppState;
-
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PendingQuery {
+    #[serde(alias = "device_id")]
     device_id: String,
     limit: Option<i64>,
 }
@@ -46,7 +49,12 @@ pub fn router() -> Router<AppState> {
         .route("/visits", get(get_and_increment_visits))
         .route("/subscription", get(get_subscription).post(update_subscription))
         .route("/memory/{key}", get(get_memory).put(update_memory))
+        .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
+        .route("/test/reset", post(test_reset))
+        .route("/test/tool", post(test_tool))
+        .route("/test/state", get(test_state))
+        .route("/test/context", get(test_context))
         .route("/v1/health", get(health))
         .route("/v1/auth/google", post(auth_google))
         .route("/v1/pairing/claim", post(claim_pairing))
@@ -62,13 +70,18 @@ pub fn router() -> Router<AppState> {
         .route("/v1/visits", get(get_and_increment_visits))
         .route("/v1/subscription", get(get_subscription).post(update_subscription))
         .route("/v1/memory/{key}", get(get_memory).put(update_memory))
+        .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
+        .route("/v1/test/reset", post(test_reset))
+        .route("/v1/test/tool", post(test_tool))
+        .route("/v1/test/state", get(test_state))
+        .route("/v1/test/context", get(test_context))
 }
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         ok: true,
-        service: "antirot-bridge",
+        service: "antirot-backend",
     })
 }
 
@@ -82,7 +95,7 @@ async fn auth_google(
 
     if state.config.google_allowed_client_ids.is_empty() {
         return Err(AppError::BadRequest(
-            "Google OAuth is not configured on this bridge".to_string(),
+            "Google OAuth is not configured on this backend".to_string(),
         ));
     }
 
@@ -547,7 +560,7 @@ async fn maybe_send_apns_wake(state: &AppState, device_id: &str, alarm_id: &str)
             alarm_id,
             device_id,
             error = %error,
-            "🔴 FALLBACK: APNs wake failed - Reason: bridge could not complete APNs request - Impact: iOS app must poll/open before scheduling"
+            "🔴 FALLBACK: APNs wake failed - Reason: backend could not complete APNs request - Impact: iOS app must poll/open before scheduling"
         );
     }
 }
@@ -694,7 +707,7 @@ async fn record_alarm_action(
             if let Some(row) = alarm_info {
                 let kind: String = row.get("kind");
                 let device_id: String = row.get("device_id");
-                if kind == "session_alarm" || kind == "wake_alarm" {
+                if matches!(kind.as_str(), "session_alarm" | "break_alarm" | "wake_alarm" | "idle_alarm") {
                     transaction
                         .execute(
                             "DELETE FROM alarms WHERE device_id = $1 AND kind = $2 AND status = 'pending'",
@@ -1010,9 +1023,8 @@ async fn get_memory(
     let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
     let client = state.pool.get().await?;
 
-    match key.as_str() {
-        "longterm" | "shortterm" | "behavior" | "tasks" | "sleep" | "work" | "miscellaneous_todo" => {}
-        _ => return Err(AppError::BadRequest("Invalid memory key".to_string())),
+    if !allowed_memory_key(&key) {
+        return Err(AppError::BadRequest("Invalid memory key".to_string()));
     }
 
     let row = client
@@ -1030,15 +1042,7 @@ async fn get_memory(
             updated_at: row.get("updated_at"),
         }))
     } else {
-        let default_content = match key.as_str() {
-            "longterm" => "# Long-Term Goals\n\n## Direction\n- Distilled long-term goals go here.\n\n## Standards\n- High standards, honest recovery, no fake praise.\n",
-            "shortterm" => "# Short-Term State\n\n## Current Priorities\n- Near-term priorities go here.\n\n## Constraints\n- Sleep, health, vacation mode go here.\n",
-            "behavior" => "# Behavior Memory\n\n## Recurring Patterns\n- Stable patterns go here.\n\n## Drift Tendencies\n- Known drift loops go here.\n\n## Accountability Styles\n- Tactics that work/fail go here.\n",
-            "tasks" => "# Task Pipeline\n",
-            "sleep" => "# Sleep Ledger\n",
-            "work" => "# Work Ledger\n",
-            _ => "# Miscellaneous Todo\n",
-        };
+        let default_content = default_memory_for_key(&key).unwrap_or("# Miscellaneous Todo\n");
         Ok(Json(MemoryResponse {
             ok: true,
             key,
@@ -1057,23 +1061,11 @@ async fn update_memory(
     let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
     let client = state.pool.get().await?;
 
-    match key.as_str() {
-        "longterm" | "shortterm" | "behavior" | "tasks" | "sleep" | "work" | "miscellaneous_todo" => {}
-        _ => return Err(AppError::BadRequest("Invalid memory key".to_string())),
+    if !allowed_memory_key(&key) {
+        return Err(AppError::BadRequest("Invalid memory key".to_string()));
     }
 
-    client
-        .execute(
-            "
-            INSERT INTO user_memories (user_id, memory_key, content, updated_at)
-            VALUES ($1, $2, $3, now())
-            ON CONFLICT (user_id, memory_key) DO UPDATE SET
-                content = EXCLUDED.content,
-                updated_at = now()
-            ",
-            &[&user_id, &key, &req.content],
-        )
-        .await?;
+    save_memory_indexed(&client, &state.config, &user_id, &key, &req.content).await?;
 
     Ok(Json(MemoryResponse {
         ok: true,
@@ -1091,6 +1083,338 @@ async fn chat_coach(
     let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
     let reply = chat_with_coach(&state.pool, &state.config, &user_id, &req.message).await?;
     Ok(Json(ChatResponse { ok: true, reply }))
+}
+
+fn require_test_endpoints_enabled() -> AppResult<()> {
+    if std::env::var("ANTIROT_ENABLE_TEST_ENDPOINTS").ok().as_deref() == Some("1") {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestResetRequest {
+    user_id: Option<String>,
+    device_id: Option<String>,
+    device_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestToolRequest {
+    user_id: Option<String>,
+    name: String,
+    args: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestStateQuery {
+    user_id: Option<String>,
+    device_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestContextQuery {
+    user_id: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestStateRow {
+    state: String,
+    source_tool: Option<String>,
+    metadata: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestAlarmCount {
+    kind: String,
+    severity: String,
+    count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestStateResponse {
+    ok: bool,
+    user_id: String,
+    device_id: String,
+    runtime_state: Option<TestStateRow>,
+    alarm_counts: Vec<TestAlarmCount>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestToolResponse {
+    ok: bool,
+    result: String,
+    snapshot: TestStateResponse,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TestContextResponse {
+    ok: bool,
+    user_id: String,
+    report: crate::prompt::PromptBuildReport,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminContextResponse {
+    ok: bool,
+    user_id: String,
+    report: crate::prompt::PromptBuildReport,
+    runtime_state: Option<TestStateRow>,
+    sleep_metrics: crate::memory::SleepMetricsReport,
+}
+
+async fn test_reset(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<TestResetRequest>,
+) -> AppResult<Json<TestStateResponse>> {
+    require_test_endpoints_enabled()?;
+    require_admin_auth(&headers, &state.config)?;
+
+    let user_id = req.user_id.unwrap_or_else(|| "admin".to_string());
+    let device_id = req.device_id.unwrap_or_else(|| "test-device".to_string());
+    let api_token_hash = req.device_token.as_ref().map(|token| token_hash(token));
+    let client = state.pool.get().await?;
+
+    client
+        .execute(
+            "
+            INSERT INTO users (id, email, display_name, subscription_tier, subscription_status)
+            VALUES ($1, $2, 'Test User', 'tailored', 'active')
+            ON CONFLICT (id) DO UPDATE SET
+                subscription_tier = 'tailored',
+                subscription_status = 'active',
+                updated_at = now()
+            ",
+            &[&user_id, &format!("{}@test.antirot.local", user_id)],
+        )
+        .await?;
+
+    client
+        .execute("DELETE FROM alarms WHERE device_id = $1", &[&device_id])
+        .await?;
+    client
+        .execute("DELETE FROM chat_messages WHERE user_id = $1", &[&user_id])
+        .await?;
+    client
+        .execute("DELETE FROM user_memories WHERE user_id = $1", &[&user_id])
+        .await?;
+    client
+        .execute("DELETE FROM user_runtime_states WHERE user_id = $1", &[&user_id])
+        .await?;
+
+    client
+        .execute(
+            "
+            INSERT INTO devices (
+                device_id,
+                user_id,
+                workspace_id,
+                device_name,
+                api_token_hash,
+                platform,
+                app_version,
+                notification_capability,
+                usage_capability,
+                paired_at
+            )
+            VALUES ($1, $2, 'main', 'Backend Userflow Test Device', $3, 'ios', 'test', 'remote_notification', 'unknown', now())
+            ON CONFLICT (device_id) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                workspace_id = EXCLUDED.workspace_id,
+                device_name = EXCLUDED.device_name,
+                api_token_hash = EXCLUDED.api_token_hash,
+                platform = EXCLUDED.platform,
+                app_version = EXCLUDED.app_version,
+                notification_capability = EXCLUDED.notification_capability,
+                usage_capability = EXCLUDED.usage_capability,
+                paired_at = EXCLUDED.paired_at,
+                updated_at = now()
+            ",
+            &[&device_id, &user_id, &api_token_hash],
+        )
+        .await?;
+
+    client
+        .execute(
+            "
+            INSERT INTO user_runtime_states (user_id, state, source_tool, metadata)
+            VALUES ($1, 'onboarding', 'test_reset', '{}'::JSONB)
+            ON CONFLICT (user_id) DO UPDATE SET
+                state = 'onboarding',
+                entered_at = now(),
+                source_tool = 'test_reset',
+                metadata = '{}'::JSONB
+            ",
+            &[&user_id],
+        )
+        .await?;
+
+    Ok(Json(test_snapshot(&client, &user_id, &device_id).await?))
+}
+
+async fn test_context(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<TestContextQuery>,
+) -> AppResult<Json<TestContextResponse>> {
+    require_test_endpoints_enabled()?;
+    require_admin_auth(&headers, &state.config)?;
+
+    let user_id = query.user_id.unwrap_or_else(|| "admin".to_string());
+    let provider = query.provider.unwrap_or_else(|| "gemini".to_string());
+    let model = query.model.unwrap_or_else(|| "gemini-3.5-flash".to_string());
+    let report = build_context_report_for_test(&state.pool, &state.config, &user_id, &provider, &model).await?;
+
+    Ok(Json(TestContextResponse {
+        ok: true,
+        user_id,
+        report,
+    }))
+}
+
+async fn admin_context(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<TestContextQuery>,
+) -> AppResult<Json<AdminContextResponse>> {
+    require_admin_auth(&headers, &state.config)?;
+
+    let user_id = query.user_id.unwrap_or_else(|| "admin".to_string());
+    let provider = query.provider.unwrap_or_else(|| "gemini".to_string());
+    let model = query.model.unwrap_or_else(|| "gemini-3.5-flash".to_string());
+    let report = build_context_report(&state.pool, &state.config, &user_id, &provider, &model).await?;
+    let client = state.pool.get().await?;
+    let runtime_state = runtime_state_row(&client, &user_id).await?;
+    let sleep_metrics = sleep_metrics_report(&client, &user_id).await?;
+
+    Ok(Json(AdminContextResponse {
+        ok: true,
+        user_id,
+        report,
+        runtime_state,
+        sleep_metrics,
+    }))
+}
+
+async fn test_tool(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<TestToolRequest>,
+) -> AppResult<Json<TestToolResponse>> {
+    require_test_endpoints_enabled()?;
+    require_admin_auth(&headers, &state.config)?;
+    validate_non_empty("name", &req.name)?;
+
+    let user_id = req.user_id.unwrap_or_else(|| "admin".to_string());
+    let result = run_tool_for_test(
+        &state.pool,
+        &state.config,
+        &user_id,
+        &req.name,
+        req.args.unwrap_or(Value::Null),
+    )
+    .await;
+
+    let client = state.pool.get().await?;
+    let device_id = client
+        .query_opt(
+            "SELECT device_id FROM devices WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1",
+            &[&user_id],
+        )
+        .await?
+        .map(|row| row.get("device_id"))
+        .unwrap_or_else(|| "test-device".to_string());
+
+    Ok(Json(TestToolResponse {
+        ok: result.starts_with("Success:"),
+        result,
+        snapshot: test_snapshot(&client, &user_id, &device_id).await?,
+    }))
+}
+
+async fn test_state(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<TestStateQuery>,
+) -> AppResult<Json<TestStateResponse>> {
+    require_test_endpoints_enabled()?;
+    require_admin_auth(&headers, &state.config)?;
+
+    let user_id = query.user_id.unwrap_or_else(|| "admin".to_string());
+    let device_id = query.device_id.unwrap_or_else(|| "test-device".to_string());
+    let client = state.pool.get().await?;
+    Ok(Json(test_snapshot(&client, &user_id, &device_id).await?))
+}
+
+async fn test_snapshot(
+    client: &tokio_postgres::Client,
+    user_id: &str,
+    device_id: &str,
+) -> AppResult<TestStateResponse> {
+    let runtime_state = runtime_state_row(client, user_id).await?;
+
+    let alarm_rows = client
+        .query(
+            "
+            SELECT kind, severity, COUNT(*)::BIGINT AS count
+            FROM alarms
+            WHERE device_id = $1 AND status = 'pending'
+            GROUP BY kind, severity
+            ORDER BY kind, severity
+            ",
+            &[&device_id],
+        )
+        .await?;
+
+    Ok(TestStateResponse {
+        ok: true,
+        user_id: user_id.to_string(),
+        device_id: device_id.to_string(),
+        runtime_state,
+        alarm_counts: alarm_rows
+            .iter()
+            .map(|row| TestAlarmCount {
+                kind: row.get("kind"),
+                severity: row.get("severity"),
+                count: row.get("count"),
+            })
+            .collect(),
+    })
+}
+
+async fn runtime_state_row(
+    client: &tokio_postgres::Client,
+    user_id: &str,
+) -> AppResult<Option<TestStateRow>> {
+    Ok(client
+        .query_opt(
+            "
+            SELECT state, source_tool, metadata::TEXT AS metadata
+            FROM user_runtime_states
+            WHERE user_id = $1
+            ",
+            &[&user_id],
+        )
+        .await?
+        .map(|row| TestStateRow {
+            state: row.get("state"),
+            source_tool: row.get("source_tool"),
+            metadata: row.get("metadata"),
+        }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1125,4 +1449,3 @@ async fn cancel_alarms_by_kind(
 
     Ok(Json(CancelAlarmsResponse { ok: true, count }))
 }
-

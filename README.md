@@ -55,7 +55,7 @@ Required environment:
 DATABASE_URL=postgres://antirot_bridge:secret@localhost/antirot_bridge
 ANTIROT_ADMIN_TOKEN=long-random-admin-token
 ANTIROT_DEVICE_TOKEN=long-random-device-token
-ANTIROT_BRIDGE_BIND=127.0.0.1:8787
+ANTIROT_BACKEND_BIND=127.0.0.1:8787
 GOOGLE_IOS_CLIENT_ID=your-google-client-id
 ```
 
@@ -89,7 +89,7 @@ npx openclaw plugins enable antirot
 npx openclaw gateway restart
 ```
 
-The iOS app acts as a message relay in this mode — it displays coach messages from your OpenClaw instance and relays your responses back through the bridge.
+The iOS app acts as a message relay in this mode — it displays coach messages from your OpenClaw instance and relays your responses through the OpenClaw bridge path.
 
 See [setup_VPS.md](setup_VPS.md) for OpenClaw plugin configuration on your server.
 
@@ -101,7 +101,7 @@ npm run lint
 npm run typecheck
 npm run build
 
-# Bridge
+# Backend
 cargo test --manifest-path apps/bridge/Cargo.toml
 
 # Alarm escalation flow

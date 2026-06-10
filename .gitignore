@@ -3,6 +3,7 @@ apps/bridge/target/
 /releases/
 .antirot/
 .env
+client_secret_*.apps.googleusercontent.com.json
 *.log
 .firecrawl/
 test-workspace/

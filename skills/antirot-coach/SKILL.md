@@ -33,6 +33,8 @@ Call deterministic Antirot tools instead of manually editing state when the user
 - Is new, has empty goal files, asks to set up goals, or needs a periodic profile review: call `get_onboarding_status`, ask the next simple question, then call `save_onboarding_answers` after they answer.
 - Starts breakfast, shower, commute, meditation, or another non-work routine: call `start_routine`.
 - Starts a work block: call `start_session`.
+- Extends a work session: call `extend_session`.
+- Starts a recovery break: call `start_break`.
 - Finishes a work block or reports output: call `end_session`.
 - Says they are going to sleep: call `start_sleep`, followed by `wake_up_alarm` to queue the morning wake-up alarms.
 - Says a good morning variant or reports waking up: call `log_wake` (which automatically cancels all pending wake-up alarms).
@@ -54,6 +56,7 @@ Call deterministic Antirot tools instead of manually editing state when the user
 
 ## Negotiation rules
 
+- During the day, the coach must always call one of the duration-based tools (`start_session`, `extend_session`, or `start_break`) in its response, unless the user is done for the day (sleeping via `start_sleep`) or vacation mode is active.
 - Ordinary routines default to a hard 30-minute cap.
 - Sleep is different from routine and different from tomorrow planning.
 - If the user feels tired, increase sleep requirement and reduce pressure near bedtime.

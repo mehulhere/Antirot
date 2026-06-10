@@ -1,0 +1,72 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/bridge/**"
+      - "scripts/test-backend-userflows-no-llm.mjs"
+      - "scripts/backend-userflow-test-lib.mjs"
+      - "package.json"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/bridge/**"
+      - "scripts/test-backend-userflows-no-llm.mjs"
+      - "scripts/backend-userflow-test-lib.mjs"
+      - "package.json"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  backend:
+    name: Backend tests and prompt snapshots
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: antirot
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: antirot_backend_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U antirot -d antirot_backend_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://antirot:secret@localhost:5432/antirot_backend_test
+      ANTIROT_ADMIN_TOKEN: test-admin-token
+      ANTIROT_DEVICE_TOKEN: test-device-token
+      ANTIROT_TAILORED_LLM_KEY: not-needed-for-no-llm
+      ANTIROT_MEMORY_GEMINI_API_KEY: ""
+      ANTIROT_MEMORY_VOYAGE_API_KEY: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Cargo check
+        run: cargo check --manifest-path apps/bridge/Cargo.toml
+
+      - name: Rust tests and prompt snapshots
+        run: cargo test --manifest-path apps/bridge/Cargo.toml
+
+      - name: Backend no-LLM userflows
+        run: npm run test:backend-userflows

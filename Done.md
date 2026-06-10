@@ -40,5 +40,15 @@
 
 - Deploy the updated `apps/bridge`, configure subscription tier (BYOK or Tailored) at `/v1/subscription`, send a test message to `/v1/chat`, and verify memory files are initialized and tools update `user_memories` correctly.
 - Verify that calling `start_session` fails if the `task_id` does not match active tasks in `tasks.md`, `log_wake` accepts `sleep_quality` (1-5) instead of tiredness, weekly override records are appended to weekly override files, and legacy alarm triggers are removed from the coach tool definitions.
-- Verify that calling `start_session` auto-sets a sequence of session alarms (silent for the first two, loud for subsequent ones up to 5 hours) and that `end_session` auto-deletes them; verify that calling `wake_up_alarm` schedules morning alarms based on `sleep` ledger estimates and that acknowledging an alarm or calling `log_wake` cancels the remaining pending alarms.
-
+- Verify that calling `start_session` auto-sets a sequence of session alarms (silent for the first two, loud for subsequent ones up to 5 hours) and that `end_session` auto-deletes them; verify the app schedules morning alarms from sleep state automatically and that acknowledging an alarm or calling `log_wake` cancels the remaining pending alarms.
+- Verify that sending a chat message containing "log work", "need a break", or "start working" immediately cancels pending session alarms, and that `extend_session` and `start_break` tools successfully schedule the 5-hour alarm sequence.
+- Verify that configuring `GOOGLE_CLOUD_CREDENTIALS` in the environment/dot-env automatically routes tailored requests to Google Vertex AI using RS256 JWT assertion OAuth token exchange.
+- Open `http://localhost:8000/tester.html`, verify it auto-connects with no backend settings panel, URL input, password input, or connect button, and confirm chat, pending alarms, and memory tabs use the local backend.
+- Verify backend runtime states transition through onboarding, working, sleeping, break, vacation, and idle; confirm idle schedules check-in alarms every 5 minutes while onboarding/vacation schedule none.
+- Verify `routine.md` appears in the tester memory tabs, initializes with fixed daily allocations, and can be updated by the coach through `patch_file`.
+- Run backend userflow tests with `npm run test:backend-userflows` and `npm run test:backend-userflows-llm`; review the LLM transcript for paid-product quality, rerunning the LLM suite after Gemini `gemini-3.5-flash` quota recovers if it returns `429 RESOURCE_EXHAUSTED`.
+- Verify the OpenClaw-inspired prompt architecture keeps standalone replies free of OpenClaw/internal state language, enforces context budgets, and passes the expanded Gemini transcript quality suite.
+- Verify prompt snapshot fixtures for standalone and OpenClaw modes fail on accidental prompt drift while backend userflows still pass.
+- Verify nightly memory distillation updates `durable.md` when sleep starts, sleep metrics update after wake logs, semantic memory search returns relevant historical logs once memory is large, and `/v1/admin/context` works with admin auth outside test mode.
+- Verify GitHub Backend CI blocks prompt snapshot drift and runs backend no-LLM userflows against Postgres on pull requests.
+- Run `npm run test:backend-userflows-llm` followed by `CROF_API_KEY=... npm run test:llm-judge-quality`, then review `.antirot/llm-judge-quality-report.json` for Qwen judge scores and issues before treating live LLM output as paid-product ready.

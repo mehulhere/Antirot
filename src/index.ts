@@ -769,6 +769,14 @@ function registerTools(api: OpenClawPluginApi): void {
             });
             const config = resolveRuntimeConfig(api);
 
+            // Clear old session/alignment/timer triggers
+            await clearMatchingTriggers({
+                workspaceDir,
+                config,
+                kinds: ["session", "alignment_check", "timer"],
+                reason: "starting new work session"
+            });
+
             // Auto-schedule session alarms
             await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
             const alarmsToSchedule: Promise<unknown>[] = [];
@@ -873,6 +881,186 @@ function registerTools(api: OpenClawPluginApi): void {
         }
     }), { name: "end_session" });
 
+    api.registerTool((ctx) => ({
+        name: "extend_session",
+        label: "Extend Session",
+        description: "Extend the current active work session duration and reset the alarm triggers.",
+        parameters: Type.Object({
+            extension_minutes: Type.Number({ minimum: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            const extensionMinutes = readNumber(values, "extension_minutes");
+            await ensureWorkspace(workspaceDir);
+
+            const state = await readState(workspaceDir);
+            if (!state.activeBlock || state.activeBlock.kind !== "session") {
+                return textResult("Error: No active work session found to extend.");
+            }
+
+            const elapsedMins = Math.round((Date.now() - new Date(state.activeBlock.startedAt).getTime()) / 60_000);
+            const newDuration = Math.max(1, elapsedMins + extensionMinutes);
+            state.activeBlock.durationMins = newDuration;
+            await writeState(workspaceDir, state);
+
+            const config = resolveRuntimeConfig(api);
+
+            // Clear old session/alignment triggers
+            await clearMatchingTriggers({
+                workspaceDir,
+                config,
+                kinds: ["session", "alignment_check"],
+                label: state.activeBlock.name,
+                reason: "session extended"
+            });
+
+            // Set new triggers
+            const endTrigger = await createAntirotTrigger({
+                workspaceDir,
+                config,
+                kind: "session",
+                scope: "daily",
+                label: state.activeBlock.name,
+                reason: `Work session target extended: ${state.activeBlock.name}`,
+                delayMins: extensionMinutes,
+                cronName: `antirot-session-${state.activeBlock.name}`,
+                systemEvent: `Antirot work session ended: ${state.activeBlock.name}. Ask for output and wasted minutes.`
+            });
+
+            const alignmentTrigger = await createAntirotTrigger({
+                workspaceDir,
+                config,
+                kind: "alignment_check",
+                scope: "daily",
+                label: state.activeBlock.name,
+                reason: `Two-hour alignment check: ${state.activeBlock.name}`,
+                delayMins: 120,
+                cronName: "antirot-two-hour-alignment",
+                systemEvent: "Antirot two-hour alignment check. If the user is not on track, demand status."
+            });
+
+            // Auto-schedule session alarms for the extension duration
+            await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
+            const alarmsToSchedule: Promise<unknown>[] = [];
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "WORK SESSION FINISHED",
+                message: "Antirot Coach: Finish your session and check in now!",
+                fireDelayMins: extensionMinutes
+            }));
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "WORK SESSION FINISHED",
+                message: "Antirot Coach: Finish your session and check in now!",
+                fireDelayMins: extensionMinutes + 5
+            }));
+            for (let offset = 10; offset <= 300; offset += 5) {
+                alarmsToSchedule.push(scheduleBridgeAlarm({
+                    config,
+                    severity: "loud",
+                    title: "WORK SESSION ESCALATION",
+                    message: "Antirot Coach: Finish your session and check in now!",
+                    fireDelayMins: extensionMinutes + offset
+                }));
+            }
+            await Promise.all(alarmsToSchedule);
+
+            await appendEvent(workspaceDir, {
+                type: "session_extended",
+                details: { extensionMinutes, endTrigger, alignmentTrigger }
+            });
+
+            return textResult(`Session extended by ${extensionMinutes} minutes. Work, do not stare at the clock. Extension trigger id: ${endTrigger.trigger.id}.`);
+        }
+    }), { name: "extend_session" });
+
+    api.registerTool((ctx) => ({
+        name: "start_break",
+        label: "Start Break",
+        description: "Start a structured recovery break and schedule alerts to return to work.",
+        parameters: Type.Object({
+            duration_minutes: Type.Number({ minimum: 1 })
+        }),
+        async execute(_toolCallId, params) {
+            const values = params as ToolParams;
+            const workspaceDir = resolveWorkspace(api, ctx);
+            const durationMinutes = readNumber(values, "duration_minutes");
+            await ensureWorkspace(workspaceDir);
+
+            const state = await readState(workspaceDir);
+            await writeState(workspaceDir, {
+                ...state,
+                mode: "break",
+                activeBlock: {
+                    kind: "timer",
+                    name: "break",
+                    startedAt: nowIso(),
+                    durationMins: durationMinutes
+                }
+            });
+
+            const config = resolveRuntimeConfig(api);
+
+            // Clear old session/alignment/timer triggers
+            await clearMatchingTriggers({
+                workspaceDir,
+                config,
+                kinds: ["session", "alignment_check", "timer"],
+                reason: "transitioning to break"
+            });
+
+            // Set new break end trigger
+            const endTrigger = await createAntirotTrigger({
+                workspaceDir,
+                config,
+                kind: "timer",
+                scope: "daily",
+                label: "break",
+                reason: `Break finished: duration ${durationMinutes} mins`,
+                delayMins: durationMinutes,
+                cronName: "antirot-break",
+                systemEvent: "Antirot break ended. Ask the user if they are ready to get back to work or start a new session."
+            });
+
+            // Auto-schedule session alarms for the break duration
+            await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
+            const alarmsToSchedule: Promise<unknown>[] = [];
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "BREAK FINISHED",
+                message: "Antirot Coach: Break is over! Time to get back to work.",
+                fireDelayMins: durationMinutes
+            }));
+            alarmsToSchedule.push(scheduleBridgeAlarm({
+                config,
+                severity: "normal",
+                title: "BREAK FINISHED",
+                message: "Antirot Coach: Break is over! Time to get back to work.",
+                fireDelayMins: durationMinutes + 5
+            }));
+            for (let offset = 10; offset <= 300; offset += 5) {
+                alarmsToSchedule.push(scheduleBridgeAlarm({
+                    config,
+                    severity: "loud",
+                    title: "BREAK OVER ESCALATION",
+                    message: "Antirot Coach: Break is over! Check in and start working now!",
+                    fireDelayMins: durationMinutes + offset
+                }));
+            }
+            await Promise.all(alarmsToSchedule);
+
+            await appendEvent(workspaceDir, {
+                type: "break_started",
+                details: { durationMinutes, endTrigger }
+            });
+
+            return textResult(`Break started for ${durationMinutes} minutes. Go recover. Trigger id: ${endTrigger.trigger.id}.`);
+        }
+    }), { name: "start_break" });
 
     api.registerTool((ctx) => ({
         name: "start_sleep",
@@ -1616,6 +1804,14 @@ function registerHooks(api: OpenClawPluginApi): void {
             });
             wakeNote = `Antirot auto-logged wake from good morning variant: ${wake.message}\n`;
         }
+
+        // Intercept prompt and cancel session alarms if requested
+        const promptLower = event.prompt.toLowerCase();
+        if (promptLower.includes("log work") || promptLower.includes("need a break") || promptLower.includes("start working")) {
+            const config = resolveRuntimeConfig(api);
+            await cancelBridgeAlarmsByKind({ config, kind: "session_alarm" });
+        }
+
         return {
             prependSystemContext: buildPersonaContext(),
             appendContext: `${wakeNote}${await buildStateContext(workspaceDir, resolveRuntimeConfig(api))}`

@@ -21,6 +21,8 @@
             "save_onboarding_answers",
             "start_routine",
             "start_session",
+            "extend_session",
+            "start_break",
             "end_session",
             "start_sleep",
             "log_wake",
