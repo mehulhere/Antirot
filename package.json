@@ -32,7 +32,8 @@
         "test:backend-userflows-llm": "ANTIROT_RUN_LLM_USERFLOW_TESTS=1 node scripts/test-backend-userflows-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
         "test:agent-real": "npm run build && node scripts/test-real-agent-chat.mjs",
-        "check:env": "node scripts/check-env.mjs"
+        "check:env": "node scripts/check-env.mjs",
+        "test:backend-integrations": "node scripts/test-backend-integrations.mjs"
     },
     "openclaw": {
         "extensions": [

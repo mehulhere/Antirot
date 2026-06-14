@@ -155,6 +155,21 @@ cd /opt/antirot
 node scripts/check-env.mjs /etc/antirot/backend.env env.example.txt
 ```
 
+After the backend is running, test all provider-backed backend paths:
+
+```bash
+node scripts/test-backend-integrations.mjs \
+  --env-file /etc/antirot/backend.env \
+  --base-url https://api.yourdomain.com
+```
+
+Placeholder notes:
+
+- Replace `api.yourdomain.com` with the real API domain.
+- This checks `/v1/health`, `/v1/speech/synthesize`, `/v1/speech/transcribe`, `/v1/memory/longterm`, and `/v1/chat`.
+- The memory check writes a temporary long-term memory entry so the backend attempts semantic embedding indexing.
+- If TTS is not configured yet, pass a real speech file to still test S2T: `--audio-file voice.m4a`.
+
 ## 7. Install systemd Service
 
 ```bash
