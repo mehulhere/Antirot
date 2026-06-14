@@ -92,6 +92,7 @@ struct APIClient {
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: baseURL.appendingPathComponent("/v1/speech/transcribe"))
         request.httpMethod = "POST"
+        request.timeoutInterval = 60
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         addAuth(to: &request)
 

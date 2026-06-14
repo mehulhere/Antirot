@@ -1,3 +1,5 @@
+use std::time::Duration as StdDuration;
+
 use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
@@ -1167,9 +1169,12 @@ async fn transcribe_speech(
             .trim_end_matches('/')
     );
 
-    let response = reqwest::Client::new()
+    let http_client = reqwest::Client::builder()
+        .timeout(StdDuration::from_secs(45))
+        .build()?;
+    let response = http_client
         .post(&url)
-        .header("Authorization", api_key)
+        .header("Authorization", format!("Bearer {api_key}"))
         .multipart(form)
         .send()
         .await?;
@@ -1246,7 +1251,10 @@ async fn synthesize_speech(
         }
     });
 
-    let response = reqwest::Client::new()
+    let http_client = reqwest::Client::builder()
+        .timeout(StdDuration::from_secs(45))
+        .build()?;
+    let response = http_client
         .post(&url)
         .header("x-api-key", api_key)
         .header("version", "v1")

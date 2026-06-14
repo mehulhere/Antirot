@@ -18,6 +18,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - Use Context7 MCP and Google knowledge MCP when current external behavior matters
 - If a port is busy, use another port
 - If `.brain/KNOWLEDGE.md` exists, record project-specific gotchas there
+- In setup/deployment instructions, whenever using placeholders like `YOUR_REPO_URL`, `CHANGE_DB_PASSWORD`, or `api.yourdomain.com`, mention exactly what each placeholder means directly below the instruction or command block.
 
 ## 🤖 Autonomy
 - Continue when the next step is obvious from the repo, logs, runtime output, or the user’s goal

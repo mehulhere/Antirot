@@ -82,7 +82,10 @@ final class CoachViewModel: ObservableObject {
         } catch {
             isSending = false
             statusText = "Voice failed"
-            messages.append(CoachMessage(role: .system, text: error.localizedDescription))
+            messages.append(CoachMessage(
+                role: .system,
+                text: "Voice transcription failed: \(error.localizedDescription)"
+            ))
         }
     }
 
