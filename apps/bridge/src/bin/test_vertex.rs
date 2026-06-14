@@ -1,7 +1,7 @@
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use jsonwebtoken::{EncodingKey, Header, Algorithm};
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Serialize)]
@@ -29,10 +29,10 @@ struct GcpCredentials {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
-    
-    let creds_json = std::env::var("GOOGLE_CLOUD_CREDENTIALS")
-        .expect("GOOGLE_CLOUD_CREDENTIALS not set");
-        
+
+    let creds_json =
+        std::env::var("GOOGLE_CLOUD_CREDENTIALS").expect("GOOGLE_CLOUD_CREDENTIALS not set");
+
     let creds: GcpCredentials = serde_json::from_str(&creds_json)?;
 
     let iat = Utc::now().timestamp();
@@ -92,19 +92,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let response = client
             .post(&chat_url)
-            .header("Authorization", format!("Bearer {}", token_resp.access_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", token_resp.access_token),
+            )
             .json(&payload)
             .send()
             .await?;
 
         println!("Result for {}: {}", model, response.status());
         if response.status().is_success() {
-            println!("SUCCESS! Model {} is available. Body: {}", model, response.text().await?);
+            println!(
+                "SUCCESS! Model {} is available. Body: {}",
+                model,
+                response.text().await?
+            );
             break;
         } else {
             let err_body = response.text().await?;
             if err_body.contains("quota") || err_body.contains("Quota") {
-                println!("SUCCESS (Quota limited)! Model {} is available but quota failed. Body: {}", model, err_body);
+                println!(
+                    "SUCCESS (Quota limited)! Model {} is available but quota failed. Body: {}",
+                    model, err_body
+                );
             } else {
                 println!("Error body: {}", err_body);
             }

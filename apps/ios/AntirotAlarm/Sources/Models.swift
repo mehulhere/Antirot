@@ -97,3 +97,93 @@ struct AlarmActionRequest: Codable {
     var at: Date
     var minutes: Int?
 }
+
+struct ChatCoachRequest: Codable {
+    var message: String
+}
+
+struct ChatCoachResponse: Codable {
+    var ok: Bool
+    var reply: String
+}
+
+struct SpeechTranscriptionResponse: Codable {
+    var ok: Bool
+    var text: String
+}
+
+struct SpeechSynthesisRequest: Codable {
+    var text: String
+    var voiceId: String?
+}
+
+struct SpeechSynthesisResponse: Codable {
+    var ok: Bool
+    var audioBase64: String
+    var contentType: String
+
+    var audioData: Data? {
+        Data(base64Encoded: audioBase64)
+    }
+}
+
+struct CoachMessage: Identifiable, Equatable {
+    enum Role: Equatable {
+        case user
+        case coach
+        case system
+    }
+
+    let id = UUID()
+    var role: Role
+    var text: String
+    var createdAt: Date = Date()
+}
+
+struct CoachQuickAction: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var systemImage: String
+    var message: String
+    var fillsDraft: Bool = false
+
+    static let primary: [CoachQuickAction] = [
+        CoachQuickAction(
+            id: "start_working",
+            title: "Start Working",
+            systemImage: "play.fill",
+            message: "I am starting a focused work session now. Help me choose the exact next task and timer."
+        ),
+        CoachQuickAction(
+            id: "done",
+            title: "Done",
+            systemImage: "checkmark",
+            message: "Done. I finished the current work block. Log it and tell me the next move."
+        ),
+        CoachQuickAction(
+            id: "need_break",
+            title: "Need Break",
+            systemImage: "pause.fill",
+            message: "I need a break. Keep it honest and short unless I justify more."
+        ),
+        CoachQuickAction(
+            id: "log_work",
+            title: "Log Work",
+            systemImage: "square.and.pencil",
+            message: "Log work: I worked on ",
+            fillsDraft: true
+        ),
+        CoachQuickAction(
+            id: "good_night",
+            title: "Good Night",
+            systemImage: "moon.fill",
+            message: "Good night. Start sleep and distill today's memory."
+        ),
+        CoachQuickAction(
+            id: "wake_up",
+            title: "Awake",
+            systemImage: "sun.max.fill",
+            message: "I am awake. Log wake and decide the first move."
+        )
+    ]
+}

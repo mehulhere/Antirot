@@ -27,5 +27,7 @@
     <string>Antirot uses real system alarms for wakeups, overdue routines, and strict accountability escalation.</string>
     <key>NSFamilyControlsUsageDescription</key>
     <string>Antirot can use Screen Time permission to summarize recent distracting app usage when you explicitly authorize it.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Antirot records short voice check-ins so the coach can transcribe them and respond without making you type.</string>
 </dict>
 </plist>

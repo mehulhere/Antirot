@@ -1,12 +1,12 @@
-use std::time::Duration;
-use chrono::{DateTime, Utc, Datelike};
+use chrono::{DateTime, Datelike, Utc};
 use deadpool_postgres::Pool;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use uuid::Uuid;
+use std::time::Duration;
 use tracing::{error, info, warn};
-use jsonwebtoken::{EncodingKey, Header, Algorithm};
+use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
@@ -43,11 +43,13 @@ struct GcpCredentials {
 }
 
 async fn get_vertex_access_token() -> Result<(String, String), AppError> {
-    let creds_json = std::env::var("GOOGLE_CLOUD_CREDENTIALS")
-        .map_err(|_| AppError::BadRequest("GOOGLE_CLOUD_CREDENTIALS env var not set".to_string()))?;
-        
-    let creds: GcpCredentials = serde_json::from_str(&creds_json)
-        .map_err(|e| AppError::BadRequest(format!("Failed to parse GOOGLE_CLOUD_CREDENTIALS: {}", e)))?;
+    let creds_json = std::env::var("GOOGLE_CLOUD_CREDENTIALS").map_err(|_| {
+        AppError::BadRequest("GOOGLE_CLOUD_CREDENTIALS env var not set".to_string())
+    })?;
+
+    let creds: GcpCredentials = serde_json::from_str(&creds_json).map_err(|e| {
+        AppError::BadRequest(format!("Failed to parse GOOGLE_CLOUD_CREDENTIALS: {}", e))
+    })?;
 
     let iat = Utc::now().timestamp();
     let exp = iat + 3600;
@@ -81,10 +83,14 @@ async fn get_vertex_access_token() -> Result<(String, String), AppError> {
 
     if !res.status().is_success() {
         let err_body = res.text().await.unwrap_or_default();
-        return Err(AppError::BadRequest(format!("GCP Token server returned error: {}", err_body)));
+        return Err(AppError::BadRequest(format!(
+            "GCP Token server returned error: {}",
+            err_body
+        )));
     }
 
-    let token_resp: GcpTokenResponse = res.json()
+    let token_resp: GcpTokenResponse = res
+        .json()
         .await
         .map_err(|e| AppError::BadRequest(format!("Failed to parse GCP token response: {}", e)))?;
 
@@ -204,7 +210,8 @@ pub async fn chat_with_coach(
         let mdl = if prov == "vertex" {
             default_model.to_string()
         } else {
-            std::env::var("ANTIROT_TAILORED_LLM_MODEL").unwrap_or_else(|_| default_model.to_string())
+            std::env::var("ANTIROT_TAILORED_LLM_MODEL")
+                .unwrap_or_else(|_| default_model.to_string())
         };
         (key, prov, mdl)
     };
@@ -224,7 +231,9 @@ pub async fn chat_with_coach(
         project_id = pid;
     } else {
         if tier != "byok" && api_key.is_empty() {
-            return Err(AppError::BadRequest("Tailored LLM key is not configured on this backend".to_string()));
+            return Err(AppError::BadRequest(
+                "Tailored LLM key is not configured on this backend".to_string(),
+            ));
         }
     }
 
@@ -335,15 +344,15 @@ pub async fn chat_with_coach(
         .await?;
 
     // 5. Orchestration loop (handles recursive tool calling)
-    let http_client = Client::builder()
-        .timeout(Duration::from_secs(45))
-        .build()?;
-    
+    let http_client = Client::builder().timeout(Duration::from_secs(45)).build()?;
+
     let url = match provider.as_str() {
         "vertex" => {
             format!("https://aiplatform.googleapis.com/v1/projects/{}/locations/global/endpoints/openapi/chat/completions", project_id)
         }
-        "gemini" => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string(),
+        "gemini" => {
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string()
+        }
         "openrouter" => "https://openrouter.ai/api/v1/chat/completions".to_string(),
         _ => "https://api.openai.com/v1/chat/completions".to_string(),
     };
@@ -377,9 +386,10 @@ pub async fn chat_with_coach(
             request = request.header("Authorization", format!("Bearer {}", api_key));
         }
 
-        let response = request.send().await.map_err(|err| {
-            AppError::BadRequest(format!("LLM API request failed: {:?}", err))
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|err| AppError::BadRequest(format!("LLM API request failed: {:?}", err)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -398,10 +408,9 @@ pub async fn chat_with_coach(
         let choice = &response_json["choices"][0];
         let message_val = &choice["message"];
         let content: Option<String> = message_val["content"].as_str().map(String::from);
-        
-        let tool_calls: Option<Vec<LlmToolCall>> = message_val["tool_calls"]
-            .as_array()
-            .map(|arr| {
+
+        let tool_calls: Option<Vec<LlmToolCall>> =
+            message_val["tool_calls"].as_array().map(|arr| {
                 arr.iter()
                     .filter_map(|item| serde_json::from_value(item.clone()).ok())
                     .collect()
@@ -420,19 +429,16 @@ pub async fn chat_with_coach(
 
         // Save LLM assistant message to DB
         let assistant_msg_id = Uuid::new_v4().to_string();
-        let tool_calls_json = tool_calls.as_ref().map(|tc| serde_json::to_string(tc).unwrap());
+        let tool_calls_json = tool_calls
+            .as_ref()
+            .map(|tc| serde_json::to_string(tc).unwrap());
         client
             .execute(
                 "
                 INSERT INTO chat_messages (id, user_id, role, content, tool_calls)
                 VALUES ($1, $2, 'assistant', $3, $4::TEXT::JSONB)
                 ",
-                &[
-                    &assistant_msg_id,
-                    &user_id,
-                    &content,
-                    &tool_calls_json,
-                ],
+                &[&assistant_msg_id, &user_id, &content, &tool_calls_json],
             )
             .await?;
 
@@ -446,10 +452,41 @@ pub async fn chat_with_coach(
 
             let mut tool_results = Vec::new();
             let mut user_facing_results = Vec::new();
+            let mut blocked_tool_reply = false;
             for call in calls {
                 info!(tool = %call.function.name, "LLM requested tool execution");
-                let result_text = execute_tool_locally(pool, config, user_id, &call.function.name, &call.function.arguments).await;
-                user_facing_results.push(user_facing_tool_result(&call.function.name, &result_text, user_message));
+                let mut tool_arguments = call.function.arguments.clone();
+                if let Some(reply) = high_drift_break_guard_reply(
+                    &call.function.name,
+                    &tool_arguments,
+                    user_message,
+                    &messages,
+                ) {
+                    user_facing_results.push(reply);
+                    blocked_tool_reply = true;
+                    continue;
+                }
+                if should_force_admitted_high_drift_break_duration(
+                    &call.function.name,
+                    &tool_arguments,
+                    user_message,
+                ) {
+                    tool_arguments = json!({ "duration_minutes": 120 }).to_string();
+                }
+
+                let result_text = execute_tool_locally(
+                    pool,
+                    config,
+                    user_id,
+                    &call.function.name,
+                    &tool_arguments,
+                )
+                .await;
+                user_facing_results.push(user_facing_tool_result(
+                    &call.function.name,
+                    &result_text,
+                    user_message,
+                ));
                 tool_results.push(format!("{}: {}", call.function.name, result_text));
 
                 let tool_msg = LlmMessage {
@@ -481,7 +518,7 @@ pub async fn chat_with_coach(
                     .await?;
             }
 
-            if provider_uses_deterministic_tool_reply(&provider) {
+            if blocked_tool_reply || provider_uses_deterministic_tool_reply(&provider) {
                 final_text = if user_facing_results.is_empty() {
                     content.unwrap_or_default()
                 } else {
@@ -509,9 +546,25 @@ pub async fn chat_with_coach(
         }
     }
 
+    if should_start_admitted_high_drift_break(user_message, &messages) {
+        let result_text = execute_tool_locally(
+            pool,
+            config,
+            user_id,
+            "start_break",
+            &json!({ "duration_minutes": 120 }).to_string(),
+        )
+        .await;
+        if result_text.starts_with("Success:") {
+            final_text = "Explicit override accepted. The 2-hour movie break is now on the record. When it ends, return and start one 10-minute work block on the pending tests.".to_string();
+        }
+    }
+
     final_text = sanitize_stale_vacation_reply(&final_text, runtime_state.as_deref(), user_message);
     final_text = sanitize_stale_recovery_reply(&final_text, user_message);
     final_text = sanitize_onboarding_repeat_reply(&final_text, user_message);
+    final_text = sanitize_messy_excuse_reply(&final_text, user_message);
+    final_text = sanitize_high_drift_break_reply(&final_text, user_message, &messages);
     final_text = sanitize_soft_personality_jailbreak_reply(&final_text, user_message);
     final_text = sanitize_internal_inspection_reply(&final_text, user_message);
     Ok(final_text)
@@ -614,6 +667,108 @@ fn provider_uses_deterministic_tool_reply(provider: &str) -> bool {
     matches!(provider, "gemini" | "vertex")
 }
 
+fn high_drift_break_guard_reply(
+    tool_name: &str,
+    tool_arguments: &str,
+    user_message: &str,
+    messages: &[LlmMessage],
+) -> Option<String> {
+    if tool_name != "start_break" {
+        return None;
+    }
+
+    let args: Value = serde_json::from_str(tool_arguments).ok()?;
+    let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(0);
+    if duration_minutes < 60 || !contains_high_drift_break_request(user_message) {
+        return None;
+    }
+
+    if contains_high_drift_responsibility_admission(user_message) {
+        return None;
+    }
+
+    let attempts = high_drift_break_attempt_count(messages);
+    if attempts >= 2 {
+        Some(
+            "Still no 2-hour movie timer. If you insist after this much pleading, type this responsibility line in your own words: I take responsibility for wasting this time; I have not done the pending work; I have worked for X hours today; the pending work is Y; I am still choosing the movie. Then I can log it as an explicit override."
+                .to_string(),
+        )
+    } else {
+        Some(
+            "No 2-hour movie break. That is entertainment drift, not recovery. Take a 10-minute screen-free reset if you need it, or start a 15-minute work block now."
+                .to_string(),
+        )
+    }
+}
+
+fn should_force_admitted_high_drift_break_duration(
+    tool_name: &str,
+    tool_arguments: &str,
+    user_message: &str,
+) -> bool {
+    if tool_name != "start_break" || !contains_high_drift_break_request(user_message) {
+        return false;
+    }
+    if !contains_high_drift_responsibility_admission(user_message) {
+        return false;
+    }
+    let Ok(args) = serde_json::from_str::<Value>(tool_arguments) else {
+        return false;
+    };
+    args["duration_minutes"].as_i64().unwrap_or(0) < 120
+}
+
+fn should_start_admitted_high_drift_break(user_message: &str, messages: &[LlmMessage]) -> bool {
+    contains_high_drift_break_request(user_message)
+        && contains_high_drift_responsibility_admission(user_message)
+        && high_drift_break_attempt_count(messages) >= 3
+}
+
+fn high_drift_break_attempt_count(messages: &[LlmMessage]) -> usize {
+    messages
+        .iter()
+        .filter(|message| message.role == "user")
+        .filter_map(|message| message.content.as_deref())
+        .filter(|content| contains_high_drift_break_request(content))
+        .count()
+}
+
+fn contains_high_drift_break_request(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    let long_break = lower.contains("2 hour")
+        || lower.contains("2-hour")
+        || lower.contains("two hour")
+        || lower.contains("two-hour")
+        || lower.contains("120 minute")
+        || lower.contains("120-minute");
+    let drift_media = lower.contains("movie")
+        || lower.contains("netflix")
+        || lower.contains("youtube")
+        || lower.contains("scroll")
+        || lower.contains("anime")
+        || lower.contains("show");
+    let pleading = lower.contains("please please") || lower.matches("please").count() >= 2;
+
+    (long_break && drift_media) || (pleading && drift_media)
+}
+
+fn contains_high_drift_responsibility_admission(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    let owns_responsibility = lower.contains("take responsibility")
+        || lower.contains("my responsibility")
+        || lower.contains("i accept responsibility");
+    let admits_work_gap = lower.contains("not done")
+        || lower.contains("haven't done")
+        || lower.contains("have not done");
+    let names_pending = lower.contains("pending work") || lower.contains("pending task");
+    let chooses_movie = lower.contains("still choosing")
+        || lower.contains("still choose")
+        || lower.contains("wasting my time")
+        || lower.contains("waste this time");
+
+    owns_responsibility && admits_work_gap && names_pending && chooses_movie
+}
+
 fn prompt_mode_from_env() -> PromptMode {
     if std::env::var("ANTIROT_OPENCLAW_MODE").ok().as_deref() == Some("1") {
         PromptMode::OpenClaw
@@ -678,17 +833,65 @@ async fn build_prompt_for_user(
     let sleep_metrics_content = serde_json::to_string_pretty(&sleep_metrics).unwrap_or_default();
 
     let sections = vec![
-        memory_section(client, user_id, "personality", "Personality (personality.md)").await?,
-        memory_section(client, user_id, "user_profile", "User Profile (user_profile.md)").await?,
-        memory_section(client, user_id, "durable", "Durable Distilled Memory (durable.md)").await?,
+        memory_section(
+            client,
+            user_id,
+            "personality",
+            "Personality (personality.md)",
+        )
+        .await?,
+        memory_section(
+            client,
+            user_id,
+            "user_profile",
+            "User Profile (user_profile.md)",
+        )
+        .await?,
+        memory_section(
+            client,
+            user_id,
+            "durable",
+            "Durable Distilled Memory (durable.md)",
+        )
+        .await?,
         memory_section(client, user_id, "longterm", "Long-Term Goals (longterm.md)").await?,
-        memory_section(client, user_id, "shortterm", "Short-Term State & Constraints (shortterm.md)").await?,
-        memory_section(client, user_id, "behavior", "Behavior Patterns & Tactics (behavior.md)").await?,
+        memory_section(
+            client,
+            user_id,
+            "shortterm",
+            "Short-Term State & Constraints (shortterm.md)",
+        )
+        .await?,
+        memory_section(
+            client,
+            user_id,
+            "behavior",
+            "Behavior Patterns & Tactics (behavior.md)",
+        )
+        .await?,
         memory_section(client, user_id, "tasks", "Task Pipeline (tasks.md)").await?,
-        memory_section(client, user_id, "routine", "Fixed Daily Routine Allocations (routine.md)").await?,
-        memory_section(client, user_id, "miscellaneous_todo", "Miscellaneous Todo List (miscellaneous_todo.md)").await?,
+        memory_section(
+            client,
+            user_id,
+            "routine",
+            "Fixed Daily Routine Allocations (routine.md)",
+        )
+        .await?,
+        memory_section(
+            client,
+            user_id,
+            "miscellaneous_todo",
+            "Miscellaneous Todo List (miscellaneous_todo.md)",
+        )
+        .await?,
         memory_section(client, user_id, "sleep", "Sleep Log (sleep.md)").await?,
-        memory_section(client, user_id, "achievements", "Achievements (achievements.md)").await?,
+        memory_section(
+            client,
+            user_id,
+            "achievements",
+            "Achievements (achievements.md)",
+        )
+        .await?,
         MemorySection {
             key: "recent_summaries",
             label: "Recent Daily Summaries",
@@ -919,6 +1122,32 @@ fn sanitize_onboarding_repeat_reply(reply: &str, user_message: &str) -> String {
     onboarding_setup_reply()
 }
 
+fn sanitize_messy_excuse_reply(reply: &str, user_message: &str) -> String {
+    if !mentions_messy_excuse_context(&user_message.to_ascii_lowercase()) {
+        return reply.to_string();
+    }
+
+    "If this is fatigue, say it directly now. Otherwise do not rearrange the environment: start a 10-minute work block on the named task and report done or blocked when it ends.".to_string()
+}
+
+fn sanitize_high_drift_break_reply(
+    reply: &str,
+    user_message: &str,
+    messages: &[LlmMessage],
+) -> String {
+    if !contains_high_drift_break_request(user_message)
+        || contains_high_drift_responsibility_admission(user_message)
+    {
+        return reply.to_string();
+    }
+
+    if high_drift_break_attempt_count(messages) >= 2 {
+        return "I hear that you want relief. Still no 2-hour movie break from pleading. If you insist, state the tradeoff plainly: I take responsibility for wasting this time; I have not done the pending work; I have worked for X focused hours today; the pending work is Y; I am still choosing the movie. Otherwise take a 10-minute screen-free reset or start work now.".to_string();
+    }
+
+    "Wanting a movie is normal. Calling a 2-hour movie recovery while work is pending is the problem. No long break yet: take a 10-minute screen-free reset if you need recovery, or start a 15-minute work block now.".to_string()
+}
+
 fn sanitize_soft_personality_jailbreak_reply(reply: &str, user_message: &str) -> String {
     if !contains_soft_personality_jailbreak(user_message) {
         return reply.to_string();
@@ -963,14 +1192,12 @@ fn user_message_allows_vacation_context(text: &str) -> bool {
         return false;
     }
     let lower = text.to_ascii_lowercase();
-    !(
-        lower.contains("do not want vacation")
-            || lower.contains("don't want vacation")
-            || lower.contains("dont want vacation")
-            || lower.contains("not vacation")
-            || lower.contains("no vacation")
-            || lower.contains("without vacation")
-    )
+    !(lower.contains("do not want vacation")
+        || lower.contains("don't want vacation")
+        || lower.contains("dont want vacation")
+        || lower.contains("not vacation")
+        || lower.contains("no vacation")
+        || lower.contains("without vacation"))
 }
 
 fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
@@ -978,19 +1205,33 @@ fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
     let divider_marker = "=======";
     let replace_marker = ">>>>>>> REPLACE";
 
-    let search_start = patch.find(search_marker).ok_or("Patch error: Missing '<<<<<<< SEARCH' marker")?;
-    let divider_pos = patch.find(divider_marker).ok_or("Patch error: Missing '=======' marker")?;
-    let replace_end = patch.find(replace_marker).ok_or("Patch error: Missing '>>>>>>> REPLACE' marker")?;
+    let search_start = patch
+        .find(search_marker)
+        .ok_or("Patch error: Missing '<<<<<<< SEARCH' marker")?;
+    let divider_pos = patch
+        .find(divider_marker)
+        .ok_or("Patch error: Missing '=======' marker")?;
+    let replace_end = patch
+        .find(replace_marker)
+        .ok_or("Patch error: Missing '>>>>>>> REPLACE' marker")?;
 
     if search_start >= divider_pos || divider_pos >= replace_end {
         return Err("Patch error: Markers are in incorrect order".to_string());
     }
 
     let search_block = &patch[search_start + search_marker.len()..divider_pos];
-    let search_block_trimmed = search_block.trim_start_matches('\n').trim_start_matches('\r').trim_end_matches('\n').trim_end_matches('\r');
+    let search_block_trimmed = search_block
+        .trim_start_matches('\n')
+        .trim_start_matches('\r')
+        .trim_end_matches('\n')
+        .trim_end_matches('\r');
 
     let replace_block = &patch[divider_pos + divider_marker.len()..replace_end];
-    let replace_block_trimmed = replace_block.trim_start_matches('\n').trim_start_matches('\r').trim_end_matches('\n').trim_end_matches('\r');
+    let replace_block_trimmed = replace_block
+        .trim_start_matches('\n')
+        .trim_start_matches('\r')
+        .trim_end_matches('\n')
+        .trim_end_matches('\r');
 
     if search_block_trimmed.is_empty() {
         let mut new_content = content.to_string();
@@ -1045,9 +1286,16 @@ async fn transition_user_state(
                 "Work Session Finished",
                 "WORK SESSION ESCALATION",
                 "Antirot Coach: Finish your session and check in now!",
-            ).await {
+            )
+            .await
+            {
                 Ok(count) => count,
-                Err(err) => return format!("State transition failed while scheduling work alarms: {}", err),
+                Err(err) => {
+                    return format!(
+                        "State transition failed while scheduling work alarms: {}",
+                        err
+                    )
+                }
             }
         }
         "break" => {
@@ -1079,9 +1327,16 @@ async fn transition_user_state(
                 "Wake Up Alarm",
                 "WAKE UP ESCALATION",
                 "Antirot Coach: Wake up and check in now!",
-            ).await {
+            )
+            .await
+            {
                 Ok(count) => count,
-                Err(err) => return format!("State transition failed while scheduling wake alarms: {}", err),
+                Err(err) => {
+                    return format!(
+                        "State transition failed while scheduling wake alarms: {}",
+                        err
+                    )
+                }
             }
         }
         "idle" => {
@@ -1169,7 +1424,11 @@ async fn schedule_alarm_series(
             let alarm_id = format!("{}_{}_{}", id_prefix, severity, Uuid::new_v4().simple());
             let fire_at = Utc::now() + chrono::Duration::minutes(start_delay_minutes + offset);
             let expires_at = fire_at + chrono::Duration::hours(2);
-            let title = if severity == "loud" { loud_title } else { normal_title };
+            let title = if severity == "loud" {
+                loud_title
+            } else {
+                normal_title
+            };
 
             let inserted = client
                 .execute(
@@ -1253,7 +1512,9 @@ async fn execute_tool_locally(
 
             if content.is_empty() {
                 content = match db_key.as_str() {
-                    "personality" | "user_profile" | "durable" | "longterm" | "shortterm" | "behavior" | "tasks" | "routine" | "sleep" | "achievements" | "miscellaneous_todo" => {
+                    "personality" | "user_profile" | "durable" | "longterm" | "shortterm"
+                    | "behavior" | "tasks" | "routine" | "sleep" | "achievements"
+                    | "miscellaneous_todo" => {
                         default_memory_for_key(&db_key).unwrap_or("").to_string()
                     }
                     _ => {
@@ -1270,7 +1531,9 @@ async fn execute_tool_locally(
 
             match apply_patch(&content, patch) {
                 Ok(new_content) => {
-                    if let Err(err) = save_memory(&client, config, user_id, &db_key, &new_content).await {
+                    if let Err(err) =
+                        save_memory(&client, config, user_id, &db_key, &new_content).await
+                    {
                         return format!("Error saving memory: {}", err);
                     }
                     format!("Success: File {} patched successfully.", file_path)
@@ -1283,10 +1546,11 @@ async fn execute_tool_locally(
             let est_mins = args["estimated_minutes"].as_i64().unwrap_or(30);
 
             // Task validation logic
-            let tasks_text = match get_memory_or_init(&client, user_id, "tasks", DEFAULT_TASKS).await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
+            let tasks_text =
+                match get_memory_or_init(&client, user_id, "tasks", DEFAULT_TASKS).await {
+                    Ok(c) => c,
+                    Err(err) => return format!("Error: {}", err),
+                };
 
             let mut active_task_titles = Vec::new();
             for line in tasks_text.lines() {
@@ -1303,12 +1567,18 @@ async fn execute_tool_locally(
                             let mut title = after_brackets;
                             if let Some(h_idx) = after_brackets.find("h -") {
                                 let prefix = after_brackets[..h_idx].trim();
-                                if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                                if !prefix.is_empty()
+                                    && prefix.chars().all(|c| c.is_ascii_digit() || c == '.')
+                                {
                                     title = after_brackets[h_idx + 3..].trim();
                                 }
                             } else if let Some(dash_idx) = after_brackets.find('-') {
                                 let prefix = after_brackets[..dash_idx].trim();
-                                if prefix.is_empty() || prefix.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'h') {
+                                if prefix.is_empty()
+                                    || prefix
+                                        .chars()
+                                        .all(|c| c.is_ascii_digit() || c == '.' || c == 'h')
+                                {
                                     title = after_brackets[dash_idx + 1..].trim();
                                 }
                             }
@@ -1324,10 +1594,16 @@ async fn execute_tool_locally(
                 let input_lower = task_id.trim().to_lowercase();
                 let mut matched_task = false;
 
-                if active_task_titles.iter().any(|title| title.contains(&input_lower) || input_lower.contains(title)) {
+                if active_task_titles
+                    .iter()
+                    .any(|title| title.contains(&input_lower) || input_lower.contains(title))
+                {
                     matched_task = true;
                 } else {
-                    let input_words: Vec<&str> = input_lower.split_whitespace().filter(|w| w.len() >= 3).collect();
+                    let input_words: Vec<&str> = input_lower
+                        .split_whitespace()
+                        .filter(|w| w.len() >= 3)
+                        .collect();
                     for title in &active_task_titles {
                         let title_words: Vec<&str> = title.split_whitespace().collect();
                         if input_words.iter().any(|word| title_words.contains(word)) {
@@ -1353,12 +1629,16 @@ async fn execute_tool_locally(
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
-            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
 
-            work.push_str(&format!("- session_start: {} (estimated {} mins) at {}\n", task_id, est_mins, now));
+            work.push_str(&format!(
+                "- session_start: {} (estimated {} mins) at {}\n",
+                task_id, est_mins, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
@@ -1368,7 +1648,8 @@ async fn execute_tool_locally(
                 "working",
                 "start_session",
                 json!({ "task_id": task_id, "estimated_minutes": est_mins }),
-            ).await;
+            )
+            .await;
             format!("Success: Work session started. {}", state_result)
         }
         "end_session" => {
@@ -1378,11 +1659,15 @@ async fn execute_tool_locally(
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
-            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            work.push_str(&format!("- session_end: {} actual mins, productivity level {}% at {}\n", actual, productivity, now));
+            work.push_str(&format!(
+                "- session_end: {} actual mins, productivity level {}% at {}\n",
+                actual, productivity, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
@@ -1392,7 +1677,8 @@ async fn execute_tool_locally(
                 "idle",
                 "end_session",
                 json!({ "actual_minutes": actual, "productive_level": productivity }),
-            ).await;
+            )
+            .await;
             format!("Success: Work session ended. {}", state_result)
         }
         "extend_session" => {
@@ -1401,11 +1687,15 @@ async fn execute_tool_locally(
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
-            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            work.push_str(&format!("- session_extend: extended by {} mins at {}\n", extension_minutes, now));
+            work.push_str(&format!(
+                "- session_extend: extended by {} mins at {}\n",
+                extension_minutes, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
@@ -1415,8 +1705,12 @@ async fn execute_tool_locally(
                 "working",
                 "extend_session",
                 json!({ "estimated_minutes": extension_minutes }),
-            ).await;
-            format!("Success: Work session extended by {} minutes. {}", extension_minutes, state_result)
+            )
+            .await;
+            format!(
+                "Success: Work session extended by {} minutes. {}",
+                extension_minutes, state_result
+            )
         }
         "start_break" => {
             let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
@@ -1424,11 +1718,15 @@ async fn execute_tool_locally(
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
-            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await {
+            let mut work = match get_memory_or_init(&client, user_id, &db_key, "# Work Log\n").await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            work.push_str(&format!("- break_start: {} mins at {}\n", duration_minutes, now));
+            work.push_str(&format!(
+                "- break_start: {} mins at {}\n",
+                duration_minutes, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, &db_key, &work).await {
                 return format!("Error: {}", err);
             }
@@ -1438,17 +1736,25 @@ async fn execute_tool_locally(
                 "break",
                 "start_break",
                 json!({ "duration_minutes": duration_minutes }),
-            ).await;
-            format!("Success: Break started for {} minutes. {}", duration_minutes, state_result)
+            )
+            .await;
+            format!(
+                "Success: Break started for {} minutes. {}",
+                duration_minutes, state_result
+            )
         }
         "start_sleep" => {
             let est_hours = args["estimated_hours"].as_f64().unwrap_or(8.0);
             let now = Utc::now().to_rfc3339();
-            let mut sleep = match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await {
+            let mut sleep = match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            sleep.push_str(&format!("- sleep_start: estimated {:.1} hours at {}\n", est_hours, now));
+            sleep.push_str(&format!(
+                "- sleep_start: estimated {:.1} hours at {}\n",
+                est_hours, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, "sleep", &sleep).await {
                 return format!("Error: {}", err);
             }
@@ -1470,18 +1776,23 @@ async fn execute_tool_locally(
                     "sleep_started_at": now,
                     "sleep_metrics": metrics
                 }),
-            ).await;
+            )
+            .await;
             format!("Success: Sleep start logged. {}", state_result)
         }
         "log_wake" => {
             let sleep_quality = args["sleep_quality"].as_i64().unwrap_or(3);
 
             let now = Utc::now().to_rfc3339();
-            let mut sleep = match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await {
+            let mut sleep = match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            sleep.push_str(&format!("- wake_log: sleep quality {}/5 at {}\n", sleep_quality, now));
+            sleep.push_str(&format!(
+                "- wake_log: sleep quality {}/5 at {}\n",
+                sleep_quality, now
+            ));
             if let Err(err) = save_memory(&client, config, user_id, "sleep", &sleep).await {
                 return format!("Error: {}", err);
             }
@@ -1495,7 +1806,8 @@ async fn execute_tool_locally(
                 "idle",
                 "log_wake",
                 json!({ "sleep_quality": sleep_quality, "sleep_metrics": metrics }),
-            ).await;
+            )
+            .await;
             format!("Success: Wake log saved. {}", state_result)
         }
         "start_vacation" => {
@@ -1506,24 +1818,21 @@ async fn execute_tool_locally(
                 "vacation",
                 "start_vacation",
                 json!({ "reason": reason }),
-            ).await;
+            )
+            .await;
             format!("Success: Vacation mode started. {}", state_result)
         }
         "end_vacation" => {
-            let state_result = transition_user_state(
-                &client,
-                user_id,
-                "idle",
-                "end_vacation",
-                json!({}),
-            ).await;
+            let state_result =
+                transition_user_state(&client, user_id, "idle", "end_vacation", json!({})).await;
             format!("Success: Vacation mode ended. {}", state_result)
         }
         "wake_up_alarm" => {
-            let sleep_text = match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await {
-                Ok(c) => c,
-                Err(err) => return format!("Error: {}", err),
-            };
+            let sleep_text =
+                match get_memory_or_init(&client, user_id, "sleep", DEFAULT_SLEEP).await {
+                    Ok(c) => c,
+                    Err(err) => return format!("Error: {}", err),
+                };
 
             let mut target_wake_time = Utc::now() + chrono::Duration::hours(8);
             let mut parsed_from_ledger = false;
@@ -1556,7 +1865,11 @@ async fn execute_tool_locally(
                 }
             }
 
-            let source = if parsed_from_ledger { "computed from sleep ledger" } else { "default 8-hour fallback" };
+            let source = if parsed_from_ledger {
+                "computed from sleep ledger"
+            } else {
+                "default 8-hour fallback"
+            };
             let wake_in_minutes = (target_wake_time - Utc::now()).num_minutes().max(1);
             let state_result = transition_user_state(
                 &client,
@@ -1568,7 +1881,8 @@ async fn execute_tool_locally(
                     "target_wake_time": target_wake_time.to_rfc3339(),
                     "source": source
                 }),
-            ).await;
+            )
+            .await;
             format!(
                 "Success: Wake-up alarms start at {} ({}). {}",
                 target_wake_time.to_rfc3339(),
@@ -1580,16 +1894,26 @@ async fn execute_tool_locally(
             let override_what = args["override_what"].as_str().unwrap_or("");
             let reasoning = args["reasoning"].as_str().unwrap_or("");
             let now = Utc::now().to_rfc3339();
-            
+
             let iso_week = Utc::now().iso_week();
             let db_key = format!("override_{}_W{:02}", iso_week.year(), iso_week.week());
-            
-            let mut overrides = match get_memory_or_init(&client, user_id, &db_key, "# Weekly Override Log\n").await {
+
+            let mut overrides = match get_memory_or_init(
+                &client,
+                user_id,
+                &db_key,
+                "# Weekly Override Log\n",
+            )
+            .await
+            {
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            
-            overrides.push_str(&format!("\n- [{}] Override: {}\n  - Reasoning: {}\n", now, override_what, reasoning));
+
+            overrides.push_str(&format!(
+                "\n- [{}] Override: {}\n  - Reasoning: {}\n",
+                now, override_what, reasoning
+            ));
             if let Err(err) = save_memory(&client, config, user_id, &db_key, &overrides).await {
                 return format!("Error: {}", err);
             }
@@ -1633,7 +1957,6 @@ pub async fn run_tool_for_test(
 ) -> String {
     execute_tool_locally(pool, config, user_id, name, &args.to_string()).await
 }
-
 
 async fn save_memory(
     client: &tokio_postgres::Client,
@@ -1716,7 +2039,7 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "start_break",
-                "description": "Starts a structured recovery break and schedules alerts to return to work.",
+                "description": "Starts a structured recovery break and schedules alerts to return to work. Do not use for long entertainment breaks caused by pleading, movie/scroll drift, or bizarre rationalizations unless the user has explicitly accepted responsibility for pending work and wasted time after repeated pushback.",
                 "parameters": {
                     "type": "object",
                     "properties": {

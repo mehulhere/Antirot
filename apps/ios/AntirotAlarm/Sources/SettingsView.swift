@@ -336,7 +336,7 @@ struct SettingsView: View {
 
                         Button {
                             settings.serverURL = SettingsStore.defaultServerURL
-                            alarmCenter.lastMessage = "Bridge server reset to api.antirot.org"
+                            alarmCenter.lastMessage = "Backend server reset to api.antirot.org"
                         } label: {
                             HStack {
                                 Image(systemName: "arrow.counterclockwise")

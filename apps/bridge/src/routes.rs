@@ -1,11 +1,14 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
+use reqwest::multipart::{Form, Part};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -15,13 +18,16 @@ use crate::auth::{
     token_hash,
 };
 use crate::error::{AppError, AppResult};
-use crate::llm::{build_context_report, build_context_report_for_test, chat_with_coach, run_tool_for_test};
+use crate::llm::{
+    build_context_report, build_context_report_for_test, chat_with_coach, run_tool_for_test,
+};
 use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, ChatRequest, ChatResponse,
     CreateAlarmRequest, CreateAlarmResponse, DeliveryState, DeviceRegistrationRequest,
     DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
-    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SubscriptionResponse,
+    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SpeechSynthesisRequest,
+    SpeechSynthesisResponse, SpeechTranscriptionResponse, SubscriptionResponse,
     SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key};
@@ -47,10 +53,15 @@ pub fn router() -> Router<AppState> {
         .route("/alarms/cancel", post(cancel_alarms_by_kind))
         .route("/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/visits", get(get_and_increment_visits))
-        .route("/subscription", get(get_subscription).post(update_subscription))
+        .route(
+            "/subscription",
+            get(get_subscription).post(update_subscription),
+        )
         .route("/memory/{key}", get(get_memory).put(update_memory))
         .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
+        .route("/speech/transcribe", post(transcribe_speech))
+        .route("/speech/synthesize", post(synthesize_speech))
         .route("/test/reset", post(test_reset))
         .route("/test/tool", post(test_tool))
         .route("/test/state", get(test_state))
@@ -68,10 +79,15 @@ pub fn router() -> Router<AppState> {
         .route("/v1/alarms/cancel", post(cancel_alarms_by_kind))
         .route("/v1/alarms/{alarm_id}/{action}", post(record_alarm_action))
         .route("/v1/visits", get(get_and_increment_visits))
-        .route("/v1/subscription", get(get_subscription).post(update_subscription))
+        .route(
+            "/v1/subscription",
+            get(get_subscription).post(update_subscription),
+        )
         .route("/v1/memory/{key}", get(get_memory).put(update_memory))
         .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
+        .route("/v1/speech/transcribe", post(transcribe_speech))
+        .route("/v1/speech/synthesize", post(synthesize_speech))
         .route("/v1/test/reset", post(test_reset))
         .route("/v1/test/tool", post(test_tool))
         .route("/v1/test/state", get(test_state))
@@ -707,7 +723,10 @@ async fn record_alarm_action(
             if let Some(row) = alarm_info {
                 let kind: String = row.get("kind");
                 let device_id: String = row.get("device_id");
-                if matches!(kind.as_str(), "session_alarm" | "break_alarm" | "wake_alarm" | "idle_alarm") {
+                if matches!(
+                    kind.as_str(),
+                    "session_alarm" | "break_alarm" | "wake_alarm" | "idle_alarm"
+                ) {
                     transaction
                         .execute(
                             "DELETE FROM alarms WHERE device_id = $1 AND kind = $2 AND status = 'pending'",
@@ -976,7 +995,10 @@ async fn update_subscription(
         Some(Utc::now() + Duration::days(days))
     } else {
         let row = client
-            .query_one("SELECT subscription_active_until FROM users WHERE id = $1", &[&user_id])
+            .query_one(
+                "SELECT subscription_active_until FROM users WHERE id = $1",
+                &[&user_id],
+            )
             .await?;
         row.get("subscription_active_until")
     };
@@ -1085,8 +1107,186 @@ async fn chat_coach(
     Ok(Json(ChatResponse { ok: true, reply }))
 }
 
+async fn transcribe_speech(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> AppResult<Json<SpeechTranscriptionResponse>> {
+    let _user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let api_key = state
+        .config
+        .speech
+        .fireworks_api_key
+        .as_deref()
+        .ok_or_else(|| {
+            AppError::BadRequest("Fireworks speech-to-text is not configured".to_string())
+        })?;
+
+    let mut uploaded_file = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|err| AppError::BadRequest(format!("invalid audio upload: {err}")))?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+
+        let file_name = field.file_name().unwrap_or("antirot-voice.m4a").to_string();
+        let content_type = field.content_type().unwrap_or("audio/mp4").to_string();
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|err| AppError::BadRequest(format!("invalid audio upload: {err}")))?;
+
+        if bytes.len() > 25 * 1024 * 1024 {
+            return Err(AppError::BadRequest(
+                "audio upload is too large; keep voice notes under 25MB".to_string(),
+            ));
+        }
+
+        uploaded_file = Some((file_name, content_type, bytes.to_vec()));
+        break;
+    }
+
+    let (file_name, content_type, bytes) = uploaded_file
+        .ok_or_else(|| AppError::BadRequest("multipart field `file` is required".to_string()))?;
+    let part = Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str(&content_type)?;
+    let form = Form::new()
+        .part("file", part)
+        .text("model", state.config.speech.fireworks_stt_model.clone())
+        .text("response_format", "json");
+    let url = format!(
+        "{}/audio/transcriptions",
+        state
+            .config
+            .speech
+            .fireworks_audio_base_url
+            .trim_end_matches('/')
+    );
+
+    let response = reqwest::Client::new()
+        .post(&url)
+        .header("Authorization", api_key)
+        .multipart(form)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        warn!(
+            status = status.as_u16(),
+            "🔴 FALLBACK: Fireworks speech transcription failed - Reason: provider returned non-success - Impact: user must type or retry voice input"
+        );
+        return Err(AppError::BadRequest(format!(
+            "Fireworks speech transcription failed with HTTP {}: {}",
+            status.as_u16(),
+            body.chars().take(300).collect::<String>()
+        )));
+    }
+
+    let value: Value = serde_json::from_str(&body).map_err(|_| {
+        AppError::BadRequest("Fireworks returned invalid transcription JSON".to_string())
+    })?;
+    let text = value
+        .get("text")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if text.is_empty() {
+        return Err(AppError::BadRequest(
+            "Fireworks returned an empty transcription".to_string(),
+        ));
+    }
+
+    Ok(Json(SpeechTranscriptionResponse { ok: true, text }))
+}
+
+async fn synthesize_speech(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<SpeechSynthesisRequest>,
+) -> AppResult<Json<SpeechSynthesisResponse>> {
+    let _user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    validate_non_empty("text", &req.text)?;
+
+    if req.text.chars().count() > 1_200 {
+        return Err(AppError::BadRequest(
+            "speech synthesis text must be 1200 characters or less".to_string(),
+        ));
+    }
+
+    let api_key = state
+        .config
+        .speech
+        .async_api_key
+        .as_deref()
+        .ok_or_else(|| {
+            AppError::BadRequest("Async text-to-speech is not configured".to_string())
+        })?;
+    let voice_id = req
+        .voice_id
+        .or_else(|| state.config.speech.async_tts_voice_id.clone())
+        .ok_or_else(|| {
+            AppError::BadRequest("ASYNC_TTS_VOICE_ID is required for speech synthesis".to_string())
+        })?;
+    let url = format!(
+        "{}/text_to_speech/streaming",
+        state.config.speech.async_base_url.trim_end_matches('/')
+    );
+    let payload = json!({
+        "model_id": state.config.speech.async_tts_model.clone(),
+        "transcript": req.text,
+        "voice": {
+            "mode": "id",
+            "id": voice_id
+        }
+    });
+
+    let response = reqwest::Client::new()
+        .post(&url)
+        .header("x-api-key", api_key)
+        .header("version", "v1")
+        .json(&payload)
+        .send()
+        .await?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let bytes = response.bytes().await?;
+    if !status.is_success() {
+        let body = String::from_utf8_lossy(&bytes);
+        warn!(
+            status = status.as_u16(),
+            "🔴 FALLBACK: Async speech synthesis failed - Reason: provider returned non-success - Impact: coach reply remains readable text-only"
+        );
+        return Err(AppError::BadRequest(format!(
+            "Async speech synthesis failed with HTTP {}: {}",
+            status.as_u16(),
+            body.chars().take(300).collect::<String>()
+        )));
+    }
+
+    Ok(Json(SpeechSynthesisResponse {
+        ok: true,
+        audio_base64: BASE64_STANDARD.encode(bytes),
+        content_type,
+    }))
+}
+
 fn require_test_endpoints_enabled() -> AppResult<()> {
-    if std::env::var("ANTIROT_ENABLE_TEST_ENDPOINTS").ok().as_deref() == Some("1") {
+    if std::env::var("ANTIROT_ENABLE_TEST_ENDPOINTS")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
         Ok(())
     } else {
         Err(AppError::NotFound)
@@ -1213,7 +1413,10 @@ async fn test_reset(
         .execute("DELETE FROM user_memories WHERE user_id = $1", &[&user_id])
         .await?;
     client
-        .execute("DELETE FROM user_runtime_states WHERE user_id = $1", &[&user_id])
+        .execute(
+            "DELETE FROM user_runtime_states WHERE user_id = $1",
+            &[&user_id],
+        )
         .await?;
 
     client
@@ -1276,8 +1479,12 @@ async fn test_context(
 
     let user_id = query.user_id.unwrap_or_else(|| "admin".to_string());
     let provider = query.provider.unwrap_or_else(|| "gemini".to_string());
-    let model = query.model.unwrap_or_else(|| "gemini-3.5-flash".to_string());
-    let report = build_context_report_for_test(&state.pool, &state.config, &user_id, &provider, &model).await?;
+    let model = query
+        .model
+        .unwrap_or_else(|| "gemini-3.5-flash".to_string());
+    let report =
+        build_context_report_for_test(&state.pool, &state.config, &user_id, &provider, &model)
+            .await?;
 
     Ok(Json(TestContextResponse {
         ok: true,
@@ -1295,8 +1502,11 @@ async fn admin_context(
 
     let user_id = query.user_id.unwrap_or_else(|| "admin".to_string());
     let provider = query.provider.unwrap_or_else(|| "gemini".to_string());
-    let model = query.model.unwrap_or_else(|| "gemini-3.5-flash".to_string());
-    let report = build_context_report(&state.pool, &state.config, &user_id, &provider, &model).await?;
+    let model = query
+        .model
+        .unwrap_or_else(|| "gemini-3.5-flash".to_string());
+    let report =
+        build_context_report(&state.pool, &state.config, &user_id, &provider, &model).await?;
     let client = state.pool.get().await?;
     let runtime_state = runtime_state_row(&client, &user_id).await?;
     let sleep_metrics = sleep_metrics_report(&client, &user_id).await?;

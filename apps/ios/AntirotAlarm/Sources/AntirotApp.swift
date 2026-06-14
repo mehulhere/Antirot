@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("🔴 FALLBACK: APNs registration failed - Reason: \(error.localizedDescription) - Impact: VPS wake pushes cannot reach this device")
+        print("🔴 FALLBACK: APNs registration failed - Reason: \(error.localizedDescription) - Impact: backend wake pushes cannot reach this device")
     }
 
     func application(

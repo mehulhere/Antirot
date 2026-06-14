@@ -9,7 +9,7 @@ struct APIClient {
         var errorDescription: String? {
             switch self {
             case .missingServerURL:
-                "Bridge URL is invalid. Open Developer Settings and reset it to api.antirot.org."
+                "Backend URL is invalid. Open Developer Settings and reset it to api.antirot.org."
             case let .invalidResponse(status, body):
                 "Bridge returned HTTP \(status): \(body)"
             case let .decodeFailed(body):
@@ -78,6 +78,56 @@ struct APIClient {
         )
     }
 
+    func chat(message: String) async throws -> ChatCoachResponse {
+        try await send(
+            path: "/v1/chat",
+            method: "POST",
+            body: ChatCoachRequest(message: message),
+            response: ChatCoachResponse.self
+        )
+    }
+
+    func transcribeAudio(fileURL: URL) async throws -> SpeechTranscriptionResponse {
+        let baseURL = effectiveBaseURL()
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: baseURL.appendingPathComponent("/v1/speech/transcribe"))
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        addAuth(to: &request)
+
+        let audioData = try Data(contentsOf: fileURL)
+        var body = Data()
+        body.appendMultipartFieldStart(
+            boundary: boundary,
+            name: "file",
+            fileName: fileURL.lastPathComponent,
+            contentType: "audio/mp4"
+        )
+        body.append(audioData)
+        body.appendString("\r\n--\(boundary)--\r\n")
+        request.httpBody = body
+
+        let (data, urlResponse) = try await URLSession.shared.data(for: request)
+        let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
+        }
+        do {
+            return try JSONDecoder.antirot.decode(SpeechTranscriptionResponse.self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
+    }
+
+    func synthesizeSpeech(text: String) async throws -> SpeechSynthesisResponse {
+        try await send(
+            path: "/v1/speech/synthesize",
+            method: "POST",
+            body: SpeechSynthesisRequest(text: text, voiceId: nil),
+            response: SpeechSynthesisResponse.self
+        )
+    }
+
     private func send<RequestBody: Encodable, ResponseBody: Decodable>(
         path: String,
         method: String,
@@ -124,6 +174,23 @@ struct APIClient {
 }
 
 struct EmptyResponse: Codable {}
+
+private extension Data {
+    mutating func appendString(_ value: String) {
+        append(Data(value.utf8))
+    }
+
+    mutating func appendMultipartFieldStart(
+        boundary: String,
+        name: String,
+        fileName: String,
+        contentType: String
+    ) {
+        appendString("--\(boundary)\r\n")
+        appendString("Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(fileName)\"\r\n")
+        appendString("Content-Type: \(contentType)\r\n\r\n")
+    }
+}
 
 extension JSONDecoder {
     static var antirot: JSONDecoder {

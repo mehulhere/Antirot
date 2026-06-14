@@ -55,6 +55,7 @@ targets:
         NSUserNotificationsUsageDescription: Antirot uses notifications to run wake alarms, focus reminders, and overdue-task escalations.
         NSAlarmKitUsageDescription: Antirot uses real system alarms for wakeups, overdue routines, and strict accountability escalation.
         NSFamilyControlsUsageDescription: Antirot can use Screen Time permission to summarize recent distracting app usage when you explicitly authorize it.
+        NSMicrophoneUsageDescription: Antirot records short voice check-ins so the coach can transcribe them and respond without making you type.
         UIBackgroundModes:
           - remote-notification
         GIDClientID: 973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com

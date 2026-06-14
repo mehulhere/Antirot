@@ -71,16 +71,38 @@ If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SD
 
 ## MVP Features
 
-- Configure Antirot VPS URL and API token.
-- Register device with the VPS.
+- Voice-first coach home screen with Fireworks Whisper transcription through the backend.
+- Quick actions that send normal chat messages instead of bypassing coach policy.
+- Done, Start Working, Need Break, Log Work, Good Night, and Awake actions.
+- Plan page for routine anchors, state actions, and daily review.
+- Async Flash text-to-speech playback through the backend when `ASYNC_TTS_VOICE_ID` is configured.
+- Register device with the managed backend.
 - Request notification permission.
 - Schedule normal and loud local alarm notifications.
 - Schedule real AlarmKit alarms on iOS 26+ when available.
 - Show the current task in the Antirot iOS widget through shared app-group state.
 - Handle Stop, Snooze, and Need More Time actions.
-- Send acknowledgement callbacks to the VPS.
+- Send acknowledgement callbacks to the backend.
 - Request Screen Time authorization when entitlement is available.
 - Show clear capability status so the coach knows what this device can actually do.
+
+## Product Surface
+
+The first build has four pages:
+
+- Coach: Siri-style orb, transcript, microphone, typed fallback, and action chips.
+- Plan: routine anchors, state/action buttons, and daily review.
+- Alarms: pending alarms, local alarm tests, and notification/AlarmKit checks.
+- Settings: account, permissions, widget status, device details, and hidden developer tools.
+
+Buttons and chat intentionally share one backend path. A button sends a short, explicit user message to `/v1/chat`; voice input transcribes through `/v1/speech/transcribe` and then sends the transcript to `/v1/chat`; typed fallback does the same. This keeps state transitions backend-owned and lets the coach challenge or accept the user's intent through the existing tool policy.
+
+Voice provider defaults:
+
+- STT: Fireworks `whisper-v3` via `FIREWORKS_AUDIO_BASE_URL`.
+- TTS: Async `async_flash_v1.5` via `/text_to_speech/streaming`.
+
+Do not put provider API keys in the iOS bundle. Keep them on the backend and expose only authenticated Antirot speech endpoints to the app.
 
 ## Expected API
 
@@ -93,9 +115,12 @@ POST /alarms/{id}/ack
 POST /alarms/{id}/snooze
 POST /alarms/{id}/clear
 POST /usage/recent
+POST /v1/chat
+POST /v1/speech/transcribe
+POST /v1/speech/synthesize
 ```
 
-The app works with local test alarms before the VPS alarm API exists.
+The app works with local test alarms before the backend alarm API is reachable.
 
 ## Current Task Widget
 
@@ -107,4 +132,4 @@ After installing Antirot:
 Home Screen -> long press -> Edit -> Add Widget -> Antirot -> Current Task
 ```
 
-The app updates the widget when an alarm/task is scheduled. The test button `Show current task in widget` writes a sample current task so you can verify the widget before the VPS alarm API exists.
+The app updates the widget when an alarm/task is scheduled. The test button `Show current task in widget` writes a sample current task so you can verify the widget before the backend alarm API is reachable.

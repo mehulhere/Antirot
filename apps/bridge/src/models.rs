@@ -217,3 +217,24 @@ pub struct ChatResponse {
     pub reply: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechTranscriptionResponse {
+    pub ok: bool,
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechSynthesisRequest {
+    pub text: String,
+    pub voice_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechSynthesisResponse {
+    pub ok: bool,
+    pub audio_base64: String,
+    pub content_type: String,
+}

@@ -12,6 +12,7 @@ pub struct Config {
     pub google_allowed_client_ids: Vec<String>,
     pub apns: Option<ApnsConfig>,
     pub memory_embeddings: MemoryEmbeddingConfig,
+    pub speech: SpeechConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -34,6 +35,18 @@ pub struct MemoryEmbeddingConfig {
     pub voyage_api_key: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpeechConfig {
+    pub fireworks_base_url: String,
+    pub fireworks_audio_base_url: String,
+    pub fireworks_api_key: Option<String>,
+    pub fireworks_stt_model: String,
+    pub async_base_url: String,
+    pub async_api_key: Option<String>,
+    pub async_tts_model: String,
+    pub async_tts_voice_id: Option<String>,
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
         let bind = env::var("ANTIROT_BACKEND_BIND")
@@ -50,6 +63,7 @@ impl Config {
         let google_allowed_client_ids = google_allowed_client_ids();
         let apns = apns_config();
         let memory_embeddings = memory_embedding_config();
+        let speech = speech_config();
 
         Ok(Self {
             bind,
@@ -59,7 +73,33 @@ impl Config {
             google_allowed_client_ids,
             apns,
             memory_embeddings,
+            speech,
         })
+    }
+}
+
+fn speech_config() -> SpeechConfig {
+    SpeechConfig {
+        fireworks_base_url: env::var("FIREWORKS_BASE_URL")
+            .unwrap_or_else(|_| "https://api.fireworks.ai/inference/v1".to_string()),
+        fireworks_audio_base_url: env::var("FIREWORKS_AUDIO_BASE_URL")
+            .unwrap_or_else(|_| "https://audio-prod.api.fireworks.ai/v1".to_string()),
+        fireworks_api_key: env::var("FIREWORKS_API_KEY")
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
+        fireworks_stt_model: env::var("FIREWORKS_STT_MODEL")
+            .unwrap_or_else(|_| "whisper-v3".to_string()),
+        async_base_url: env::var("ASYNC_BASE_URL")
+            .unwrap_or_else(|_| "https://api.async.com".to_string()),
+        async_api_key: env::var("ASYNC_API_KEY")
+            .or_else(|_| env::var("ASYNC_TTS_API_KEY"))
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
+        async_tts_model: env::var("ASYNC_TTS_MODEL")
+            .unwrap_or_else(|_| "async_flash_v1.5".to_string()),
+        async_tts_voice_id: env::var("ASYNC_TTS_VOICE_ID")
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
     }
 }
 
@@ -139,7 +179,7 @@ fn google_allowed_client_ids() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apns_endpoint_for_environment, memory_embedding_config};
+    use super::{apns_endpoint_for_environment, memory_embedding_config, speech_config};
     use std::env;
 
     #[test]
@@ -186,5 +226,34 @@ mod tests {
         assert_eq!(config.fallback_model, "voyage-4-large");
         assert_eq!(config.gemini_api_key, None);
         assert_eq!(config.voyage_api_key, None);
+    }
+
+    #[test]
+    fn speech_config_uses_fireworks_whisper_and_async_flash_defaults() {
+        env::remove_var("FIREWORKS_BASE_URL");
+        env::remove_var("FIREWORKS_AUDIO_BASE_URL");
+        env::remove_var("FIREWORKS_API_KEY");
+        env::remove_var("FIREWORKS_STT_MODEL");
+        env::remove_var("ASYNC_BASE_URL");
+        env::remove_var("ASYNC_API_KEY");
+        env::remove_var("ASYNC_TTS_API_KEY");
+        env::remove_var("ASYNC_TTS_MODEL");
+        env::remove_var("ASYNC_TTS_VOICE_ID");
+
+        let config = speech_config();
+        assert_eq!(
+            config.fireworks_base_url,
+            "https://api.fireworks.ai/inference/v1"
+        );
+        assert_eq!(
+            config.fireworks_audio_base_url,
+            "https://audio-prod.api.fireworks.ai/v1"
+        );
+        assert_eq!(config.fireworks_api_key, None);
+        assert_eq!(config.fireworks_stt_model, "whisper-v3");
+        assert_eq!(config.async_base_url, "https://api.async.com");
+        assert_eq!(config.async_api_key, None);
+        assert_eq!(config.async_tts_model, "async_flash_v1.5");
+        assert_eq!(config.async_tts_voice_id, None);
     }
 }

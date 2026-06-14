@@ -52,7 +52,7 @@ enum AlarmNotificationActions {
                 try await client.acknowledge(alarmId: alarmId, deviceId: deviceId, action: "clear")
             }
         } catch {
-            print("🔴 FALLBACK: alarm callback failed - Reason: \(error.localizedDescription) - Impact: VPS may not know the phone action succeeded")
+            print("🔴 FALLBACK: alarm callback failed - Reason: \(error.localizedDescription) - Impact: backend may not know the phone action succeeded")
         }
     }
 }

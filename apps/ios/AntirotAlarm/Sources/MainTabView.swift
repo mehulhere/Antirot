@@ -7,12 +7,14 @@ struct MainTabView: View {
 
     enum Tab: String, CaseIterable {
         case home
+        case plan
         case alarms
         case settings
 
         var icon: String {
             switch self {
-            case .home: return "house.fill"
+            case .home: return "waveform"
+            case .plan: return "calendar.badge.clock"
             case .alarms: return "alarm.fill"
             case .settings: return "gearshape.fill"
             }
@@ -20,7 +22,8 @@ struct MainTabView: View {
 
         var label: String {
             switch self {
-            case .home: return "Home"
+            case .home: return "Coach"
+            case .plan: return "Plan"
             case .alarms: return "Alarms"
             case .settings: return "Settings"
             }
@@ -34,6 +37,8 @@ struct MainTabView: View {
                 switch selectedTab {
                 case .home:
                     HomeView()
+                case .plan:
+                    PlanView()
                 case .alarms:
                     AlarmsView()
                 case .settings:

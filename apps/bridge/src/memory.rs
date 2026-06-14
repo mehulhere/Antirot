@@ -161,7 +161,10 @@ pub async fn note_wake_logged(
     sleep_metrics_report(client, user_id).await
 }
 
-pub async fn sleep_metrics_report(client: &PgClient, user_id: &str) -> AppResult<SleepMetricsReport> {
+pub async fn sleep_metrics_report(
+    client: &PgClient,
+    user_id: &str,
+) -> AppResult<SleepMetricsReport> {
     let row = client
         .query_opt(
             "
@@ -209,7 +212,14 @@ pub async fn distill_today(
     user_id: &str,
     trigger_source: &str,
 ) -> AppResult<DistillationOutcome> {
-    distill_date(client, config, user_id, Utc::now().date_naive(), trigger_source).await
+    distill_date(
+        client,
+        config,
+        user_id,
+        Utc::now().date_naive(),
+        trigger_source,
+    )
+    .await
 }
 
 pub async fn distill_idle_if_due(
@@ -346,7 +356,11 @@ pub async fn search_memory(
         });
     }
 
-    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     hits.truncate(limit);
     Ok(hits)
 }
@@ -387,13 +401,25 @@ async fn distill_date(
         .unwrap_or_else(|| "# Work Log\n".to_string());
     let sleep = read_memory(client, user_id, "sleep")
         .await?
-        .unwrap_or_else(|| default_memory_for_key("sleep").unwrap_or("# Sleep Ledger\n").to_string());
+        .unwrap_or_else(|| {
+            default_memory_for_key("sleep")
+                .unwrap_or("# Sleep Ledger\n")
+                .to_string()
+        });
     let routine = read_memory(client, user_id, "routine")
         .await?
-        .unwrap_or_else(|| default_memory_for_key("routine").unwrap_or("# Routine\n").to_string());
+        .unwrap_or_else(|| {
+            default_memory_for_key("routine")
+                .unwrap_or("# Routine\n")
+                .to_string()
+        });
     let durable = read_memory(client, user_id, "durable")
         .await?
-        .unwrap_or_else(|| default_memory_for_key("durable").unwrap_or("# Durable Memory\n").to_string());
+        .unwrap_or_else(|| {
+            default_memory_for_key("durable")
+                .unwrap_or("# Durable Memory\n")
+                .to_string()
+        });
 
     let summary = deterministic_daily_summary(date, trigger_source, &work_log, &sleep, &routine);
     save_memory_indexed(client, config, user_id, &summary_key, &summary).await?;
@@ -451,13 +477,16 @@ fn deterministic_daily_summary(
     let sessions_started = work_log.matches("session_start:").count();
     let sessions_ended = work_log.matches("session_end:").count();
     let breaks_started = work_log.matches("break_start:").count();
-    let latest_work = find_last_matching_line(work_log, &["session_end", "session_start", "break_start"])
-        .unwrap_or("No work events logged.");
+    let latest_work =
+        find_last_matching_line(work_log, &["session_end", "session_start", "break_start"])
+            .unwrap_or("No work events logged.");
     let latest_sleep = find_last_matching_line(sleep, &["wake_log", "sleep_start"])
         .unwrap_or("No sleep events logged.");
     let routine_signal = routine
         .lines()
-        .find(|line| line.contains("Gym") || line.contains("girlfriend") || line.contains("Relationship"))
+        .find(|line| {
+            line.contains("Gym") || line.contains("girlfriend") || line.contains("Relationship")
+        })
         .unwrap_or("No fixed routine signal found.");
 
     format!(
@@ -622,7 +651,9 @@ fn chunk_memory(content: &str) -> Vec<String> {
     let mut chunks = Vec::new();
     let mut current = String::new();
     for line in content.lines() {
-        if current.chars().count() + line.chars().count() + 1 > MEMORY_CHUNK_CHARS && !current.trim().is_empty() {
+        if current.chars().count() + line.chars().count() + 1 > MEMORY_CHUNK_CHARS
+            && !current.trim().is_empty()
+        {
             chunks.push(current.trim().to_string());
             current.clear();
         }
@@ -655,7 +686,10 @@ async fn embedding_with_fallback(config: &Config, text: &str) -> Result<Vec<f32>
 
 fn active_embedding_provider(config: &Config) -> (String, String) {
     if config.memory_embeddings.gemini_api_key.is_some() {
-        (config.memory_embeddings.provider.clone(), config.memory_embeddings.model.clone())
+        (
+            config.memory_embeddings.provider.clone(),
+            config.memory_embeddings.model.clone(),
+        )
     } else {
         (
             config.memory_embeddings.fallback_provider.clone(),
@@ -667,8 +701,7 @@ fn active_embedding_provider(config: &Config) -> (String, String) {
 async fn gemini_embedding(api_key: &str, model: &str, text: &str) -> Result<Vec<f32>, String> {
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent?key={}",
-        model,
-        api_key
+        model, api_key
     );
     let response = Client::new()
         .post(url)
@@ -688,7 +721,12 @@ async fn gemini_embedding(api_key: &str, model: &str, text: &str) -> Result<Vec<
         .as_array()
         .ok_or_else(|| "Gemini embedding response missing values".to_string())?
         .iter()
-        .map(|value| value.as_f64().map(|v| v as f32).ok_or_else(|| "invalid Gemini embedding value".to_string()))
+        .map(|value| {
+            value
+                .as_f64()
+                .map(|v| v as f32)
+                .ok_or_else(|| "invalid Gemini embedding value".to_string())
+        })
         .collect()
 }
 
@@ -711,7 +749,12 @@ async fn voyage_embedding(api_key: &str, model: &str, text: &str) -> Result<Vec<
         .as_array()
         .ok_or_else(|| "Voyage embedding response missing values".to_string())?
         .iter()
-        .map(|value| value.as_f64().map(|v| v as f32).ok_or_else(|| "invalid Voyage embedding value".to_string()))
+        .map(|value| {
+            value
+                .as_f64()
+                .map(|v| v as f32)
+                .ok_or_else(|| "invalid Voyage embedding value".to_string())
+        })
         .collect()
 }
 
@@ -784,7 +827,10 @@ mod tests {
 
     #[test]
     fn lexical_score_matches_query_terms() {
-        let score = lexical_score("relationship gym", "Gym block done. Relationship call moved.");
+        let score = lexical_score(
+            "relationship gym",
+            "Gym block done. Relationship call moved.",
+        );
         assert!(score > 0.9);
     }
 

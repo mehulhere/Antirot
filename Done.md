@@ -52,3 +52,4 @@
 - Verify nightly memory distillation updates `durable.md` when sleep starts, sleep metrics update after wake logs, semantic memory search returns relevant historical logs once memory is large, and `/v1/admin/context` works with admin auth outside test mode.
 - Verify GitHub Backend CI blocks prompt snapshot drift and runs backend no-LLM userflows against Postgres on pull requests.
 - Run `npm run test:backend-userflows-llm` followed by `CROF_API_KEY=... npm run test:llm-judge-quality`, then review `.antirot/llm-judge-quality-report.json` for Qwen judge scores and issues before treating live LLM output as paid-product ready.
+- Build the iOS app on a real iPhone, verify Coach/Plan/Alarms/Settings render correctly, record a voice check-in through Fireworks STT, send Done/Start/Break buttons through chat, and confirm Async TTS playback after `ASYNC_TTS_VOICE_ID` is configured.

@@ -102,7 +102,8 @@ pub async fn get_user_id_from_auth(
     pool: &Pool,
 ) -> AppResult<String> {
     let token = bearer_token(headers).ok_or(AppError::Unauthorized)?;
-    if constant_time_eq(token, &config.admin_token) || constant_time_eq(token, &config.device_token) {
+    if constant_time_eq(token, &config.admin_token) || constant_time_eq(token, &config.device_token)
+    {
         return Ok("admin".to_string());
     }
 
@@ -123,4 +124,3 @@ pub async fn get_user_id_from_auth(
     }
     Err(AppError::Unauthorized)
 }
-

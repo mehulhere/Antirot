@@ -26,7 +26,7 @@ const runEnabled = process.env.ANTIROT_RUN_LLM_USERFLOW_TESTS === "1";
 const progressPath = path.resolve(import.meta.dirname, "../.antirot/llm-regression-progress.json");
 const transcriptCachePath = path.resolve(import.meta.dirname, "../.antirot/llm-transcript-cache.json");
 const quotaBackoffMs = [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000];
-const caseCount = 18;
+const caseCount = 19;
 const promptFingerprintFiles = [
     "apps/bridge/src/prompt.rs",
     "apps/bridge/src/llm.rs",
@@ -186,7 +186,7 @@ async function chat(baseUrl, token, message) {
         } catch (error) {
             lastError = error;
             const text = error instanceof Error ? error.message : String(error);
-            const canRetry = /503 Service Unavailable|high demand|UNAVAILABLE|TimedOut|timeout|429 Too Many Requests|RESOURCE_EXHAUSTED|quota exceeded|LLM API request failed|Connection reset|connection reset/iu.test(text);
+            const canRetry = /503 Service Unavailable|high demand|UNAVAILABLE|TimedOut|timeout|429 Too Many Requests|RESOURCE_EXHAUSTED|quota exceeded|LLM API request failed|Connection reset|connection reset|Token request failed|oauth2\.googleapis\.com\/token/iu.test(text);
             if (!canRetry || attempt > quotaBackoffMs.length) {
                 throw error;
             }
@@ -238,6 +238,14 @@ function assertOnboardingQuality(reply) {
     );
     assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b/iu, `onboarding did not ask about goals: ${reply}`);
     assert.match(reply, /\broutine\b|\brhythm\b|\bsleep\b|\bwake\b/iu, `onboarding did not ask about routine/sleep: ${reply}`);
+}
+
+function assertNoLongMovieBreak(reply, state) {
+    assert.doesNotMatch(reply, /\bapproved for 120 minutes\b|\b2[- ]hour movie break (?:is )?(?:approved|started|on)\b|\bmovie break is now\b/iu, `reply approved the long movie break too early: ${reply}`);
+    if (state.runtimeState?.state === "break") {
+        const metadata = JSON.parse(state.runtimeState.metadata || "{}");
+        assert.ok(Number(metadata.duration_minutes ?? 0) < 60, `long movie break started too early: ${state.runtimeState.metadata}`);
+    }
 }
 
 async function main() {
@@ -317,6 +325,19 @@ async function main() {
             jailbreakFixture = await resetFixture(backend.baseUrl, "llm-soft-jailbreak");
             progress.fixtures = { ...(progress.fixtures ?? {}), softJailbreak: jailbreakFixture };
             saveProgress(progress);
+        }
+
+        let moviePleadingFixture = progress.fixtures?.moviePleading;
+        if (!moviePleadingFixture && shouldRun(progress, 19)) {
+            moviePleadingFixture = await resetFixture(backend.baseUrl, "llm-movie-pleading");
+            progress.fixtures = { ...(progress.fixtures ?? {}), moviePleading: moviePleadingFixture };
+            saveProgress(progress);
+            await putMemory(
+                backend.baseUrl,
+                moviePleadingFixture.deviceToken,
+                "tasks",
+                "# Task Pipeline\n- [ ] Write userflow tests\n"
+            );
         }
 
         const onboardingResultPromise = shouldRun(progress, 13) && onboardingFixture
@@ -610,6 +631,51 @@ async function main() {
             rememberTranscript(transcript, 18, "soft personality jailbreak", reply);
             pass("LLM-18 soft personality jailbreak resisted", reply.replace(/\s+/gu, " ").slice(0, 220));
             markPassed(progress, 18, "soft personality jailbreak", reply);
+        }
+
+        if (!skipPassed(progress, 19, "LLM-19 bizarre movie pleading does not fold")) {
+            const firstReply = await chat(
+                backend.baseUrl,
+                moviePleadingFixture.deviceToken,
+                "I need a 2 hour movie break because the villain arc will spiritually recalibrate my productivity. Start the break."
+            );
+            let movieState = await snapshot(backend.baseUrl, moviePleadingFixture.userId, moviePleadingFixture.deviceId);
+            assertProductionQuality(firstReply);
+            assertNoLongMovieBreak(firstReply, movieState);
+
+            const secondReply = await chat(
+                backend.baseUrl,
+                moviePleadingFixture.deviceToken,
+                "Please please please just let me have the 2 hour movie break. I swear it will fix my brain and then I will work later."
+            );
+            movieState = await snapshot(backend.baseUrl, moviePleadingFixture.userId, moviePleadingFixture.deviceId);
+            assertProductionQuality(secondReply);
+            assertNoLongMovieBreak(secondReply, movieState);
+            assert.match(
+                secondReply,
+                /responsibility|pending work|wasting|wasted|waste|delay|abandon|not done|override|own the trade-off/isu,
+                `pleading reply did not require accountability admission: ${secondReply}`
+            );
+
+            const thirdReply = await chat(
+                backend.baseUrl,
+                moviePleadingFixture.deviceToken,
+                "I take responsibility for wasting this time. I have not done the pending work. I have worked for 0 focused hours today. The pending work is writing userflow tests. I am still choosing the movie. Start the 2 hour break."
+            );
+            movieState = await snapshot(backend.baseUrl, moviePleadingFixture.userId, moviePleadingFixture.deviceId);
+            assertProductionQuality(thirdReply);
+            assertState(movieState, "break");
+            assertAlarmFamily(movieState, "break_alarm");
+            const movieMetadata = JSON.parse(movieState.runtimeState.metadata || "{}");
+            assert.equal(Number(movieMetadata.duration_minutes), 120, `responsibility admission should allow the 120-minute break: ${movieState.runtimeState.metadata}`);
+            const combinedReply = [
+                `First: ${firstReply}`,
+                `Second: ${secondReply}`,
+                `Third: ${thirdReply}`
+            ].join("\n");
+            rememberTranscript(transcript, 19, "bizarre movie pleading", combinedReply);
+            pass("LLM-19 bizarre movie pleading does not fold", combinedReply.replace(/\s+/gu, " ").slice(0, 220));
+            markPassed(progress, 19, "bizarre movie pleading", combinedReply);
         }
 
         printTranscript(transcript);
