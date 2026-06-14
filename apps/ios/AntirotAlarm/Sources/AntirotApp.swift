@@ -6,12 +6,14 @@ struct AntirotApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var settings = SettingsStore()
     @StateObject private var alarmCenter = AlarmCenter()
+    @StateObject private var coach = CoachViewModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(settings)
                 .environmentObject(alarmCenter)
+                .environmentObject(coach)
                 .task {
                     await alarmCenter.configure(settings: settings)
                 }

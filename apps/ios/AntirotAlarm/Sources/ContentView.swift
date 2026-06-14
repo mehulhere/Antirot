@@ -20,4 +20,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(SettingsStore())
         .environmentObject(AlarmCenter())
+        .environmentObject(CoachViewModel())
 }

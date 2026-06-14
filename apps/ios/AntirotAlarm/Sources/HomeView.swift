@@ -3,7 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
-    @StateObject private var coach = CoachViewModel()
+    @EnvironmentObject private var coach: CoachViewModel
     @FocusState private var draftFocused: Bool
 
     private var client: APIClient {
@@ -412,4 +412,5 @@ private struct SiriCoachBackground: View {
     HomeView()
         .environmentObject(SettingsStore())
         .environmentObject(AlarmCenter())
+        .environmentObject(CoachViewModel())
 }

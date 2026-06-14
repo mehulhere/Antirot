@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlanView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var coach: CoachViewModel
     @State private var reviewText = ""
     @State private var isReviewing = false
 
@@ -143,4 +144,5 @@ struct PlanView: View {
 #Preview {
     PlanView()
         .environmentObject(SettingsStore())
+        .environmentObject(CoachViewModel())
 }

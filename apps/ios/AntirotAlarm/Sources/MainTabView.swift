@@ -111,4 +111,5 @@ struct MainTabView: View {
     MainTabView()
         .environmentObject(SettingsStore())
         .environmentObject(AlarmCenter())
+        .environmentObject(CoachViewModel())
 }
