@@ -1,6 +1,6 @@
 # Antirot iOS App
 
-Antirot is the iOS client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, and coach intelligence. It also supports acting as a message relay for self-hosted OpenClaw setups.
+Antirot is the iOS client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, speech, memory, and coach intelligence.
 
 ## Setup
 

@@ -3,7 +3,7 @@ name: Backend CI
 on:
   pull_request:
     paths:
-      - "apps/bridge/**"
+      - "apps/backend/**"
       - "scripts/test-backend-userflows-no-llm.mjs"
       - "scripts/backend-userflow-test-lib.mjs"
       - "package.json"
@@ -12,7 +12,7 @@ on:
     branches:
       - main
     paths:
-      - "apps/bridge/**"
+      - "apps/backend/**"
       - "scripts/test-backend-userflows-no-llm.mjs"
       - "scripts/backend-userflow-test-lib.mjs"
       - "package.json"
@@ -63,10 +63,10 @@ jobs:
         run: npm ci
 
       - name: Cargo check
-        run: cargo check --manifest-path apps/bridge/Cargo.toml
+        run: cargo check --manifest-path apps/backend/Cargo.toml
 
       - name: Rust tests and prompt snapshots
-        run: cargo test --manifest-path apps/bridge/Cargo.toml
+        run: cargo test --manifest-path apps/backend/Cargo.toml
 
       - name: Backend no-LLM userflows
         run: npm run test:backend-userflows

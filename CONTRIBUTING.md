@@ -4,16 +4,16 @@ Thanks for helping build Antirot.
 
 ## Local Setup
 
-### Backend (Rust)
+Backend:
 
 ```bash
-cd apps/bridge
+cd apps/backend
 cp ../../env.example.txt .env
 cargo build
 cargo test
 ```
 
-### iOS App
+iOS:
 
 ```bash
 cd apps/ios
@@ -22,51 +22,48 @@ xcodegen generate
 open Antirot.xcodeproj
 ```
 
-Or use the GitHub Actions workflow to build via CI (no Mac needed).
-
-### OpenClaw Plugin (optional)
+Android:
 
 ```bash
-npm install
-npm run build
-npx openclaw plugins install --link .
-npx openclaw plugins enable antirot
-npx openclaw plugins inspect antirot --runtime --json
+cd apps/android
+./gradlew assembleDebug
 ```
+
+Frontend tester:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/website/tester.html`.
 
 ## Validation
 
-Before opening a pull request, run:
+Before opening a pull request, run the smallest relevant checks:
 
 ```bash
-# Plugin
 npm run lint
-npm run typecheck
-npm run build
-
-# Backend
-cargo check --manifest-path apps/bridge/Cargo.toml
-cargo test --manifest-path apps/bridge/Cargo.toml
+cargo check --manifest-path apps/backend/Cargo.toml
+cargo test --manifest-path apps/backend/Cargo.toml
+npm run test:backend-userflows
 ```
 
-For behavior changes, also run the focused scenario script when relevant:
+For provider-backed smoke tests against a running backend:
 
 ```bash
-node scripts/test-scenarios.ts
+node scripts/test-backend-integrations.mjs \
+  --env-file /etc/antirot/backend.env \
+  --base-url http://127.0.0.1:8787
 ```
 
 ## Repository Hygiene
 
-Do not commit personal Antirot runtime memory or local secrets:
+Do not commit local secrets or generated runtime artifacts:
 
 - `.env`
 - `.antirot/`
-- `behavior.md`
-- `longterm.md`
-- `shortterm.md`
-- `tasks.md`
-- `work.md`
-- `sleep.md`
-- `miscellaneous_todo.md`
+- Google client secret JSON files
+- uploaded audio
+- generated debug transcripts unless they are intentional test fixtures
 
 Use Conventional Commit prefixes such as `feat:`, `fix:`, `docs:`, and `refactor:`.

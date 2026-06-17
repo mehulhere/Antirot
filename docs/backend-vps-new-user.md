@@ -1,6 +1,6 @@
-# Backend-Only VPS Setup For A New Linux User
+# Backend VPS Setup For A New Linux User
 
-This launches only the managed Antirot backend. Do not install the OpenClaw plugin path for this setup.
+This launches the managed Antirot backend only.
 
 Assumptions:
 
@@ -12,27 +12,25 @@ Assumptions:
 - Backend env file: `/etc/antirot/backend.env`
 - systemd service: `antirot-backend`
 
-The Rust binary is still named `antirot-bridge` in the current crate. That is only the compiled binary name; the deployed service/user/env are backend-only.
-
 ## 1. Install Server Packages
 
 Run as `root` or a sudo-capable user:
 
 ```bash
 apt update
-apt install -y git curl build-essential pkg-config libssl-dev postgresql nginx certbot python3-certbot-nginx
+apt install -y git curl build-essential pkg-config libssl-dev postgresql nginx certbot python3-certbot-nginx nodejs npm
 ```
 
 ## 2. Create Linux Users
 
-Create a normal deploy user:
+Create the deploy user if it does not already exist:
 
 ```bash
 adduser antirot
 usermod -aG sudo antirot
 ```
 
-Create a locked runtime user for the backend:
+Create the locked runtime user:
 
 ```bash
 sudo useradd --system --home /var/lib/antirot-backend --shell /usr/sbin/nologin antirot-backend
@@ -43,10 +41,10 @@ sudo chown antirot:antirot /opt/antirot
 
 Placeholder notes:
 
-- `antirot` is the deploy user you are logged in as.
-- `antirot-backend` is a new locked system user. Do not log in as this user.
-- If `useradd` says the user already exists, continue with the `mkdir` and `chown` commands.
+- `antirot` is the deploy user you log in as.
+- `antirot-backend` is a locked system user for systemd. Do not log in as this user.
 - These commands need `sudo` when run from the `antirot` user.
+- If `useradd` says the user already exists, continue with the `mkdir` and `chown` commands.
 
 ## 3. Install Rust For The Deploy User
 
@@ -59,28 +57,25 @@ cargo --version
 
 ## 4. Clone And Build Backend
 
-Still as `antirot`:
+Fresh setup:
 
 ```bash
 cd /opt
-rm -rf /opt/antirot
+sudo rm -rf /opt/antirot
+sudo chown antirot:antirot /opt
 git clone https://github.com/mehulhere/Antirot.git antirot
 cd /opt/antirot
 
-cargo build --release --manifest-path apps/bridge/Cargo.toml
-cp apps/bridge/target/release/antirot-bridge apps/bridge/antirot-bridge
+cargo build --release --manifest-path apps/backend/Cargo.toml
+cp apps/backend/target/release/antirot-backend apps/backend/antirot-backend
 ```
 
 Placeholder notes:
 
 - The repo URL is already filled in: `https://github.com/mehulhere/Antirot.git`.
-- Do not type `YOUR_REPO_URL`; that was an older placeholder.
-- Run `rm -rf /opt/antirot` only when `/opt/antirot` is not a real git checkout or you intentionally want a fresh clone.
-- If removing `/opt/antirot` says permission denied, run `sudo rm -rf /opt/antirot`, then `sudo chown antirot:antirot /opt`.
+- Run `sudo rm -rf /opt/antirot` only when you intentionally want a fresh checkout.
 
 ## 5. Create Postgres Database
-
-Run as a sudo-capable user:
 
 ```bash
 sudo -u postgres createuser antirot_backend
@@ -91,8 +86,8 @@ sudo -u postgres psql -c "ALTER USER antirot_backend WITH PASSWORD 'CHANGE_DB_PA
 Placeholder notes:
 
 - Replace `CHANGE_DB_PASSWORD` with a long random database password.
-- Reuse the exact same password in `DATABASE_URL` in `/etc/antirot/backend.env`.
-- If `createuser` or `createdb` says the role/database already exists, continue with the password command.
+- Reuse the exact same password in `DATABASE_URL`.
+- If the role or database already exists, continue with the password command.
 
 ## 6. Create Backend Environment
 
@@ -110,6 +105,8 @@ ANTIROT_DEVICE_TOKEN=CHANGE_LONG_DEVICE_TOKEN
 GOOGLE_IOS_CLIENT_ID=973993815360-7q908kk99vtbvv07648prppfdbacqddr.apps.googleusercontent.com
 ANTIROT_WORKSPACE_ID=main
 
+GOOGLE_CLOUD_CREDENTIALS=PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE
+
 FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1
 FIREWORKS_AUDIO_BASE_URL=https://audio-prod.api.fireworks.ai/v1
 FIREWORKS_API_KEY=YOUR_FIREWORKS_KEY
@@ -118,28 +115,27 @@ FIREWORKS_STT_MODEL=whisper-v3
 ASYNC_BASE_URL=https://api.async.com
 ASYNC_API_KEY=YOUR_ASYNC_KEY
 ASYNC_TTS_MODEL=async_flash_v1.5
-ASYNC_TTS_VOICE_ID=YOUR_ASYNC_VOICE_ID
+ASYNC_TTS_VOICE_ID=
 
 ANTIROT_MEMORY_EMBEDDING_MODEL=gemini-embedding-001
 ANTIROT_MEMORY_EMBEDDING_FALLBACK_MODEL=voyage-4-large
 ANTIROT_MEMORY_GEMINI_API_KEY=YOUR_GEMINI_KEY
 ANTIROT_MEMORY_VOYAGE_API_KEY=YOUR_VOYAGE_KEY
 
-RUST_LOG=antirot_bridge=info,tower_http=info
+RUST_LOG=antirot_backend=info,tower_http=info
 ```
 
 Placeholder notes:
 
 - Replace `CHANGE_DB_PASSWORD` with the Postgres password from step 5.
-- Replace `CHANGE_LONG_ADMIN_TOKEN` with a long random admin token. Keep it private.
-- Replace `CHANGE_LONG_DEVICE_TOKEN` with a different long random device token. Keep it private.
-- Replace `YOUR_FIREWORKS_KEY` with the Fireworks API key for Whisper speech-to-text.
+- Replace `CHANGE_LONG_ADMIN_TOKEN` with a long random admin token.
+- Replace `CHANGE_LONG_DEVICE_TOKEN` with a different long random device token.
+- Replace `PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE` with the full Google Vertex service-account JSON content. This is required for coach chat.
+- Replace `YOUR_FIREWORKS_KEY` with the Fireworks API key for speech-to-text.
 - Replace `YOUR_ASYNC_KEY` with the Async API key for text-to-speech.
-- Replace `YOUR_ASYNC_VOICE_ID` with an Async voice id. TTS will fail until this is real.
+- `ASYNC_TTS_VOICE_ID` can stay blank until you have a real Async voice id. TTS will be skipped or fail until it is configured.
 - Replace `YOUR_GEMINI_KEY` with the Gemini API key used for memory embeddings.
-- Replace `YOUR_VOYAGE_KEY` with the Voyage fallback key. Leave it blank only if fallback embeddings are intentionally disabled.
-- `GOOGLE_IOS_CLIENT_ID` is already filled for the current iOS app.
-- `api.yourdomain.com` does not go in this env block unless you later add a public URL variable.
+- Replace `YOUR_VOYAGE_KEY` with the Voyage fallback key.
 
 Lock it down:
 
@@ -155,28 +151,13 @@ cd /opt/antirot
 node scripts/check-env.mjs /etc/antirot/backend.env env.example.txt
 ```
 
-After the backend is running, test all provider-backed backend paths:
+## 7. Install And Start systemd
 
 ```bash
-node scripts/test-backend-integrations.mjs \
-  --env-file /etc/antirot/backend.env \
-  --base-url https://api.yourdomain.com
-```
-
-Placeholder notes:
-
-- Replace `api.yourdomain.com` with the real API domain.
-- This checks `/v1/health`, `/v1/speech/synthesize`, `/v1/speech/transcribe`, `/v1/memory/longterm`, and `/v1/chat`.
-- The memory check writes a temporary long-term memory entry so the backend attempts semantic embedding indexing.
-- If TTS is not configured yet, pass a real speech file to still test S2T: `--audio-file voice.m4a`.
-
-## 7. Install systemd Service
-
-```bash
-sudo cp /opt/antirot/apps/bridge/deploy/antirot-backend.service /etc/systemd/system/antirot-backend.service
+sudo cp /opt/antirot/apps/backend/deploy/antirot-backend.service /etc/systemd/system/antirot-backend.service
 sudo systemctl daemon-reload
 sudo systemctl enable antirot-backend
-sudo systemctl start antirot-backend
+sudo systemctl restart antirot-backend
 sudo systemctl status antirot-backend --no-pager
 ```
 
@@ -209,10 +190,10 @@ server {
 }
 ```
 
-Enable it:
+Enable HTTPS:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/antirot-api /etc/nginx/sites-enabled/antirot-api
+sudo ln -sf /etc/nginx/sites-available/antirot-api /etc/nginx/sites-enabled/antirot-api
 sudo nginx -t
 sudo systemctl reload nginx
 sudo certbot --nginx -d api.yourdomain.com
@@ -228,17 +209,7 @@ Placeholder notes:
 Health:
 
 ```bash
-curl https://api.yourdomain.com/health
-```
-
-Placeholder notes:
-
-- Replace `api.yourdomain.com` with the real API domain.
-
-Expected:
-
-```json
-{"ok":true,"service":"antirot-backend"}
+curl https://api.yourdomain.com/v1/health
 ```
 
 Chat:
@@ -250,49 +221,46 @@ curl -X POST https://api.yourdomain.com/v1/chat \
   -d '{"message":"Hello Coach!"}'
 ```
 
-Placeholder notes:
-
-- Replace `api.yourdomain.com` with the real API domain.
-- Replace `CHANGE_LONG_ADMIN_TOKEN` with the exact `ANTIROT_ADMIN_TOKEN` from `/etc/antirot/backend.env`.
-
-Expected shape:
-
-```json
-{"ok":true,"reply":"..."}
-```
-
-Speech-to-text needs a real audio file:
+Provider smoke test:
 
 ```bash
-curl -X POST https://api.yourdomain.com/v1/speech/transcribe \
-  -H "Authorization: Bearer CHANGE_LONG_ADMIN_TOKEN" \
-  -F "file=@voice.m4a;type=audio/mp4"
+node scripts/test-backend-integrations.mjs \
+  --env-file /etc/antirot/backend.env \
+  --base-url https://api.yourdomain.com
 ```
 
 Placeholder notes:
 
 - Replace `api.yourdomain.com` with the real API domain.
 - Replace `CHANGE_LONG_ADMIN_TOKEN` with the exact `ANTIROT_ADMIN_TOKEN`.
-- Replace `voice.m4a` with the path to a real local audio file on the machine running `curl`.
-
-Expected shape:
-
-```json
-{"ok":true,"text":"..."}
-```
+- The smoke test checks health, TTS, STT, embeddings, and coach chat.
+- If TTS is not configured yet, pass a real speech file to still test STT: `--audio-file voice.m4a`.
 
 ## 10. Updating The Backend Later
 
 ```bash
 su - antirot
 cd /opt/antirot
-git pull
-cargo build --release --manifest-path apps/bridge/Cargo.toml
-cp apps/bridge/target/release/antirot-bridge apps/bridge/antirot-bridge
+git pull origin main
+cargo build --release --manifest-path apps/backend/Cargo.toml
+cp apps/backend/target/release/antirot-backend apps/backend/antirot-backend
 sudo systemctl restart antirot-backend
 sudo journalctl -u antirot-backend -n 100 --no-pager
 ```
 
+## 11. Reset Existing VPS Cleanly
+
+When old services or paths are causing pointless errors, stop them and start clean:
+
+```bash
+sudo systemctl disable --now antirot-backend || true
+sudo rm -f /etc/systemd/system/antirot-backend.service
+sudo systemctl daemon-reload
+sudo rm -rf /opt/antirot
+```
+
+Then repeat steps 4, 7, and 9.
+
 ## Bottom Line
 
-Use `antirot` only to clone/build. Use `antirot-backend` only to run the backend. Keep API keys in `/etc/antirot/backend.env`. Expose the backend through Nginx HTTPS only.
+Use `antirot` to clone and build. Use `antirot-backend` to run the backend. Keep API keys in `/etc/antirot/backend.env`. Expose the backend through Nginx HTTPS only.

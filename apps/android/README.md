@@ -1,6 +1,6 @@
 # Antirot Android App
 
-Antirot is the Android client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, and coach intelligence. It also supports acting as a message relay for self-hosted OpenClaw setups.
+Antirot is the Android client for the Antirot coach. The app connects to the Antirot backend (`api.antirot.org`) for auth, alarms, and coach intelligence.
 
 ## Setup
 
@@ -33,8 +33,8 @@ gradle assembleDebug
 
 ## Current MVP
 
-- Configure Antirot VPS URL and API token.
-- Register device with the VPS.
+- Configure Antirot backend URL and API token.
+- Register device with the backend.
 - Schedule normal and loud test alarms.
 - Alarm screen with acknowledgement actions.
 - Callback API client for `ack`, `snooze`, and `clear`.

@@ -10,27 +10,28 @@ The system should enforce self-justification more than obedience. When the user 
 
 ## Architecture
 
-Antirot runs as a **standalone iOS app + managed backend**, with an optional OpenClaw plugin path for power users.
+Antirot has one supported product architecture:
 
-### Primary Path (Standalone)
-- **iOS App** (`apps/ios/`): Native SwiftUI, AlarmKit, Screen Time, widgets, in-app chat
-- **Backend** (`apps/bridge/`): Rust API at `api.antirot.org`, Postgres, APNs, Google auth
-- **LLM Routing**: Backend proxies coaching conversations to LLM providers (OpenAI, Gemini, etc.)
-- **User Memory**: Per-user behavioral memory stored in Postgres (longterm, shortterm, behavior, work, sleep, tasks, misc)
+- `apps/backend/`: Rust API at `api.antirot.org`; owns auth, chat, alarms, APNs, speech, semantic memory, runtime state, and provider routing.
+- `apps/ios/`: native SwiftUI app with AlarmKit, Screen Time, widgets, speech-to-text, text-to-speech, and in-app chat.
+- `apps/android/`: Android APK client for auth, alarms, and coach interaction.
+- `apps/frontend/`: Next.js Antirot Lab for testing backend and app-like flows before TestFlight/APK builds.
+- `website/tester.html`: legacy static frontend tester.
 
-### Secondary Path (Self-Hosted OpenClaw)
-- **OpenClaw Plugin** (`src/`, `openclaw.plugin.json`): Runs on user's VPS
-- **iOS App as Relay**: Displays coach messages from OpenClaw, relays responses through the bridge
-- **Memory Files**: Stored as markdown files in the OpenClaw workspace directory
+LLM routing for tailored/default users should use Vertex with Gemini 3.5 Flash whenever `GOOGLE_CLOUD_CREDENTIALS` is present. Do not reintroduce alternative runtime architectures unless the user explicitly asks for a new product surface.
+
+For product testing, assume the backend should run on the VPS via `ssh antirot@antirot.org` unless the user explicitly asks for a local backend. The Next.js lab targets the VPS API by default; use local backend URLs only for narrow local debugging.
 
 ## Core Files
 
 - `AGENTS.md`: repository workflow, style, validation, response, and safety rules.
 - `product_spec.md`: full product specification for the adaptive behavioral OS.
 - `readme_agent.md`: this orientation file for future agents.
-- `apps/ios/project.yml`: XcodeGen spec for the iOS app (3 targets: main app, widget, device activity report).
-- `apps/bridge/src/`: Rust backend source code.
-- `src/`: OpenClaw plugin code (secondary path, maintained but not the primary focus).
+- `apps/backend/src/`: Rust backend source code.
+- `apps/ios/project.yml`: XcodeGen spec for the iOS app.
+- `apps/android/`: Android project.
+- `apps/frontend/app/`: React/Next.js frontend lab.
+- `website/tester.html`: backend/frontend simulator.
 
 ## MVP Scope
 
@@ -48,27 +49,48 @@ Do not overbuild multi-agent sophistication before validating the behavioral loo
 
 ## Validation Commands
 
-### Backend (primary)
+Backend:
+
 ```bash
-cargo check --manifest-path apps/bridge/Cargo.toml
-cargo test --manifest-path apps/bridge/Cargo.toml
+cargo check --manifest-path apps/backend/Cargo.toml
+cargo test --manifest-path apps/backend/Cargo.toml
+npm run test:backend-userflows
+npm run test:prompt-snapshots
 ```
 
-### OpenClaw Plugin (secondary)
+Frontend/test utilities:
+
 ```bash
 npm run lint
-npm run typecheck
-npm run build
+npm run frontend:build
+node --check scripts/check-env.mjs
+node --check scripts/test-backend-integrations.mjs
 ```
 
-### iOS App
-- Build via GitHub Actions → TestFlight (`deploy-ios-testflight.yml`)
+To test the VPS backend from the frontend lab without visible backend settings fields:
+
+```bash
+NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN=<admin-token> NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN=<device-token> npm run frontend:dev
+```
+
+Use tokens from `/etc/antirot/backend.env` on the VPS. Do not commit real token values.
+
+iOS:
+
+- Build via GitHub Actions TestFlight workflow.
 - Local: `cd apps/ios && xcodegen generate && open Antirot.xcodeproj`
+
+Android:
+
+```bash
+cd apps/android
+./gradlew assembleDebug
+```
 
 ## Gotchas
 
 - Do not make the coach infinitely harsh. The system must allow negotiated breaks, recovery, vacation mode, sleep, and honest constraint changes.
 - Avoid fake praise. Praise should be rare, specific, and grounded in work history.
+- Backend state is architecture, not user-facing language.
 - Fallbacks must never be silent. Use the repository's required fallback log format when adding runtime code.
 - For non-trivial manual/product verification, add one crisp verification line to `Done.md`.
-- The iOS app has no Mac requirement for development — all builds happen on GitHub Actions `macos-26` runners.
