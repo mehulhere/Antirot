@@ -1,10 +1,8 @@
 {
     "name": "antirot",
     "version": "0.1.0",
-    "description": "AI-powered ADHD accountability coach. Includes an optional OpenClaw plugin for self-hosted setups.",
+    "description": "AI-powered ADHD accountability coach with native apps, a Rust backend, and frontend testing tools.",
     "type": "module",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/mehulhere/Antirot.git"
@@ -13,61 +11,36 @@
         "url": "https://github.com/mehulhere/Antirot/issues"
     },
     "homepage": "https://github.com/mehulhere/Antirot#readme",
-    "files": [
-        "dist",
-        "openclaw.plugin.json",
-        "skills",
-        "README.md",
-        "LICENSE",
-        "LICENSE-AGPL-3.0",
-        "COMMERCIAL-LICENSE.md"
-    ],
     "scripts": {
-        "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit",
         "lint": "eslint .",
-        "test:recent": "npm run build && node scripts/test-recent-alarm-flow.mjs",
-        "test:prompt-snapshots": "cargo test --manifest-path apps/bridge/Cargo.toml prompt::tests:: -- --nocapture",
+        "frontend:dev": "next dev apps/frontend -p 3000",
+        "frontend:build": "next build apps/frontend",
+        "test:prompt-snapshots": "cargo test --manifest-path apps/backend/Cargo.toml prompt::tests:: -- --nocapture",
         "test:backend-userflows": "node scripts/test-backend-userflows-no-llm.mjs",
         "test:backend-userflows-llm": "ANTIROT_RUN_LLM_USERFLOW_TESTS=1 node scripts/test-backend-userflows-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
-        "test:agent-real": "npm run build && node scripts/test-real-agent-chat.mjs",
         "check:env": "node scripts/check-env.mjs",
         "test:backend-integrations": "node scripts/test-backend-integrations.mjs"
-    },
-    "openclaw": {
-        "extensions": [
-            "./dist/index.js"
-        ],
-        "compat": {
-            "pluginApi": ">=2026.5.20",
-            "minGatewayVersion": "2026.5.20"
-        },
-        "build": {
-            "openclawVersion": "2026.5.20",
-            "pluginSdkVersion": "2026.5.20"
-        }
     },
     "keywords": [
         "adhd",
         "accountability",
         "productivity",
-        "coaching",
-        "openclaw",
-        "plugin"
+        "coaching"
     ],
     "license": "AGPL-3.0-or-later OR LicenseRef-commercial",
-    "peerDependencies": {
-        "openclaw": ">=2026.5.20"
-    },
     "dependencies": {
-        "typebox": "^1.0.58"
+        "lucide-react": "^0.468.0",
+        "next": "^15.0.4",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.1",
+        "@types/react": "^19.0.1",
+        "@types/react-dom": "^19.0.2",
         "@types/node": "^22.19.1",
         "eslint": "^9.39.1",
-        "openclaw": "^2026.5.20",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.46.4"
     }

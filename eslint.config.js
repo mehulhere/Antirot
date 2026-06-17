@@ -5,7 +5,7 @@ export default tseslint.config(
     js.configs.recommended,
     ...tseslint.configs.recommended,
     {
-        files: ["**/*.ts"],
+        files: ["**/*.ts", "**/*.tsx"],
         languageOptions: {
             parserOptions: {
                 projectService: {
@@ -21,6 +21,6 @@ export default tseslint.config(
         }
     },
     {
-        ignores: ["dist/**", "node_modules/**", ".firecrawl/**"]
+        ignores: ["dist/**", "node_modules/**", ".firecrawl/**", "apps/frontend/.next/**", "apps/frontend/next-env.d.ts"]
     }
 );

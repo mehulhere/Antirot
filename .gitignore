@@ -1,5 +1,7 @@
 node_modules/
-apps/bridge/target/
+apps/backend/target/
+apps/frontend/.next/
+apps/frontend/tsconfig.tsbuildinfo
 /releases/
 .antirot/
 .env
