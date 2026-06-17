@@ -23,9 +23,9 @@ import {
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL ?? "https://api.antirot.org";
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN ?? "test-admin-token";
-const DEVICE_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN ?? "test-device-token";
+const BACKEND_URL = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL || "https://api.antirot.org";
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN || "test-admin-token";
+const DEVICE_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN || "test-device-token";
 const USER_ID = "admin";
 const DEVICE_ID = "frontend-lab-device";
 
@@ -296,7 +296,7 @@ export default function AntirotLabPage() {
         try {
             await backendJson<{ ok: boolean }>("/v1/health", { method: "GET" }, "");
             setConnection("ok");
-            pushMessage("system", "Backend health is online at http://127.0.0.1:8787.");
+            pushMessage("system", `Backend health is online at ${BACKEND_URL}.`);
         } catch (error) {
             setConnection("fail");
             setTestMode("fail");
@@ -318,7 +318,10 @@ export default function AntirotLabPage() {
             pushMessage("system", "Test fixture reset. Direct state actions are enabled.");
         } catch (error) {
             setTestMode("fail");
-            handleError(error, "Test endpoints are not available");
+            const authHint = ADMIN_TOKEN === "test-admin-token"
+                ? " Start the lab with ANTIROT_ADMIN_TOKEN/NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN set."
+                : "";
+            handleError(error, `Test endpoints are not available.${authHint}`);
         }
 
         await refreshAll();
