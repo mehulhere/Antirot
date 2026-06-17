@@ -50,7 +50,6 @@ pub struct SpeechConfig {
 impl Config {
     pub fn from_env() -> Result<Self> {
         let bind = env::var("ANTIROT_BACKEND_BIND")
-            .or_else(|_| env::var("ANTIROT_BRIDGE_BIND"))
             .unwrap_or_else(|_| "127.0.0.1:8787".to_string())
             .parse()
             .context("ANTIROT_BACKEND_BIND must be a socket address like 127.0.0.1:8787")?;

@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "antirot-bridge"
+name = "antirot-backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",

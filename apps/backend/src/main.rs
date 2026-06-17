@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::from_default_env().add_directive("antirot_bridge=info".parse()?),
+            EnvFilter::from_default_env().add_directive("antirot_backend=info".parse()?),
         )
         .json()
         .init();

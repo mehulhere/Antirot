@@ -174,7 +174,6 @@ async function main() {
         );
         const report = await contextReport(backend.baseUrl, fixture.userId);
         assert.equal(report.ok, true);
-        assert.equal(report.report.mode, "standalone");
         assert.equal(report.report.provider, "gemini");
         assert.equal(report.report.model, "gemini-3.5-flash");
         assert.ok(report.report.systemPromptChars > 1000, "expected non-trivial prompt");
@@ -194,7 +193,6 @@ async function main() {
         const adminReport = await adminContextReport(backend.baseUrl, fixture.userId);
         assert.equal(adminReport.ok, true);
         assert.equal(adminReport.userId, fixture.userId);
-        assert.equal(adminReport.report.mode, "standalone");
         assert.equal(adminReport.sleepMetrics.sleepSampleCount >= 1, true);
         pass("UF-16 production admin context report returns diagnostics");
 

@@ -22,7 +22,6 @@ const env = {
 const baseUrl = normalizeBaseUrl(
     options.baseUrl
     || env.ANTIROT_BACKEND_URL
-    || env.ANTIROT_BRIDGE_URL
     || "http://127.0.0.1:8787"
 );
 const token = options.token || env.ANTIROT_ADMIN_TOKEN || env.ANTIROT_DEVICE_TOKEN || "";
@@ -336,7 +335,7 @@ function printUsage() {
 
 Options:
   --env-file PATH            Env file with ANTIROT_ADMIN_TOKEN and provider keys. Defaults to .env.
-  --base-url URL             Backend URL. Defaults to ANTIROT_BACKEND_URL, ANTIROT_BRIDGE_URL, or http://127.0.0.1:8787.
+  --base-url URL             Backend URL. Defaults to ANTIROT_BACKEND_URL or http://127.0.0.1:8787.
   --token TOKEN              Auth token. Defaults to ANTIROT_ADMIN_TOKEN, then ANTIROT_DEVICE_TOKEN.
   --audio-file PATH          Optional real speech file for STT if TTS is unavailable.
   --audio-content-type TYPE  MIME type for --audio-file. Guessed from extension if omitted.

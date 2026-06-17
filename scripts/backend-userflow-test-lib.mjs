@@ -86,7 +86,7 @@ export async function startBackend(extraEnv = {}) {
         ANTIROT_TAILORED_LLM_KEY: tailoredKey
     };
 
-    const child = spawn("cargo", ["run", "--manifest-path", "apps/bridge/Cargo.toml", "--bin", "antirot-bridge"], {
+    const child = spawn("cargo", ["run", "--manifest-path", "apps/backend/Cargo.toml", "--bin", "antirot-backend"], {
         cwd: repoRoot,
         env,
         stdio: ["ignore", "pipe", "pipe"]

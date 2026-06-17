@@ -19,6 +19,7 @@ const requiredBackendKeys = new Set([
     "ANTIROT_DEVICE_TOKEN",
     "GOOGLE_IOS_CLIENT_ID",
     "ANTIROT_WORKSPACE_ID",
+    "GOOGLE_CLOUD_CREDENTIALS",
     "RUST_LOG",
     "FIREWORKS_BASE_URL",
     "FIREWORKS_AUDIO_BASE_URL",
@@ -27,7 +28,6 @@ const requiredBackendKeys = new Set([
     "ASYNC_BASE_URL",
     "ASYNC_API_KEY",
     "ASYNC_TTS_MODEL",
-    "ASYNC_TTS_VOICE_ID",
     "ANTIROT_MEMORY_EMBEDDING_MODEL",
     "ANTIROT_MEMORY_EMBEDDING_FALLBACK_MODEL",
     "ANTIROT_MEMORY_GEMINI_API_KEY",
@@ -40,6 +40,7 @@ const optionalButUsefulKeys = new Set([
     "ANTIROT_APNS_PRIVATE_KEY_PATH",
     "ANTIROT_APNS_TOPIC",
     "ASYNC_TTS_API_KEY",
+    "ASYNC_TTS_VOICE_ID",
     "ANTIROT_MEMORY_VOYAGE_API_KEY",
 ]);
 
@@ -51,8 +52,8 @@ const optionalKeys = new Set([
     "ANTIROT_JUDGE_MIN_OVERALL",
     "ANTIROT_JUDGE_MIN_DIMENSION",
     "ANTIROT_WORKSPACE_DIR",
-    "ANTIROT_BRIDGE_URL",
-    "ANTIROT_BRIDGE_DEVICE_ID",
+    "ANTIROT_BACKEND_URL",
+    "ANTIROT_BACKEND_DEVICE_ID",
 ]);
 
 function readEnvFile(filePath) {
@@ -102,6 +103,7 @@ function isPlaceholder(value) {
         normalized === "" ||
         normalized.includes("CHANGE_") ||
         normalized.includes("YOUR_") ||
+        normalized.includes("PASTE_") ||
         normalized.includes("change-me") ||
         normalized.includes("XXXXXXXXXX") ||
         normalized === "api.yourdomain.com"
@@ -145,6 +147,7 @@ const exampleKeys = [...example.entries.keys()];
 const missing = [];
 const emptyRequired = [];
 const placeholders = [];
+const optionalPlaceholders = [];
 const optionalEmpty = [];
 const unknown = [];
 const duplicates = [];
@@ -168,11 +171,12 @@ for (const key of exampleKeys) {
         continue;
     }
 
-    if (
-        (optionalButUsefulKeys.has(key) || optionalKeys.has(key)) &&
-        targetEntry.value.trim() === ""
-    ) {
-        optionalEmpty.push(`${key} at line ${targetEntry.line}`);
+    if (optionalButUsefulKeys.has(key) || optionalKeys.has(key)) {
+        if (targetEntry.value.trim() === "") {
+            optionalEmpty.push(`${key} at line ${targetEntry.line}`);
+        } else if (isPlaceholder(targetEntry.value)) {
+            optionalPlaceholders.push(`${key} at line ${targetEntry.line} = ${displayValue(targetEntry.value)}`);
+        }
     }
 }
 
@@ -193,6 +197,7 @@ printGroup("Missing required backend keys", missing);
 printGroup("Required keys with empty values", emptyRequired);
 printGroup("Required keys still using placeholders", placeholders);
 printGroup("Optional/useful keys left empty", optionalEmpty);
+printGroup("Optional/useful keys still using placeholders", optionalPlaceholders);
 printGroup("Unknown keys not present in env.example.txt", unknown);
 printGroup("Duplicate keys", duplicates);
 

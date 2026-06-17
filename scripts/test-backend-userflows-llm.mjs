@@ -28,10 +28,9 @@ const transcriptCachePath = path.resolve(import.meta.dirname, "../.antirot/llm-t
 const quotaBackoffMs = [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000];
 const caseCount = 19;
 const promptFingerprintFiles = [
-    "apps/bridge/src/prompt.rs",
-    "apps/bridge/src/llm.rs",
-    "apps/bridge/tests/fixtures/prompts/standalone.txt",
-    "apps/bridge/tests/fixtures/prompts/openclaw.txt"
+    "apps/backend/src/prompt.rs",
+    "apps/backend/src/llm.rs",
+    "apps/backend/tests/fixtures/prompts/backend.txt"
 ];
 const suiteFingerprintFiles = [
     ...promptFingerprintFiles,

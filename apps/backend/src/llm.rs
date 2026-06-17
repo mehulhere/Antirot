@@ -16,8 +16,8 @@ use crate::memory::{
 };
 use crate::prompt::{
     build_coach_system_prompt, default_memory_for_key, BuiltPrompt, MemorySection,
-    PromptBuildReport, PromptContext, PromptMode, DEFAULT_DAILY_SUMMARY,
-    DEFAULT_MISCELLANEOUS_TODO, DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
+    PromptBuildReport, PromptContext, DEFAULT_DAILY_SUMMARY, DEFAULT_MISCELLANEOUS_TODO,
+    DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
 };
 
 #[derive(Serialize)]
@@ -182,7 +182,7 @@ pub async fn chat_with_coach(
     }
 
     // Resolve LLM key, provider, and model based on subscription tier
-    let (mut api_key, provider, model) = if tier == "byok" {
+    let (mut api_key, provider, model) = if tier == "byok" && user_id != "admin" {
         let key = byok_api_key.unwrap_or_default();
         let prov = byok_provider.unwrap_or_else(|| "openai".to_string());
         let default_model = match prov.as_str() {
@@ -193,27 +193,20 @@ pub async fn chat_with_coach(
         };
         (key, prov, default_model.to_string())
     } else {
-        // Tailored LLM configuration loaded from environment
-        let key = std::env::var("ANTIROT_TAILORED_LLM_KEY").unwrap_or_default();
         let has_vertex_credentials = std::env::var("GOOGLE_CLOUD_CREDENTIALS")
             .ok()
             .is_some_and(|value| !value.trim().is_empty());
-        let prov = if has_vertex_credentials {
-            "vertex".to_string()
-        } else {
-            std::env::var("ANTIROT_TAILORED_LLM_PROVIDER").unwrap_or_else(|_| "gemini".to_string())
-        };
-        let default_model = match prov.as_str() {
-            "vertex" => "google/gemini-3.5-flash",
-            _ => "gemini-3.5-flash",
-        };
-        let mdl = if prov == "vertex" {
-            default_model.to_string()
-        } else {
-            std::env::var("ANTIROT_TAILORED_LLM_MODEL")
-                .unwrap_or_else(|_| default_model.to_string())
-        };
-        (key, prov, mdl)
+        if !has_vertex_credentials {
+            return Err(AppError::BadRequest(
+                "GOOGLE_CLOUD_CREDENTIALS is required for the tailored Vertex coach LLM"
+                    .to_string(),
+            ));
+        }
+        (
+            String::new(),
+            "vertex".to_string(),
+            "google/gemini-3.5-flash".to_string(),
+        )
     };
 
     info!(
@@ -290,12 +283,10 @@ pub async fn chat_with_coach(
     // 3. Assemble system prompt with current memory context.
     let tools = get_tool_definitions();
     let tool_count = tools.as_array().map(|items| items.len()).unwrap_or(0);
-    let prompt_mode = prompt_mode_from_env();
     let built_prompt = build_prompt_for_user(
         &client,
         config,
         user_id,
-        prompt_mode,
         &provider,
         &model,
         tool_count,
@@ -769,19 +760,10 @@ fn contains_high_drift_responsibility_admission(text: &str) -> bool {
     owns_responsibility && admits_work_gap && names_pending && chooses_movie
 }
 
-fn prompt_mode_from_env() -> PromptMode {
-    if std::env::var("ANTIROT_OPENCLAW_MODE").ok().as_deref() == Some("1") {
-        PromptMode::OpenClaw
-    } else {
-        PromptMode::Standalone
-    }
-}
-
 async fn build_prompt_for_user(
     client: &tokio_postgres::Client,
     config: &Config,
     user_id: &str,
-    mode: PromptMode,
     provider: &str,
     model: &str,
     tool_count: usize,
@@ -915,7 +897,6 @@ async fn build_prompt_for_user(
     ];
 
     Ok(build_coach_system_prompt(PromptContext {
-        mode,
         provider: provider.to_string(),
         model: model.to_string(),
         tool_count,
@@ -952,7 +933,6 @@ pub async fn build_context_report(
         &client,
         config,
         user_id,
-        prompt_mode_from_env(),
         provider,
         model,
         tool_count,

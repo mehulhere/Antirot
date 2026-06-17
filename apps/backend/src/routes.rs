@@ -1248,6 +1248,10 @@ async fn synthesize_speech(
         "voice": {
             "mode": "id",
             "id": voice_id
+        },
+        "output_format": {
+            "container": "mp3",
+            "sample_rate": 44100
         }
     });
 
@@ -1262,12 +1266,17 @@ async fn synthesize_speech(
         .send()
         .await?;
     let status = response.status();
-    let content_type = response
+    let provider_content_type = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
+    let content_type = if provider_content_type == "application/octet-stream" {
+        "audio/mpeg".to_string()
+    } else {
+        provider_content_type
+    };
     let bytes = response.bytes().await?;
     if !status.is_success() {
         let body = String::from_utf8_lossy(&bytes);
