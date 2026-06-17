@@ -11,9 +11,9 @@ struct APIClient {
             case .missingServerURL:
                 "Backend URL is invalid. Open Developer Settings and reset it to api.antirot.org."
             case let .invalidResponse(status, body):
-                "Bridge returned HTTP \(status): \(body)"
+                "Backend returned HTTP \(status): \(body)"
             case let .decodeFailed(body):
-                "Bridge returned unexpected JSON: \(body)"
+                "Backend returned unexpected JSON: \(body)"
             }
         }
     }

@@ -70,7 +70,7 @@ struct SettingsView: View {
                     .padding(.vertical, 14)
 
                 Button {
-                    resetBridgeSession()
+                    resetBackendSession()
                 } label: {
                     HStack {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -468,8 +468,8 @@ struct SettingsView: View {
         }
     }
 
-    private func resetBridgeSession() {
-        settings.resetBridgeSession()
+    private func resetBackendSession() {
+        settings.resetBackendSession()
         alarmCenter.lastMessage = "Logged out. Sign in again when you're ready."
         alarmCenter.lastErrorDetails = nil
     }

@@ -57,14 +57,14 @@ public class MainActivity extends android.app.Activity {
         subtitle.setPadding(0, 8, 0, 24);
         root.addView(subtitle);
 
-        TextView bridge = new TextView(this);
-        bridge.setText("Bridge: api.antirot.org");
-        bridge.setTextColor(0xFFA7B0BA);
-        bridge.setPadding(0, 0, 0, 16);
-        root.addView(bridge);
+        TextView backend = new TextView(this);
+        backend.setText("Backend: api.antirot.org");
+        backend.setTextColor(0xFFA7B0BA);
+        backend.setPadding(0, 0, 0, 16);
+        root.addView(backend);
 
         root.addView(button("Register device", this::registerDevice));
-        root.addView(button("Reset local login", this::resetBridgeSession));
+        root.addView(button("Reset local login", this::resetBackendSession));
         root.addView(button("Use auto normal/loud sounds", () -> setAlarmSoundMode(SettingsStore.SOUND_AUTO)));
         root.addView(button("Use bundled normal sound", () -> setAlarmSoundMode(SettingsStore.SOUND_NORMAL)));
         root.addView(button("Use bundled loud sound", () -> setAlarmSoundMode(SettingsStore.SOUND_LOUD)));
@@ -208,28 +208,28 @@ public class MainActivity extends android.app.Activity {
         heading.setPadding(0, 28, 0, 8);
         root.addView(heading);
 
-        serverUrl = input("Antirot bridge URL", settings.getServerUrl());
-        apiToken = input("API token from /etc/antirot/bridge.env", settings.getApiToken());
+        serverUrl = input("Antirot backend URL", settings.getServerUrl());
+        apiToken = input("API token from /etc/antirot/backend.env", settings.getApiToken());
         root.addView(serverUrl);
         root.addView(apiToken);
         root.addView(button("Save developer settings", this::saveSettings));
-        root.addView(button("Reset bridge to api.antirot.org", this::resetBridgeUrl));
-        root.addView(button("Reset bridge session", this::resetBridgeSession));
+        root.addView(button("Reset backend to api.antirot.org", this::resetBackendUrl));
+        root.addView(button("Reset backend session", this::resetBackendSession));
     }
 
-    private void resetBridgeUrl() {
+    private void resetBackendUrl() {
         settings.setServerUrl(SettingsStore.DEFAULT_SERVER_URL);
         if (serverUrl != null) {
             serverUrl.setText(SettingsStore.DEFAULT_SERVER_URL);
         }
-        status.setText("Bridge reset. " + statusText());
+        status.setText("Backend reset. " + statusText());
     }
 
-    private void resetBridgeSession() {
-        settings.resetBridgeSession();
+    private void resetBackendSession() {
+        settings.resetBackendSession();
         serverUrl = null;
         apiToken = null;
-        status.setText("Bridge session reset. Sign in again when Google login is wired here.");
+        status.setText("Backend session reset. Sign in again when Google login is wired here.");
         setContentView(buildView());
     }
 

@@ -70,7 +70,7 @@ final class SettingsStore: ObservableObject {
         Self.normalizedServerURL(serverURL)
     }
 
-    func resetBridgeSession() {
+    func resetBackendSession() {
         serverURL = Self.defaultServerURL
         apiToken = ""
         deviceId = UUID().uuidString
