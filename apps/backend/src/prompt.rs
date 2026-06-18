@@ -70,6 +70,13 @@ pub struct BuiltPrompt {
 }
 
 pub fn default_memory_for_key(key: &str) -> Option<&'static str> {
+    if dated_memory_key(key, "work_log_") {
+        return Some(DEFAULT_WORK_LOG);
+    }
+    if dated_memory_key(key, "work_summary_") {
+        return Some(DEFAULT_DAILY_SUMMARY);
+    }
+
     match key {
         "personality" => Some(DEFAULT_PERSONALITY),
         "user_profile" => Some(DEFAULT_USER_PROFILE),
@@ -89,6 +96,23 @@ pub fn default_memory_for_key(key: &str) -> Option<&'static str> {
 
 pub fn allowed_memory_key(key: &str) -> bool {
     default_memory_for_key(key).is_some()
+}
+
+fn dated_memory_key(key: &str, prefix: &str) -> bool {
+    let Some(date) = key.strip_prefix(prefix) else {
+        return false;
+    };
+    let mut parts = date.split('_');
+    matches!(
+        (parts.next(), parts.next(), parts.next(), parts.next()),
+        (Some(year), Some(month), Some(day), None)
+            if year.len() == 4
+                && month.len() == 2
+                && day.len() == 2
+                && year.chars().all(|char| char.is_ascii_digit())
+                && month.chars().all(|char| char.is_ascii_digit())
+                && day.chars().all(|char| char.is_ascii_digit())
+    )
 }
 
 pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
@@ -272,6 +296,23 @@ mod tests {
             .truncated_sections
             .contains(&"behavior".to_string()));
         assert!(built.system_prompt.contains("Truncated for context budget"));
+    }
+
+    #[test]
+    fn dated_work_memory_keys_are_allowed_with_defaults() {
+        assert!(allowed_memory_key("work_log_2026_06_18"));
+        assert_eq!(
+            default_memory_for_key("work_log_2026_06_18"),
+            Some(DEFAULT_WORK_LOG)
+        );
+        assert!(allowed_memory_key("work_summary_2026_06_18"));
+        assert_eq!(
+            default_memory_for_key("work_summary_2026_06_18"),
+            Some(DEFAULT_DAILY_SUMMARY)
+        );
+        assert!(!allowed_memory_key("work_log_2026_6_18"));
+        assert!(!allowed_memory_key("work_log_2026_06_18_extra"));
+        assert!(!allowed_memory_key("work_log_today"));
     }
 
     #[test]

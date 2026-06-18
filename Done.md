@@ -17,6 +17,7 @@
 - Install the iOS IPA, confirm the `Antirot Current Task` widget appears in the iOS widget picker, add it to Home Screen, then press `Show current task in widget`.
 - Schedule normal and loud test alarms on iOS and Android and verify normal uses `antirot-normal` while loud/urgent uses `antirot-loud` unless a custom sound is selected.
 - In the iOS and Android alarm sound sections, select Auto, bundled normal, bundled loud, and custom sound modes, then verify the scheduled test alarms use the chosen mode.
+- Open the Next.js frontend lab and verify quick prompts and direct state actions only show options allowed by the current runtime state.
 - Deploy `apps/backend` on a VPS behind `api.antirot.org`, register a phone with `ANTIROT_DEVICE_TOKEN`, create an alarm with `ANTIROT_ADMIN_TOKEN`, poll pending alarms from the app, and verify ack/snooze events are stored.
 - Install iOS and Android builds, confirm `https://api.antirot.org` is the default backend, and verify the URL/token fields are hidden under Developer Settings.
 - Upgrade from an older iOS/Android install with a blank saved backend URL and verify registration falls back to `https://api.antirot.org` instead of showing a missing VPS URL error.
@@ -51,5 +52,8 @@
 - Verify nightly memory distillation updates `durable.md` when sleep starts, sleep metrics update after wake logs, semantic memory search returns relevant historical logs once memory is large, and `/v1/admin/context` works with admin auth outside test mode.
 - Verify GitHub Backend CI blocks prompt snapshot drift and runs backend no-LLM userflows against Postgres on pull requests.
 - Run `npm run test:backend-userflows-llm` followed by `CROF_API_KEY=... npm run test:llm-judge-quality`, then review `.antirot/llm-judge-quality-report.json` for Qwen judge scores and issues before treating live LLM output as paid-product ready.
-- Build the iOS app on a real iPhone, verify Coach/Plan/Alarms/Settings render correctly, record a voice check-in through Fireworks STT, send Done/Start/Break buttons through chat, and confirm Async TTS playback after `ASYNC_TTS_VOICE_ID` is configured.
+- Build the iOS app on a real iPhone, verify Coach/Plan/Alarms/Settings render correctly, record a voice check-in through Smallest STT, send Done/Start/Break buttons through chat, and confirm Inworld TTS playback after `INWORLD_TTS_VOICE_ID` is configured.
+- Verify `/v1/speech/transcribe` uses Smallest streaming STT and `/v1/speech/synthesize` returns playable Inworld streaming TTS audio on the VPS.
 - Launch the backend-only VPS setup from `docs/backend-vps-new-user.md` with fresh `antirot` and `antirot-backend` Linux users, then verify `/health`, `/v1/chat`, and `/v1/speech/transcribe` through the public HTTPS domain.
+- Open the VPS frontend lab on its configured port and verify `/`, `/icon.svg`, `main-app.js`, `app-pages-internals.js`, `page.js`, and `layout.css` return 200.
+- Press Speak in the frontend lab and verify browser audio streams through `/v1/speech/transcribe/stream` with live and final Smallest STT transcript updates.

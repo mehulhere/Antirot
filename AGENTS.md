@@ -34,6 +34,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 ## 🧪 Testing
 - There is no formal Jest/Vitest suite yet
 - Since LLM output is nondeterministic, testing and manual quality verification are usually the only reliable ways to validate LLM behavior
+- When scoring LLM/model outputs, research properly, verify the exact current model name/version, score each choice where relevant, and include variance/uncertainty when unsure
 - Default iteration baseline: `npx eslint <changed-files>` and `npx tsc --noEmit`
 - Then run the smallest relevant script or manual flow for the change
 - For any non-trivial task that requires user/product/manual verification, add what the user must verify in `Done.md` as one crisp line
@@ -45,6 +46,10 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 
 ## 💬 Response Format
 - Keep completion summaries crisp
+- Start with a TL;DR summary
+- Use bullet points for long paragraphs
+- When giving options, score each choice
+- Use emojis and tables where they improve readability
 - Always end the final answer with a short bottom line
 - Include these final response sections only when they are needed, and keep this order when more than one is present:
 - `**📝 Changes**`

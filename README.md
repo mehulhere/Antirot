@@ -18,7 +18,7 @@ iOS app / Android app / tester frontend
       Antirot Backend (Rust)
               |
               v
- Vertex Gemini 3.5 Flash, Fireworks STT, Async TTS, Gemini embeddings with Voyage fallback
+ Vertex Gemini 3.5 Flash, Smallest STT, Inworld TTS, Gemini embeddings with Voyage fallback
 ```
 
 State, alarms, memory maintenance, and provider routing are backend-owned. The LLM receives coaching context, not backend control architecture.

@@ -24,7 +24,7 @@ GOOGLE_CLOUD_CREDENTIALS={...vertex service account json...}
 RUST_LOG=antirot_backend=info,tower_http=info
 ```
 
-Provider-backed features also use Fireworks STT, Async TTS, Gemini embeddings, and Voyage fallback embeddings.
+Provider-backed features also use Smallest STT, Inworld TTS, Gemini embeddings, and Voyage fallback embeddings.
 
 ## Run Locally
 

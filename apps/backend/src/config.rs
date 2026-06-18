@@ -37,14 +37,12 @@ pub struct MemoryEmbeddingConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpeechConfig {
-    pub fireworks_base_url: String,
-    pub fireworks_audio_base_url: String,
-    pub fireworks_api_key: Option<String>,
-    pub fireworks_stt_model: String,
-    pub async_base_url: String,
-    pub async_api_key: Option<String>,
-    pub async_tts_model: String,
-    pub async_tts_voice_id: Option<String>,
+    pub smallest_stt_url: String,
+    pub smallest_api_key: Option<String>,
+    pub inworld_base_url: String,
+    pub inworld_api_key: Option<String>,
+    pub inworld_tts_model: String,
+    pub inworld_tts_voice_id: Option<String>,
 }
 
 impl Config {
@@ -79,26 +77,22 @@ impl Config {
 
 fn speech_config() -> SpeechConfig {
     SpeechConfig {
-        fireworks_base_url: env::var("FIREWORKS_BASE_URL")
-            .unwrap_or_else(|_| "https://api.fireworks.ai/inference/v1".to_string()),
-        fireworks_audio_base_url: env::var("FIREWORKS_AUDIO_BASE_URL")
-            .unwrap_or_else(|_| "https://audio-prod.api.fireworks.ai/v1".to_string()),
-        fireworks_api_key: env::var("FIREWORKS_API_KEY")
+        smallest_stt_url: env::var("SMALLEST_STT_URL")
+            .unwrap_or_else(|_| "wss://api.smallest.ai/waves/v1/pulse/get_text".to_string()),
+        smallest_api_key: env::var("SMALLEST_API_KEY")
             .ok()
             .filter(|value| !value.trim().is_empty()),
-        fireworks_stt_model: env::var("FIREWORKS_STT_MODEL")
-            .unwrap_or_else(|_| "whisper-v3".to_string()),
-        async_base_url: env::var("ASYNC_BASE_URL")
-            .unwrap_or_else(|_| "https://api.async.com".to_string()),
-        async_api_key: env::var("ASYNC_API_KEY")
-            .or_else(|_| env::var("ASYNC_TTS_API_KEY"))
+        inworld_base_url: env::var("INWORLD_BASE_URL")
+            .unwrap_or_else(|_| "https://api.inworld.ai".to_string()),
+        inworld_api_key: env::var("INWORLD_API_KEY")
             .ok()
             .filter(|value| !value.trim().is_empty()),
-        async_tts_model: env::var("ASYNC_TTS_MODEL")
-            .unwrap_or_else(|_| "async_flash_v1.5".to_string()),
-        async_tts_voice_id: env::var("ASYNC_TTS_VOICE_ID")
+        inworld_tts_model: env::var("INWORLD_TTS_MODEL")
+            .unwrap_or_else(|_| "inworld-tts-1.5-mini".to_string()),
+        inworld_tts_voice_id: env::var("INWORLD_TTS_VOICE_ID")
             .ok()
-            .filter(|value| !value.trim().is_empty()),
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some("Dennis".to_string())),
     }
 }
 
@@ -228,31 +222,23 @@ mod tests {
     }
 
     #[test]
-    fn speech_config_uses_fireworks_whisper_and_async_flash_defaults() {
-        env::remove_var("FIREWORKS_BASE_URL");
-        env::remove_var("FIREWORKS_AUDIO_BASE_URL");
-        env::remove_var("FIREWORKS_API_KEY");
-        env::remove_var("FIREWORKS_STT_MODEL");
-        env::remove_var("ASYNC_BASE_URL");
-        env::remove_var("ASYNC_API_KEY");
-        env::remove_var("ASYNC_TTS_API_KEY");
-        env::remove_var("ASYNC_TTS_MODEL");
-        env::remove_var("ASYNC_TTS_VOICE_ID");
+    fn speech_config_uses_smallest_and_inworld_defaults() {
+        env::remove_var("SMALLEST_STT_URL");
+        env::remove_var("SMALLEST_API_KEY");
+        env::remove_var("INWORLD_BASE_URL");
+        env::remove_var("INWORLD_API_KEY");
+        env::remove_var("INWORLD_TTS_MODEL");
+        env::remove_var("INWORLD_TTS_VOICE_ID");
 
         let config = speech_config();
         assert_eq!(
-            config.fireworks_base_url,
-            "https://api.fireworks.ai/inference/v1"
+            config.smallest_stt_url,
+            "wss://api.smallest.ai/waves/v1/pulse/get_text"
         );
-        assert_eq!(
-            config.fireworks_audio_base_url,
-            "https://audio-prod.api.fireworks.ai/v1"
-        );
-        assert_eq!(config.fireworks_api_key, None);
-        assert_eq!(config.fireworks_stt_model, "whisper-v3");
-        assert_eq!(config.async_base_url, "https://api.async.com");
-        assert_eq!(config.async_api_key, None);
-        assert_eq!(config.async_tts_model, "async_flash_v1.5");
-        assert_eq!(config.async_tts_voice_id, None);
+        assert_eq!(config.smallest_api_key, None);
+        assert_eq!(config.inworld_base_url, "https://api.inworld.ai");
+        assert_eq!(config.inworld_api_key, None);
+        assert_eq!(config.inworld_tts_model, "inworld-tts-1.5-mini");
+        assert_eq!(config.inworld_tts_voice_id, Some("Dennis".to_string()));
     }
 }

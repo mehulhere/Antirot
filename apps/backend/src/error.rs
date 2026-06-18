@@ -17,6 +17,10 @@ pub enum AppError {
     Pool(#[from] deadpool_postgres::PoolError),
     #[error("network error: {0}")]
     Reqwest(#[from] reqwest::Error),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("invalid header value: {0}")]
+    InvalidHeaderValue(#[from] axum::http::header::InvalidHeaderValue),
 }
 
 #[derive(Serialize)]
@@ -41,6 +45,14 @@ impl IntoResponse for AppError {
             }
             AppError::Reqwest(err) => {
                 tracing::error!(error = %err, "Internal HTTP client error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::Io(err) => {
+                tracing::error!(error = %err, "Internal IO error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::InvalidHeaderValue(err) => {
+                tracing::error!(error = %err, "Internal header error");
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };

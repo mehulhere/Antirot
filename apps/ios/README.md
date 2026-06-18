@@ -71,11 +71,11 @@ If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SD
 
 ## MVP Features
 
-- Voice-first coach home screen with Fireworks Whisper transcription through the backend.
+- Voice-first coach home screen with Smallest streaming transcription through the backend.
 - Quick actions that send normal chat messages instead of bypassing coach policy.
 - Done, Start Working, Need Break, Log Work, Good Night, and Awake actions.
 - Plan page for routine anchors, state actions, and daily review.
-- Async Flash text-to-speech playback through the backend when `ASYNC_TTS_VOICE_ID` is configured.
+- Inworld streaming text-to-speech playback through the backend when `INWORLD_TTS_VOICE_ID` is configured.
 - Register device with the managed backend.
 - Request notification permission.
 - Schedule normal and loud local alarm notifications.
@@ -99,8 +99,8 @@ Buttons and chat intentionally share one backend path. A button sends a short, e
 
 Voice provider defaults:
 
-- STT: Fireworks `whisper-v3` via `FIREWORKS_AUDIO_BASE_URL`.
-- TTS: Async `async_flash_v1.5` via `/text_to_speech/streaming`.
+- STT: Smallest Pulse via `SMALLEST_STT_URL`.
+- TTS: Inworld `inworld-tts-1.5-mini` via `/tts/v1/voice:stream`.
 
 Do not put provider API keys in the iOS bundle. Keep them on the backend and expose only authenticated Antirot speech endpoints to the app.
 

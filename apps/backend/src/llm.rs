@@ -929,16 +929,8 @@ pub async fn build_context_report(
     let client = pool.get().await?;
     let tools = get_tool_definitions();
     let tool_count = tools.as_array().map(|items| items.len()).unwrap_or(0);
-    let built_prompt = build_prompt_for_user(
-        &client,
-        config,
-        user_id,
-        provider,
-        model,
-        tool_count,
-        "",
-    )
-    .await?;
+    let built_prompt =
+        build_prompt_for_user(&client, config, user_id, provider, model, tool_count, "").await?;
     Ok(built_prompt.report)
 }
 

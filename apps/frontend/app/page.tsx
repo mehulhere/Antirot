@@ -31,6 +31,7 @@ const DEVICE_ID = "frontend-lab-device";
 
 type Role = "user" | "coach" | "system";
 type Status = "idle" | "loading" | "ok" | "fail";
+type RuntimeStateName = "onboarding" | "idle" | "working" | "break" | "sleeping" | "vacation" | "unknown";
 
 type ChatMessage = {
     id: string;
@@ -108,6 +109,12 @@ type LabAction = {
     args: Record<string, string | number | boolean | undefined>;
 };
 
+type QuickMessage = {
+    id: string;
+    label: string;
+    text: string;
+};
+
 const memoryTabs = [
     { key: "tasks", label: "Tasks" },
     { key: "routine", label: "Routine" },
@@ -118,14 +125,58 @@ const memoryTabs = [
     { key: "work", label: "Work Log" }
 ];
 
-const quickMessages = [
-    "I am ready to work. Start the next serious work block.",
-    "Done. I finished the current work block. Log it and tell me the next move.",
-    "I need a real break. Help me choose the minimum honest break.",
-    "Good night. Close today and prepare tomorrow.",
-    "I am awake. Log it and tell me the first concrete move.",
-    "I want a 2 hour movie break because I deserve it. Please please."
+const quickMessages: QuickMessage[] = [
+    {
+        id: "ready-work",
+        label: "I am ready to work",
+        text: "I am ready to work. Start the next serious work block."
+    },
+    {
+        id: "done",
+        label: "Done",
+        text: "Done. I finished the current work block. Log it and tell me the next move."
+    },
+    {
+        id: "real-break",
+        label: "I need a real break",
+        text: "I need a real break. Help me choose the minimum honest break."
+    },
+    {
+        id: "good-night",
+        label: "Good night",
+        text: "Good night. Close today and prepare tomorrow."
+    },
+    {
+        id: "awake",
+        label: "I am awake",
+        text: "I am awake. Log it and tell me the first concrete move."
+    },
+    {
+        id: "movie-break",
+        label: "Movie break check",
+        text: "I want a 2 hour movie break because I deserve it. Please please."
+    }
 ];
+
+const quickMessagesByState: Record<RuntimeStateName, string[]> = {
+    onboarding: ["ready-work", "good-night"],
+    idle: ["ready-work", "real-break", "good-night", "movie-break"],
+    working: ["done", "real-break"],
+    break: ["ready-work", "good-night"],
+    sleeping: ["awake"],
+    vacation: [],
+    unknown: []
+};
+
+const actionsByState: Record<RuntimeStateName, string[]> = {
+    onboarding: ["start-work", "sleep", "vacation"],
+    idle: ["start-work", "break", "sleep", "vacation"],
+    working: ["done", "extend-work", "break"],
+    break: ["start-work", "sleep"],
+    sleeping: ["wake"],
+    vacation: ["back"],
+    unknown: []
+};
 
 function nowLabel() {
     return new Date().toLocaleTimeString([], {
@@ -141,6 +192,20 @@ function todayWorkKey() {
     const month = String(today.getUTCMonth() + 1).padStart(2, "0");
     const date = String(today.getUTCDate()).padStart(2, "0");
     return `work_log_${year}_${month}_${date}`;
+}
+
+function runtimeStateName(state?: string): RuntimeStateName {
+    if (
+        state === "onboarding" ||
+        state === "idle" ||
+        state === "working" ||
+        state === "break" ||
+        state === "sleeping" ||
+        state === "vacation"
+    ) {
+        return state;
+    }
+    return "unknown";
 }
 
 async function backendJson<T>(path: string, init: RequestInit = {}, authToken = ADMIN_TOKEN): Promise<T> {
@@ -171,6 +236,40 @@ async function backendJson<T>(path: string, init: RequestInit = {}, authToken = 
     return body as T;
 }
 
+function backendWebSocketUrl(path: string) {
+    const url = new URL(path, BACKEND_URL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    return url.toString();
+}
+
+function downsampleToLinear16(input: Float32Array, inputSampleRate: number, outputSampleRate = 16000) {
+    if (inputSampleRate === outputSampleRate) {
+        return floatToLinear16(input);
+    }
+    const ratio = inputSampleRate / outputSampleRate;
+    const outputLength = Math.floor(input.length / ratio);
+    const output = new Float32Array(outputLength);
+    for (let index = 0; index < outputLength; index += 1) {
+        const start = Math.floor(index * ratio);
+        const end = Math.min(Math.floor((index + 1) * ratio), input.length);
+        let sum = 0;
+        for (let sampleIndex = start; sampleIndex < end; sampleIndex += 1) {
+            sum += input[sampleIndex] ?? 0;
+        }
+        output[index] = sum / Math.max(1, end - start);
+    }
+    return floatToLinear16(output);
+}
+
+function floatToLinear16(input: Float32Array) {
+    const output = new Int16Array(input.length);
+    for (let index = 0; index < input.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, input[index] ?? 0));
+        output[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    return output.buffer;
+}
+
 export default function AntirotLabPage() {
     const [connection, setConnection] = useState<Status>("idle");
     const [testMode, setTestMode] = useState<Status>("idle");
@@ -191,12 +290,15 @@ export default function AntirotLabPage() {
     const [memoryKey, setMemoryKey] = useState("tasks");
     const [memoryContent, setMemoryContent] = useState("Memory will load after the backend connects.");
     const [diagnostics, setDiagnostics] = useState<ContextReport | null>(null);
-    const [lastAudioBlob, setLastAudioBlob] = useState<Blob | null>(null);
+    const [speechStatus, setSpeechStatus] = useState("Streaming S2T ready.");
     const [lastError, setLastError] = useState("");
-    const recorderRef = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const audioStreamRef = useRef<MediaStream | null>(null);
+    const speechSocketRef = useRef<WebSocket | null>(null);
 
-    const stateName = snapshot?.runtimeState?.state ?? "unknown";
+    const stateName = runtimeStateName(snapshot?.runtimeState?.state);
     const stateSource = snapshot?.runtimeState?.sourceTool ?? "none";
 
     const labActions = useMemo<LabAction[]>(
@@ -259,6 +361,14 @@ export default function AntirotLabPage() {
             }
         ],
         []
+    );
+    const visibleQuickMessages = useMemo(
+        () => quickMessages.filter((message) => quickMessagesByState[stateName].includes(message.id)),
+        [stateName]
+    );
+    const visibleLabActions = useMemo(
+        () => labActions.filter((action) => actionsByState[stateName].includes(action.id)),
+        [labActions, stateName]
     );
 
     useEffect(() => {
@@ -445,55 +555,100 @@ export default function AntirotLabPage() {
     }
 
     async function startRecording() {
-        if (!navigator.mediaDevices?.getUserMedia) {
-            handleError(new Error("MediaRecorder is unavailable in this browser."), "Voice capture failed");
+        if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
+            handleError(new Error("Browser audio streaming is unavailable in this browser."), "Voice capture failed");
             return;
         }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            chunksRef.current = [];
-            recorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    chunksRef.current.push(event.data);
+            const socket = new WebSocket(backendWebSocketUrl("/v1/speech/transcribe/stream"));
+            socket.binaryType = "arraybuffer";
+
+            socket.onopen = () => {
+                socket.send(JSON.stringify({ token: ADMIN_TOKEN }));
+                pushMessage("system", "Streaming speech directly to backend S2T.");
+            };
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(String(event.data)) as {
+                        event?: string;
+                        text?: string;
+                        isFinal?: boolean;
+                        error?: string;
+                    };
+                    if (data.event === "transcript" && data.text) {
+                        setDraft(data.text);
+                        setSpeechStatus(data.isFinal ? "Final transcript received." : "Receiving live transcript...");
+                        if (data.isFinal) {
+                            pushMessage("system", `Transcribed voice: ${data.text}`);
+                        }
+                    } else if (data.event === "done") {
+                        setSpeechStatus("Streaming S2T complete.");
+                        cleanupSpeechStream(true);
+                    } else if (data.event === "error") {
+                        cleanupSpeechStream(true);
+                        handleError(new Error(data.error ?? "streaming S2T failed"), "Speech-to-text failed");
+                    }
+                } catch (error) {
+                    cleanupSpeechStream(true);
+                    handleError(error, "Speech-to-text stream failed");
                 }
             };
-            recorder.onstop = () => {
-                stream.getTracks().forEach((track) => track.stop());
-                const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-                setLastAudioBlob(blob);
-                void transcribeBlob(blob);
+            socket.onerror = () => {
+                cleanupSpeechStream(true);
+                handleError(new Error("backend S2T WebSocket failed"), "Speech-to-text failed");
             };
-            recorderRef.current = recorder;
-            recorder.start();
+
+            const audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            const processor = audioContext.createScriptProcessor(4096, 1, 1);
+            processor.onaudioprocess = (event) => {
+                if (socket.readyState !== WebSocket.OPEN) {
+                    return;
+                }
+                const pcm = downsampleToLinear16(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
+                socket.send(pcm);
+            };
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+
+            audioStreamRef.current = stream;
+            audioContextRef.current = audioContext;
+            audioSourceRef.current = source;
+            audioProcessorRef.current = processor;
+            speechSocketRef.current = socket;
             setRecording(true);
+            setSpeechStatus("Streaming microphone audio to backend S2T...");
         } catch (error) {
+            cleanupSpeechStream(true);
             handleError(error, "Voice capture failed");
         }
     }
 
     function stopRecording() {
-        recorderRef.current?.stop();
-        recorderRef.current = null;
+        speechSocketRef.current?.send(JSON.stringify({ event: "stop" }));
+        stopAudioCapture();
+        setSpeechStatus("Finishing streaming transcription...");
         setRecording(false);
     }
 
-    async function transcribeBlob(blob: Blob) {
-        setBusy(true);
-        try {
-            const form = new FormData();
-            form.append("file", blob, "voice.webm");
-            const response = await backendJson<{ ok: boolean; text: string }>("/v1/speech/transcribe", {
-                method: "POST",
-                body: form
-            });
-            setDraft(response.text);
-            pushMessage("system", `Transcribed voice: ${response.text}`);
-        } catch (error) {
-            handleError(error, "Speech-to-text failed");
-        } finally {
-            setBusy(false);
+    function stopAudioCapture() {
+        audioProcessorRef.current?.disconnect();
+        audioSourceRef.current?.disconnect();
+        void audioContextRef.current?.close();
+        audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+        audioProcessorRef.current = null;
+        audioSourceRef.current = null;
+        audioContextRef.current = null;
+        audioStreamRef.current = null;
+    }
+
+    function cleanupSpeechStream(closeSocket = false) {
+        stopAudioCapture();
+        if (closeSocket && speechSocketRef.current?.readyState === WebSocket.OPEN) {
+            speechSocketRef.current.close();
         }
+        speechSocketRef.current = null;
     }
 
     async function speakText(text: string) {
@@ -555,7 +710,7 @@ export default function AntirotLabPage() {
                         <input checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} type="checkbox" />
                         Auto-play coach replies
                     </label>
-                    {lastAudioBlob ? <p className="hint">Last voice sample captured: {Math.round(lastAudioBlob.size / 1024)} KB</p> : null}
+                    <p className="hint">{speechStatus}</p>
                 </article>
 
                 <article className="state-panel">
@@ -591,9 +746,9 @@ export default function AntirotLabPage() {
                         ))}
                     </div>
                     <div className="quick-grid">
-                        {quickMessages.map((message) => (
-                            <button key={message} type="button" onClick={() => void sendChat(message)} disabled={busy}>
-                                {message.split(".")[0]}
+                        {visibleQuickMessages.map((message) => (
+                            <button key={message.id} type="button" onClick={() => void sendChat(message.text)} disabled={busy}>
+                                {message.label}
                             </button>
                         ))}
                     </div>
@@ -614,12 +769,15 @@ export default function AntirotLabPage() {
                     <article className="panel">
                         <PanelHeader icon={<Activity size={18} />} title="Direct state actions" />
                         <div className="action-grid">
-                            {labActions.map((action) => (
+                            {visibleLabActions.map((action) => (
                                 <button key={action.id} type="button" disabled={busy || testMode !== "ok"} onClick={() => void runTool(action)}>
                                     {action.icon}
                                     {action.label}
                                 </button>
                             ))}
+                            {visibleLabActions.length === 0 ? (
+                                <p className="empty">No direct actions for this state.</p>
+                            ) : null}
                         </div>
                     </article>
 

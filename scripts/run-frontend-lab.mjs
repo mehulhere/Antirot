@@ -9,6 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const mode = process.argv[2] ?? "dev";
 const frontendDir = path.join(repoRoot, "apps", "frontend");
 const backendUrl = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL || "https://api.antirot.org";
+const port = process.env.PORT || "3000";
 
 function readDotEnv(filePath) {
     if (!fs.existsSync(filePath)) {
@@ -96,7 +97,7 @@ const tokenSource = vpsEnv.ANTIROT_ADMIN_TOKEN ? "VPS env" : adminToken ? "local
 console.log(`Antirot Lab backend: ${backendUrl}`);
 console.log(`Antirot Lab auth source: ${tokenSource}`);
 
-const nextArgs = mode === "build" ? ["next", "build"] : ["next", "dev", "-p", "3000"];
+const nextArgs = mode === "build" ? ["next", "build"] : ["next", "dev", "-p", port];
 const child = spawn("npx", nextArgs, {
     cwd: frontendDir,
     env: nextEnv,

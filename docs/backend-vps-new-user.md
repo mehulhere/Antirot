@@ -107,15 +107,13 @@ ANTIROT_WORKSPACE_ID=main
 
 GOOGLE_CLOUD_CREDENTIALS=PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE
 
-FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1
-FIREWORKS_AUDIO_BASE_URL=https://audio-prod.api.fireworks.ai/v1
-FIREWORKS_API_KEY=YOUR_FIREWORKS_KEY
-FIREWORKS_STT_MODEL=whisper-v3
+SMALLEST_STT_URL=wss://api.smallest.ai/waves/v1/pulse/get_text
+SMALLEST_API_KEY=YOUR_SMALLEST_KEY
 
-ASYNC_BASE_URL=https://api.async.com
-ASYNC_API_KEY=YOUR_ASYNC_KEY
-ASYNC_TTS_MODEL=async_flash_v1.5
-ASYNC_TTS_VOICE_ID=
+INWORLD_BASE_URL=https://api.inworld.ai
+INWORLD_API_KEY=YOUR_INWORLD_KEY
+INWORLD_TTS_MODEL=inworld-tts-1.5-mini
+INWORLD_TTS_VOICE_ID=Dennis
 
 ANTIROT_MEMORY_EMBEDDING_MODEL=gemini-embedding-001
 ANTIROT_MEMORY_EMBEDDING_FALLBACK_MODEL=voyage-4-large
@@ -131,9 +129,9 @@ Placeholder notes:
 - Replace `CHANGE_LONG_ADMIN_TOKEN` with a long random admin token.
 - Replace `CHANGE_LONG_DEVICE_TOKEN` with a different long random device token.
 - Replace `PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE` with the full Google Vertex service-account JSON content. This is required for coach chat.
-- Replace `YOUR_FIREWORKS_KEY` with the Fireworks API key for speech-to-text.
-- Replace `YOUR_ASYNC_KEY` with the Async API key for text-to-speech.
-- `ASYNC_TTS_VOICE_ID` can stay blank until you have a real Async voice id. TTS will be skipped or fail until it is configured.
+- Replace `YOUR_SMALLEST_KEY` with the Smallest API key for streaming speech-to-text.
+- Replace `YOUR_INWORLD_KEY` with the Inworld API key for streaming text-to-speech.
+- `INWORLD_TTS_VOICE_ID` uses Inworld's `Dennis` voice by default; replace it with another Inworld voice id if you want a different coach voice.
 - Replace `YOUR_GEMINI_KEY` with the Gemini API key used for memory embeddings.
 - Replace `YOUR_VOYAGE_KEY` with the Voyage fallback key.
 
@@ -237,6 +235,40 @@ Placeholder notes:
 - If TTS is not configured yet, pass a real speech file to still test STT: `--audio-file voice.m4a`.
 
 ## 10. Updating The Backend Later
+
+GitHub Actions can deploy backend changes automatically through `.github/workflows/deploy-backend-vps.yml`.
+
+Add these GitHub repository settings:
+
+- Secret `ANTIROT_VPS_SSH_KEY`: private SSH key that can log in as the deploy user.
+- Variable `ANTIROT_VPS_HOST`: VPS hostname, for example `antirot.org`.
+- Variable `ANTIROT_VPS_USER`: deploy Linux user, usually `antirot`.
+
+Placeholder notes:
+
+- `ANTIROT_VPS_SSH_KEY` must be the private half of a key whose public half is in `/home/antirot/.ssh/authorized_keys`.
+- `ANTIROT_VPS_HOST` should be the SSH host for the VPS.
+- `ANTIROT_VPS_USER` should be `antirot` unless you intentionally use another deploy user.
+
+Allow the deploy user to restart only the backend service without an interactive password:
+
+```bash
+sudo visudo -f /etc/sudoers.d/antirot-backend-deploy
+```
+
+Add this exact line:
+
+```text
+antirot ALL=(root) NOPASSWD: /usr/bin/systemctl restart antirot-backend.service, /usr/bin/systemctl status antirot-backend.service --no-pager --full
+```
+
+Placeholder notes:
+
+- Replace `antirot` only if your deploy Linux user has a different name.
+- The GitHub Action uses `sudo -n`, so deployment fails instead of hanging if this sudoers rule is missing.
+- The Action refuses to deploy over a dirty `/opt/antirot` checkout; keep VPS-only experiments outside that worktree.
+
+Manual update path:
 
 ```bash
 su - antirot
