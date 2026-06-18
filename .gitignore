@@ -10,6 +10,8 @@ client_secret_*.apps.googleusercontent.com.json
 .firecrawl/
 test-workspace/
 test-workspace-recent/
+S2T_Test.mp3
+S2T_Test.mp4
 
 # Personal Antirot runtime memory (OpenClaw workspace files).
 # Keep these in a configured workspace, not in the repository.
