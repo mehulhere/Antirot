@@ -87,6 +87,28 @@ struct APIClient {
         )
     }
 
+    func fetchRuntimeState(deviceId: String) async throws -> RuntimeStateResponse {
+        let baseURL = effectiveBaseURL()
+        var components = URLComponents(url: baseURL.appendingPathComponent("/v1/test/state"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "userId", value: "admin"),
+            URLQueryItem(name: "deviceId", value: deviceId)
+        ]
+        guard let url = components?.url else { throw APIError.missingServerURL }
+        var request = URLRequest(url: url)
+        addAuth(to: &request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
+        }
+        do {
+            return try JSONDecoder.antirot.decode(RuntimeStateResponse.self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
+    }
+
     func transcribeAudio(fileURL: URL) async throws -> SpeechTranscriptionResponse {
         let baseURL = effectiveBaseURL()
         let boundary = "Boundary-\(UUID().uuidString)"

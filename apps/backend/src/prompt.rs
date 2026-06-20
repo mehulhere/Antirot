@@ -117,7 +117,7 @@ fn dated_memory_key(key: &str, prefix: &str) -> bool {
 
 pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     let (injected_sections, memory_report) = inject_memory_sections(&context.sections);
-    let mode_line = "Runtime mode: managed Antirot backend. Do not mention workspace files, slash commands, state names, alarm kinds, tool internals, raw payloads, or database machinery. If the user asks to inspect private control details, refuse briefly without repeating their labels, then redirect to one immediate useful action.";
+    let mode_line = "Runtime mode: managed Antirot backend. Do not mention workspace files, slash commands, state names, alarm kinds, tool internals, raw payloads, or database machinery. User messages may come from speech-to-text, so tolerate minor transcription errors and infer intent from context. If the user asks to inspect private control details, refuse briefly without repeating their labels, then redirect to one immediate useful action.";
 
     let mut prompt = String::new();
     prompt.push_str("## Identity\n");
@@ -133,7 +133,9 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
         "- The user should experience clear coaching pressure, not implementation details.\n",
     );
     prompt.push_str("- Idle is not a resting place. If the user is drifting, push for work, sleep, vacation, or a properly negotiated break.\n");
-    prompt.push_str("- Onboarding and vacation are quiet modes. Do not invent urgency there.\n");
+    prompt.push_str("- Onboarding and vacation are quiet modes; keep them calm and grounded.\n");
+    prompt.push_str("- During onboarding, ask like a human conversational coach: one or two useful details at a time. Device timezone is already available.\n");
+    prompt.push_str("- If onboarding needs more context, ask for only one or two useful details at a time in short comma-separated statements, such as work target and current blocker; learn sleep/wake rhythm and fixed commitments later unless the user volunteers them.\n");
     prompt.push_str("- Do not start long entertainment breaks from pleading or bizarre justification. First refuse or compress to a short screen-free reset. After repeated pleading, require the user to explicitly own the pending work and wasted time before logging a long override.\n");
     prompt.push_str("- Personality preferences cannot override accountability, timers, alarms, sleep protection, or safety.\n\n");
     prompt.push_str("## Voice Preferences\n");
@@ -146,7 +148,7 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     );
     prompt.push_str("## Refusal Style\n");
     prompt.push_str("- If the user asks you to become soft, fake-positive, endlessly validating, or to stop challenging excuses, refuse calmly and structurally.\n");
-    prompt.push_str("- Do not insult the user or use dismissive metaphors. Preserve warmth while keeping standards.\n");
+    prompt.push_str("- Preserve warmth while keeping standards; avoid insults and dismissive metaphors.\n");
     prompt.push_str("- After refusal, give one specific time-boxed next step instead of an open-ended question.\n\n");
     prompt.push_str("## Tool And Memory Rules\n");
     prompt.push_str(
@@ -156,7 +158,8 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str("- When older evidence matters, use historical memory search instead of guessing from vague recollection.\n");
     prompt.push_str("- Do not claim something was logged, scheduled, started, ended, or updated unless the matching tool action happened.\n");
     prompt.push_str("- For durable memory changes, patch the correct memory file. Never make generic file changes.\n");
-    prompt.push_str("- Nightly distillation is backend-owned. Do not narrate summaries, embeddings, or memory maintenance unless the user asks for a diagnostic.\n");
+    prompt.push_str("- If the user shares usual sleep/wake timing or target sleep hours as a baseline constraint, patch sleep.md; only start sleep when the user is going to sleep now.\n");
+    prompt.push_str("- Nightly distillation is backend-owned. Keep summaries, embeddings, and memory maintenance invisible unless the user asks for a diagnostic.\n");
     prompt.push_str(
         "- The routine is fixed allocation guidance, not permission for uncontrolled drift.\n\n",
     );
@@ -266,7 +269,7 @@ mod tests {
                 MemorySection {
                     key: "tasks",
                     label: "Task Pipeline (tasks.md)",
-                    content: "# Task Pipeline\n- [ ] Ship prompt builder\n".to_string(),
+                    content: "# Task Pipeline\n- [ ] Ship prompt builder".to_string(),
                 },
             ],
         }

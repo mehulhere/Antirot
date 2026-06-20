@@ -22,12 +22,21 @@ import {
 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { MicVAD } from "@ricky0123/vad-web";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL || "https://api.antirot.org";
 const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN || "test-admin-token";
 const DEVICE_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN || "test-device-token";
 const USER_ID = "admin";
 const DEVICE_ID = "frontend-lab-device";
+const VAD_SAMPLE_RATE = 16000;
+const VAD_MIN_UPLOAD_SECONDS = 10;
+const VAD_PREFERRED_UPLOAD_SECONDS = 30;
+const VAD_HARD_UPLOAD_SECONDS = 60;
+const VAD_SETTLED_SILENCE_MS = 1500;
+const MAX_VISIBLE_MESSAGES = 3;
+const ONBOARDING_NAME_STORAGE_KEY = "antirot:onboardingName";
+const ONBOARDING_NAME_SENT_STORAGE_KEY = "antirot:onboardingNameSent";
 
 type Role = "user" | "coach" | "system";
 type Status = "idle" | "loading" | "ok" | "fail";
@@ -113,6 +122,20 @@ type QuickMessage = {
     id: string;
     label: string;
     text: string;
+};
+
+type SpeechChunkItem = {
+    blob: Blob;
+    reason: string;
+    seconds: number;
+    sequence: number;
+};
+
+type SpeechTranscriptResult = {
+    text: string;
+    seconds: number;
+    reason: string;
+    error?: string;
 };
 
 const memoryTabs = [
@@ -236,38 +259,40 @@ async function backendJson<T>(path: string, init: RequestInit = {}, authToken = 
     return body as T;
 }
 
-function backendWebSocketUrl(path: string) {
-    const url = new URL(path, BACKEND_URL);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    return url.toString();
+function concatFloat32(chunks: Float32Array[]) {
+    const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
+    const combined = new Float32Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+    }
+    return combined;
 }
 
-function downsampleToLinear16(input: Float32Array, inputSampleRate: number, outputSampleRate = 16000) {
-    if (inputSampleRate === outputSampleRate) {
-        return floatToLinear16(input);
-    }
-    const ratio = inputSampleRate / outputSampleRate;
-    const outputLength = Math.floor(input.length / ratio);
-    const output = new Float32Array(outputLength);
-    for (let index = 0; index < outputLength; index += 1) {
-        const start = Math.floor(index * ratio);
-        const end = Math.min(Math.floor((index + 1) * ratio), input.length);
-        let sum = 0;
-        for (let sampleIndex = start; sampleIndex < end; sampleIndex += 1) {
-            sum += input[sampleIndex] ?? 0;
-        }
-        output[index] = sum / Math.max(1, end - start);
-    }
-    return floatToLinear16(output);
+function onboardingMessage(name: string) {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
+    return [
+        "The user just shared their name during onboarding. Save it, then continue like a conversational coach.",
+        "Device timezone is already available below.",
+        "Ask for the rest gradually, one or two useful details at a time, in natural comma-separated statements instead of a numbered checklist.",
+        `Name: ${name || "not provided"}`,
+        `Device timezone: ${timezone}`
+    ].join("\n");
 }
 
-function floatToLinear16(input: Float32Array) {
-    const output = new Int16Array(input.length);
-    for (let index = 0; index < input.length; index += 1) {
-        const sample = Math.max(-1, Math.min(1, input[index] ?? 0));
-        output[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+function loadCachedOnboardingName() {
+    if (typeof window === "undefined") {
+        return "";
     }
-    return output.buffer;
+    return window.localStorage.getItem(ONBOARDING_NAME_STORAGE_KEY) ?? "";
+}
+
+function loadCachedNamePromptSent() {
+    if (typeof window === "undefined") {
+        return false;
+    }
+    return window.localStorage.getItem(ONBOARDING_NAME_SENT_STORAGE_KEY) === "true" || Boolean(loadCachedOnboardingName());
 }
 
 export default function AntirotLabPage() {
@@ -285,21 +310,27 @@ export default function AntirotLabPage() {
         }
     ]);
     const [draft, setDraft] = useState("");
+    const [onboardingName, setOnboardingName] = useState(loadCachedOnboardingName);
+    const [namePromptSent, setNamePromptSent] = useState(loadCachedNamePromptSent);
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
     const [pendingAlarms, setPendingAlarms] = useState<PendingAlarm[]>([]);
     const [memoryKey, setMemoryKey] = useState("tasks");
     const [memoryContent, setMemoryContent] = useState("Memory will load after the backend connects.");
     const [diagnostics, setDiagnostics] = useState<ContextReport | null>(null);
-    const [speechStatus, setSpeechStatus] = useState("Streaming S2T ready.");
+    const [speechStatus, setSpeechStatus] = useState("VAD speech chunks ready.");
     const [lastError, setLastError] = useState("");
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
-    const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const audioStreamRef = useRef<MediaStream | null>(null);
-    const speechSocketRef = useRef<WebSocket | null>(null);
+    const vadRef = useRef<MicVAD | null>(null);
+    const vadBufferRef = useRef<Float32Array[]>([]);
+    const vadBufferSecondsRef = useRef(0);
+    const vadFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const nextSpeechSequenceRef = useRef(0);
+    const nextTranscriptSequenceRef = useRef(0);
+    const pendingTranscriptResultsRef = useRef(new Map<number, SpeechTranscriptResult>());
+    const speechInFlightRef = useRef(0);
 
     const stateName = runtimeStateName(snapshot?.runtimeState?.state);
     const stateSource = snapshot?.runtimeState?.sourceTool ?? "none";
+    const showNamePrompt = (stateName === "onboarding" || stateName === "unknown") && !namePromptSent;
 
     const labActions = useMemo<LabAction[]>(
         () => [
@@ -373,6 +404,9 @@ export default function AntirotLabPage() {
 
     useEffect(() => {
         void bootLab();
+        return () => {
+            void cleanupVad();
+        };
     }, []);
 
     useEffect(() => {
@@ -390,7 +424,11 @@ export default function AntirotLabPage() {
                 text,
                 at: nowLabel()
             }
-        ]);
+        ].slice(-MAX_VISIBLE_MESSAGES));
+    }
+
+    function removeMessage(id: string) {
+        setMessages((current) => current.filter((message) => message.id !== id));
     }
 
     function handleError(error: unknown, fallback: string) {
@@ -487,14 +525,15 @@ export default function AntirotLabPage() {
         }
     }
 
-    async function sendChat(text: string) {
+    async function sendChat(text: string, visibleText = text) {
         const trimmed = text.trim();
         if (!trimmed || busy) {
             return;
         }
+        const visible = visibleText.trim();
         setBusy(true);
         setDraft("");
-        pushMessage("user", trimmed);
+        pushMessage("user", visible || trimmed);
         try {
             const reply = await backendJson<{ ok: boolean; reply: string }>("/v1/chat", {
                 method: "POST",
@@ -515,6 +554,18 @@ export default function AntirotLabPage() {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         await sendChat(draft);
+    }
+
+    async function submitOnboarding(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const name = onboardingName.trim();
+        if (!name) {
+            return;
+        }
+        window.localStorage.setItem(ONBOARDING_NAME_STORAGE_KEY, name);
+        window.localStorage.setItem(ONBOARDING_NAME_SENT_STORAGE_KEY, "true");
+        setNamePromptSent(true);
+        await sendChat(onboardingMessage(name), `My name is ${name}.`);
     }
 
     async function runTool(action: LabAction) {
@@ -555,100 +606,182 @@ export default function AntirotLabPage() {
     }
 
     async function startRecording() {
-        if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
-            handleError(new Error("Browser audio streaming is unavailable in this browser."), "Voice capture failed");
+        if (!navigator.mediaDevices?.getUserMedia) {
+            handleError(new Error("Microphone capture is unavailable in this browser."), "Voice capture failed");
             return;
         }
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const socket = new WebSocket(backendWebSocketUrl("/v1/speech/transcribe/stream"));
-            socket.binaryType = "arraybuffer";
-
-            socket.onopen = () => {
-                socket.send(JSON.stringify({ token: ADMIN_TOKEN }));
-                pushMessage("system", "Streaming speech directly to backend S2T.");
-            };
-            socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(String(event.data)) as {
-                        event?: string;
-                        text?: string;
-                        isFinal?: boolean;
-                        error?: string;
-                    };
-                    if (data.event === "transcript" && data.text) {
-                        setDraft(data.text);
-                        setSpeechStatus(data.isFinal ? "Final transcript received." : "Receiving live transcript...");
-                        if (data.isFinal) {
-                            pushMessage("system", `Transcribed voice: ${data.text}`);
-                        }
-                    } else if (data.event === "done") {
-                        setSpeechStatus("Streaming S2T complete.");
-                        cleanupSpeechStream(true);
-                    } else if (data.event === "error") {
-                        cleanupSpeechStream(true);
-                        handleError(new Error(data.error ?? "streaming S2T failed"), "Speech-to-text failed");
+            clearVadFlushTimer();
+            vadBufferRef.current = [];
+            vadBufferSecondsRef.current = 0;
+            const { MicVAD: BrowserMicVAD, utils } = await import("@ricky0123/vad-web");
+            const vad = await BrowserMicVAD.new({
+                model: "v5",
+                baseAssetPath: "/vad/",
+                onnxWASMBasePath: "/vad/",
+                positiveSpeechThreshold: 0.48,
+                negativeSpeechThreshold: 0.32,
+                preSpeechPadMs: 500,
+                redemptionMs: 1800,
+                minSpeechMs: 1000,
+                submitUserSpeechOnPause: true,
+                onSpeechStart: () => {
+                    clearVadFlushTimer();
+                    setSpeechStatus("Listening: speech detected...");
+                },
+                onSpeechRealStart: () => setSpeechStatus("Capturing utterance..."),
+                onVADMisfire: () => setSpeechStatus("Ignored a very short voice blip."),
+                onSpeechEnd: (audio) => {
+                    vadBufferRef.current.push(audio);
+                    vadBufferSecondsRef.current += audio.length / VAD_SAMPLE_RATE;
+                    const bufferedSeconds = vadBufferSecondsRef.current;
+                    if (bufferedSeconds >= VAD_HARD_UPLOAD_SECONDS || bufferedSeconds >= VAD_PREFERRED_UPLOAD_SECONDS) {
+                        void flushVadBuffer(utils.encodeWAV, "vad-threshold");
+                    } else if (bufferedSeconds >= VAD_MIN_UPLOAD_SECONDS) {
+                        setSpeechStatus(`Buffered ${bufferedSeconds.toFixed(1)}s. Waiting for settled silence...`);
+                        scheduleVadFlush(utils.encodeWAV);
+                    } else {
+                        setSpeechStatus(`Buffered ${bufferedSeconds.toFixed(1)}s. Minimum chunk is ${VAD_MIN_UPLOAD_SECONDS}s.`);
                     }
-                } catch (error) {
-                    cleanupSpeechStream(true);
-                    handleError(error, "Speech-to-text stream failed");
                 }
-            };
-            socket.onerror = () => {
-                cleanupSpeechStream(true);
-                handleError(new Error("backend S2T WebSocket failed"), "Speech-to-text failed");
-            };
-
-            const audioContext = new AudioContext();
-            const source = audioContext.createMediaStreamSource(stream);
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
-            processor.onaudioprocess = (event) => {
-                if (socket.readyState !== WebSocket.OPEN) {
-                    return;
-                }
-                const pcm = downsampleToLinear16(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
-                socket.send(pcm);
-            };
-            source.connect(processor);
-            processor.connect(audioContext.destination);
-
-            audioStreamRef.current = stream;
-            audioContextRef.current = audioContext;
-            audioSourceRef.current = source;
-            audioProcessorRef.current = processor;
-            speechSocketRef.current = socket;
+            });
+            vadRef.current = vad;
+            await vad.start();
             setRecording(true);
-            setSpeechStatus("Streaming microphone audio to backend S2T...");
+            setSpeechStatus("VAD listening. Speak naturally.");
         } catch (error) {
-            cleanupSpeechStream(true);
+            await cleanupVad();
             handleError(error, "Voice capture failed");
         }
     }
 
-    function stopRecording() {
-        speechSocketRef.current?.send(JSON.stringify({ event: "stop" }));
-        stopAudioCapture();
-        setSpeechStatus("Finishing streaming transcription...");
+    async function stopRecording() {
+        await cleanupVad();
+        await flushVadBufferFromPackage("manual-stop");
+        if (speechInFlightRef.current === 0) {
+            setSpeechStatus("VAD stopped.");
+        }
         setRecording(false);
     }
 
-    function stopAudioCapture() {
-        audioProcessorRef.current?.disconnect();
-        audioSourceRef.current?.disconnect();
-        void audioContextRef.current?.close();
-        audioStreamRef.current?.getTracks().forEach((track) => track.stop());
-        audioProcessorRef.current = null;
-        audioSourceRef.current = null;
-        audioContextRef.current = null;
-        audioStreamRef.current = null;
+    async function cleanupVad() {
+        clearVadFlushTimer();
+        if (vadRef.current) {
+            await vadRef.current.pause();
+            await vadRef.current.destroy();
+            vadRef.current = null;
+        }
     }
 
-    function cleanupSpeechStream(closeSocket = false) {
-        stopAudioCapture();
-        if (closeSocket && speechSocketRef.current?.readyState === WebSocket.OPEN) {
-            speechSocketRef.current.close();
+    function clearVadFlushTimer() {
+        if (vadFlushTimerRef.current) {
+            clearTimeout(vadFlushTimerRef.current);
+            vadFlushTimerRef.current = null;
         }
-        speechSocketRef.current = null;
+    }
+
+    function scheduleVadFlush(encodeWAV: (samples: Float32Array, format?: number, sampleRate?: number, numChannels?: number, bitDepth?: number) => ArrayBuffer) {
+        clearVadFlushTimer();
+        vadFlushTimerRef.current = setTimeout(() => {
+            void flushVadBuffer(encodeWAV, "settled-silence");
+        }, VAD_SETTLED_SILENCE_MS);
+    }
+
+    async function flushVadBufferFromPackage(reason: string) {
+        if (!vadBufferRef.current.length) {
+            return;
+        }
+        const { utils } = await import("@ricky0123/vad-web");
+        await flushVadBuffer(utils.encodeWAV, reason);
+    }
+
+    async function flushVadBuffer(
+        encodeWAV: (samples: Float32Array, format?: number, sampleRate?: number, numChannels?: number, bitDepth?: number) => ArrayBuffer,
+        reason: string
+    ) {
+        clearVadFlushTimer();
+        const chunks = vadBufferRef.current;
+        const seconds = vadBufferSecondsRef.current;
+        if (!chunks.length) {
+            return;
+        }
+        vadBufferRef.current = [];
+        vadBufferSecondsRef.current = 0;
+        const audio = concatFloat32(chunks);
+        const wav = encodeWAV(audio, 1, VAD_SAMPLE_RATE, 1, 16);
+        const blob = new Blob([wav], { type: "audio/wav" });
+        startSpeechTranscription({ blob, seconds, reason, sequence: nextSpeechSequenceRef.current });
+        nextSpeechSequenceRef.current += 1;
+    }
+
+    function startSpeechTranscription(item: SpeechChunkItem) {
+        speechInFlightRef.current += 1;
+        setSpeechStatus(`Transcribing ${speechInFlightRef.current} speech chunk(s)...`);
+        void transcribeVadBlob(item);
+    }
+
+    function updateSpeechStatus() {
+        const inFlight = speechInFlightRef.current;
+        const waiting = pendingTranscriptResultsRef.current.size;
+        if (inFlight > 0 && waiting > 0) {
+            setSpeechStatus(`Transcribing ${inFlight} chunk(s). ${waiting} result(s) waiting for earlier audio.`);
+        } else if (inFlight > 0) {
+            setSpeechStatus(`Transcribing ${inFlight} speech chunk(s)...`);
+        } else if (waiting > 0) {
+            setSpeechStatus(`${waiting} speech result(s) waiting for earlier audio.`);
+        } else {
+            setSpeechStatus("Speech chunks transcribed.");
+        }
+    }
+
+    function flushOrderedSpeechResults() {
+        while (pendingTranscriptResultsRef.current.has(nextTranscriptSequenceRef.current)) {
+            const result = pendingTranscriptResultsRef.current.get(nextTranscriptSequenceRef.current);
+            pendingTranscriptResultsRef.current.delete(nextTranscriptSequenceRef.current);
+            nextTranscriptSequenceRef.current += 1;
+            if (!result) {
+                continue;
+            }
+            if (result.error) {
+                pushMessage("system", `Speech-to-text failed: ${result.error}`);
+                continue;
+            }
+            if (!result.text) {
+                pushMessage("system", `No transcript returned for ${result.seconds.toFixed(1)}s voice chunk.`);
+                continue;
+            }
+            setDraft((current) => (current.trim() ? `${current.trim()} ${result.text}` : result.text));
+            pushMessage("system", `Transcribed voice: ${result.text}`);
+        }
+        updateSpeechStatus();
+    }
+
+    async function transcribeVadBlob({ blob, seconds, reason, sequence }: SpeechChunkItem) {
+        try {
+            const form = new FormData();
+            form.append("file", blob, "voice-segment.wav");
+            const response = await backendJson<{ ok: boolean; text: string }>("/v1/speech/transcribe", {
+                method: "POST",
+                body: form
+            });
+            pendingTranscriptResultsRef.current.set(sequence, {
+                text: response.text.trim(),
+                seconds,
+                reason
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Speech-to-text failed";
+            setLastError(message);
+            pendingTranscriptResultsRef.current.set(sequence, {
+                text: "",
+                seconds,
+                reason,
+                error: message
+            });
+        } finally {
+            speechInFlightRef.current = Math.max(0, speechInFlightRef.current - 1);
+            flushOrderedSpeechResults();
+        }
     }
 
     async function speakText(text: string) {
@@ -672,6 +805,25 @@ export default function AntirotLabPage() {
 
     return (
         <main className="lab-shell">
+            {showNamePrompt ? (
+                <div className="name-modal-backdrop">
+                    <form className="name-modal" onSubmit={(event) => void submitOnboarding(event)}>
+                        <PanelHeader icon={<Brain size={18} />} title="Your name" />
+                        <div className="name-modal-body">
+                            <input
+                                autoFocus
+                                value={onboardingName}
+                                onChange={(event) => setOnboardingName(event.target.value)}
+                                placeholder="Name"
+                            />
+                            <button type="submit" disabled={busy || !onboardingName.trim()}>
+                                {busy ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
+                                Continue
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            ) : null}
             <section className="topbar">
                 <div>
                     <p className="eyebrow">Antirot Lab</p>
@@ -697,7 +849,7 @@ export default function AntirotLabPage() {
                         <p className="muted">Speak first, type only when needed. This page tests the same backend paths the apps rely on.</p>
                     </div>
                     <div className="voice-controls">
-                        <button className="primary-button" type="button" onClick={recording ? stopRecording : startRecording}>
+                        <button className="primary-button" type="button" onClick={() => void (recording ? stopRecording() : startRecording())}>
                             {recording ? <Square size={18} /> : <Mic size={18} />}
                             {recording ? "Stop" : "Speak"}
                         </button>
@@ -740,6 +892,14 @@ export default function AntirotLabPage() {
                     <div className="chat-log">
                         {messages.map((message) => (
                             <div className={`message ${message.role}`} key={message.id}>
+                                <button
+                                    aria-label="Remove message"
+                                    className="message-close"
+                                    onClick={() => removeMessage(message.id)}
+                                    type="button"
+                                >
+                                    ×
+                                </button>
                                 <p>{message.text}</p>
                                 <span>{message.role === "coach" ? "Antirot" : message.role} / {message.at}</span>
                             </div>
@@ -753,6 +913,15 @@ export default function AntirotLabPage() {
                         ))}
                     </div>
                     <form className="composer" onSubmit={(event) => void handleSubmit(event)}>
+                        <button
+                            aria-label={recording ? "Stop voice input" : "Start voice input"}
+                            className="composer-speak"
+                            onClick={() => void (recording ? stopRecording() : startRecording())}
+                            type="button"
+                        >
+                            {recording ? <Square size={18} /> : <Mic size={18} />}
+                            {recording ? "Stop" : "Speak"}
+                        </button>
                         <input
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}

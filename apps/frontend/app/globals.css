@@ -37,7 +37,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
     font: inherit;
 }
 
@@ -329,7 +330,7 @@ button:hover:not(:disabled) {
 .chat-panel {
     min-height: 700px;
     display: grid;
-    grid-template-rows: auto 1fr auto auto;
+    grid-template-rows: auto minmax(260px, 1fr) auto auto;
     overflow: hidden;
 }
 
@@ -356,15 +357,17 @@ button:hover:not(:disabled) {
 }
 
 .chat-log {
-    height: 478px;
+    min-height: 300px;
+    max-height: 478px;
     overflow: auto;
-    padding: 18px;
+    padding: 10px 18px 18px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
 .message {
+    position: relative;
     max-width: 78%;
     padding: 12px 14px;
     border: 1px solid var(--line);
@@ -372,7 +375,81 @@ button:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.05);
 }
 
+.name-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(10px);
+}
+
+.name-modal {
+    width: min(420px, 100%);
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    background: var(--bg-panel-solid);
+    box-shadow: var(--shadow);
+}
+
+.name-modal-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 126px;
+    gap: 10px;
+    padding: 18px;
+}
+
+.name-modal input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0 14px;
+    outline: none;
+}
+
+.name-modal input:focus {
+    border-color: rgba(56, 189, 248, 0.6);
+}
+
+.name-modal button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 1px solid rgba(239, 68, 68, 0.72);
+    border-radius: var(--radius);
+    color: var(--text);
+    background: var(--red);
+    font-weight: 800;
+}
+
+.message-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.24);
+    line-height: 1;
+}
+
+.message-close:hover:not(:disabled) {
+    color: var(--text);
+    background: rgba(239, 68, 68, 0.28);
+}
+
 .message p {
+    padding-right: 30px;
     margin-bottom: 8px;
     line-height: 1.45;
     white-space: pre-wrap;
@@ -405,22 +482,31 @@ button:hover:not(:disabled) {
 
 .quick-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
+    align-items: center;
+    justify-content: start;
     gap: 8px;
     padding: 0 18px 14px;
 }
 
 .quick-grid button {
-    padding: 9px;
+    min-height: 38px;
+    padding: 8px 12px;
     color: var(--muted);
+    white-space: nowrap;
 }
 
 .composer {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 118px;
+    grid-template-columns: 118px minmax(0, 1fr) 118px;
     gap: 10px;
     padding: 18px;
     border-top: 1px solid var(--line);
+}
+
+.composer .composer-speak {
+    border-color: rgba(56, 189, 248, 0.52);
+    background: rgba(56, 189, 248, 0.14);
 }
 
 .composer input {

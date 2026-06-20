@@ -1,6 +1,5 @@
 use std::time::Duration as StdDuration;
 
-use axum::extract::ws::{Message as ClientWsMessage, WebSocket, WebSocketUpgrade};
 use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
@@ -9,17 +8,10 @@ use axum::{Json, Router};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::process::Stdio;
-use tokio::process::Command;
-use tokio::sync::mpsc;
-use tokio::time::{timeout, Instant};
 use tokio_postgres::Row;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::Message;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -53,6 +45,7 @@ struct PendingQuery {
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/", get(api_info))
         .route("/health", get(health))
         .route("/auth/google", post(auth_google))
         .route("/pairing/claim", post(claim_pairing))
@@ -71,12 +64,12 @@ pub fn router() -> Router<AppState> {
         .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
         .route("/speech/transcribe", post(transcribe_speech))
-        .route("/speech/transcribe/stream", get(transcribe_speech_stream))
         .route("/speech/synthesize", post(synthesize_speech))
         .route("/test/reset", post(test_reset))
         .route("/test/tool", post(test_tool))
         .route("/test/state", get(test_state))
         .route("/test/context", get(test_context))
+        .route("/v1", get(api_info))
         .route("/v1/health", get(health))
         .route("/v1/auth/google", post(auth_google))
         .route("/v1/pairing/claim", post(claim_pairing))
@@ -98,15 +91,20 @@ pub fn router() -> Router<AppState> {
         .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
         .route("/v1/speech/transcribe", post(transcribe_speech))
-        .route(
-            "/v1/speech/transcribe/stream",
-            get(transcribe_speech_stream),
-        )
         .route("/v1/speech/synthesize", post(synthesize_speech))
         .route("/v1/test/reset", post(test_reset))
         .route("/v1/test/tool", post(test_tool))
         .route("/v1/test/state", get(test_state))
         .route("/v1/test/context", get(test_context))
+}
+
+async fn api_info() -> Json<Value> {
+    Json(json!({
+        "ok": true,
+        "service": "antirot-backend",
+        "health": "/v1/health",
+        "version": "v1"
+    }))
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -1170,11 +1168,15 @@ async fn transcribe_speech(
         file_name,
         content_type,
         byte_count = bytes.len(),
-        "transcribing uploaded speech with Smallest streaming STT"
+        "transcribing VAD speech segment with Smallest Pulse HTTP STT"
     );
-    let pcm = transcode_audio_to_linear16(&file_name, &bytes).await?;
-    let text =
-        transcribe_smallest_streaming(&state.config.speech.smallest_stt_url, api_key, &pcm).await?;
+    let text = transcribe_smallest_prerecorded(
+        &state.config.speech.smallest_stt_url,
+        api_key,
+        content_type,
+        bytes,
+    )
+    .await?;
     if text.is_empty() {
         return Err(AppError::BadRequest(
             "Smallest returned an empty transcription".to_string(),
@@ -1182,192 +1184,6 @@ async fn transcribe_speech(
     }
 
     Ok(Json(SpeechTranscriptionResponse { ok: true, text }))
-}
-
-async fn transcribe_speech_stream(
-    State(state): State<AppState>,
-    ws: WebSocketUpgrade,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_transcribe_speech_stream(socket, state))
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SpeechStreamStart {
-    token: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SpeechStreamEvent<'a> {
-    event: &'a str,
-    text: &'a str,
-    is_final: bool,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SpeechStreamError<'a> {
-    event: &'a str,
-    error: &'a str,
-}
-
-async fn handle_transcribe_speech_stream(mut socket: WebSocket, state: AppState) {
-    let Some(Ok(ClientWsMessage::Text(raw_start))) = socket.recv().await else {
-        let _ = send_speech_stream_error(&mut socket, "missing start message").await;
-        return;
-    };
-    let start: SpeechStreamStart = match serde_json::from_str(&raw_start) {
-        Ok(value) => value,
-        Err(_) => {
-            let _ = send_speech_stream_error(&mut socket, "invalid start message").await;
-            return;
-        }
-    };
-    if start.token != state.config.admin_token && start.token != state.config.device_token {
-        let _ = send_speech_stream_error(&mut socket, "unauthorized").await;
-        return;
-    }
-    let Some(api_key) = state.config.speech.smallest_api_key.clone() else {
-        let _ = send_speech_stream_error(&mut socket, "Smallest speech-to-text is not configured")
-            .await;
-        return;
-    };
-
-    info!("streaming browser speech to Smallest STT");
-    if let Err(err) =
-        proxy_smallest_speech_stream(socket, state.config.speech.smallest_stt_url, api_key).await
-    {
-        warn!(
-            error = %err,
-            "🔴 FALLBACK: Smallest speech transcription failed - Reason: browser streaming proxy failed - Impact: user must type or retry voice input"
-        );
-    }
-}
-
-async fn send_speech_stream_error(socket: &mut WebSocket, error: &str) -> Result<(), axum::Error> {
-    let payload = serde_json::to_string(&SpeechStreamError {
-        event: "error",
-        error,
-    })
-    .unwrap_or_else(|_| "{\"event\":\"error\",\"error\":\"speech stream failed\"}".to_string());
-    socket.send(ClientWsMessage::Text(payload.into())).await
-}
-
-async fn proxy_smallest_speech_stream(
-    mut socket: WebSocket,
-    smallest_base_url: String,
-    api_key: String,
-) -> AppResult<()> {
-    let url = smallest_stt_url(&smallest_base_url);
-    let mut request = url.into_client_request().map_err(|err| {
-        AppError::BadRequest(format!("invalid Smallest STT websocket URL: {err}"))
-    })?;
-    request.headers_mut().insert(
-        "Authorization",
-        HeaderValue::from_str(&format!("Bearer {api_key}"))?,
-    );
-
-    let (smallest_stream, _) = timeout(StdDuration::from_secs(15), connect_async(request))
-        .await
-        .map_err(|_| {
-            AppError::BadRequest("Smallest speech-to-text connection timed out".to_string())
-        })?
-        .map_err(|err| {
-            AppError::BadRequest(format!("Smallest speech transcription failed: {err}"))
-        })?;
-    let (mut smallest_write, mut smallest_read) = smallest_stream.split();
-    let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(64);
-
-    let sender = tokio::spawn(async move {
-        while let Some(chunk) = audio_rx.recv().await {
-            smallest_write.send(Message::Binary(chunk.into())).await?;
-        }
-        Ok::<(), tokio_tungstenite::tungstenite::Error>(())
-    });
-
-    let started = Instant::now();
-    let mut last_provider_frame_at = Instant::now();
-    let mut client_stopped = false;
-    let mut audio_tx = Some(audio_tx);
-
-    loop {
-        tokio::select! {
-            client_message = socket.recv(), if !client_stopped => {
-                match client_message {
-                    Some(Ok(ClientWsMessage::Binary(chunk))) => {
-                        let Some(sender) = audio_tx.as_ref() else {
-                            continue;
-                        };
-                        if sender.send(chunk.to_vec()).await.is_err() {
-                            break;
-                        }
-                    }
-                    Some(Ok(ClientWsMessage::Text(raw))) => {
-                        if raw.contains("\"stop\"") {
-                            client_stopped = true;
-                            audio_tx = None;
-                        }
-                    }
-                    Some(Ok(ClientWsMessage::Close(_))) | None => {
-                        client_stopped = true;
-                        audio_tx = None;
-                    }
-                    Some(Ok(ClientWsMessage::Ping(_))) | Some(Ok(ClientWsMessage::Pong(_))) => {}
-                    Some(Err(err)) => {
-                        return Err(AppError::BadRequest(format!("browser speech stream failed: {err}")));
-                    }
-                }
-            }
-            provider_message = timeout(StdDuration::from_secs(1), smallest_read.next()) => {
-                match provider_message {
-                    Ok(Some(Ok(Message::Text(raw)))) => {
-                        last_provider_frame_at = Instant::now();
-                        if let Some((text, is_final)) = parse_smallest_transcript(&raw) {
-                            let event = SpeechStreamEvent {
-                                event: "transcript",
-                                text: &text,
-                                is_final,
-                            };
-                            let payload = serde_json::to_string(&event).map_err(|err| {
-                                AppError::BadRequest(format!("could not encode speech stream event: {err}"))
-                            })?;
-                            if socket.send(ClientWsMessage::Text(payload.into())).await.is_err() {
-                                break;
-                            }
-                        }
-                    }
-                    Ok(Some(Ok(Message::Binary(_)))) => {
-                        last_provider_frame_at = Instant::now();
-                    }
-                    Ok(Some(Ok(Message::Ping(_))))
-                    | Ok(Some(Ok(Message::Pong(_))))
-                    | Ok(Some(Ok(Message::Frame(_)))) => {
-                        last_provider_frame_at = Instant::now();
-                    }
-                    Ok(Some(Ok(Message::Close(_)))) | Ok(None) => break,
-                    Ok(Some(Err(err))) => {
-                        return Err(AppError::BadRequest(format!("Smallest speech transcription failed: {err}")));
-                    }
-                    Err(_) => {
-                        if client_stopped && last_provider_frame_at.elapsed() > StdDuration::from_secs(4) {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if started.elapsed() > StdDuration::from_secs(90) {
-            break;
-        }
-    }
-
-    let _ = sender.await;
-    let _ = socket
-        .send(ClientWsMessage::Text("{\"event\":\"done\"}".into()))
-        .await;
-    Ok(())
 }
 
 async fn synthesize_speech(
@@ -1451,177 +1267,54 @@ async fn synthesize_speech(
     }))
 }
 
-async fn transcode_audio_to_linear16(file_name: &str, bytes: &[u8]) -> AppResult<Vec<u8>> {
-    let request_id = Uuid::new_v4();
-    let temp_dir = std::env::temp_dir();
-    let input_path = temp_dir.join(format!("antirot-speech-{request_id}-input"));
-    let output_path = temp_dir.join(format!("antirot-speech-{request_id}.pcm"));
-
-    tokio::fs::write(&input_path, bytes).await?;
-    let output = Command::new("ffmpeg")
-        .arg("-y")
-        .arg("-hide_banner")
-        .arg("-loglevel")
-        .arg("error")
-        .arg("-i")
-        .arg(&input_path)
-        .arg("-ac")
-        .arg("1")
-        .arg("-ar")
-        .arg("16000")
-        .arg("-f")
-        .arg("s16le")
-        .arg(&output_path)
-        .stdin(Stdio::null())
-        .output()
-        .await;
-
-    let _ = tokio::fs::remove_file(&input_path).await;
-    let output = output?;
-    if !output.status.success() {
-        let _ = tokio::fs::remove_file(&output_path).await;
-        let stderr = String::from_utf8_lossy(&output.stderr);
+async fn transcribe_smallest_prerecorded(
+    base_url: &str,
+    api_key: &str,
+    content_type: String,
+    bytes: Vec<u8>,
+) -> AppResult<String> {
+    let url = smallest_prerecorded_stt_url(base_url);
+    let http_client = reqwest::Client::builder()
+        .timeout(StdDuration::from_secs(45))
+        .build()?;
+    let response = http_client
+        .post(&url)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", content_type)
+        .body(bytes)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
         warn!(
-            file_name,
-            "🔴 FALLBACK: Smallest speech transcription failed - Reason: ffmpeg could not transcode upload - Impact: user must type or retry voice input"
+            status = status.as_u16(),
+            "🔴 FALLBACK: Smallest speech transcription failed - Reason: provider returned non-success - Impact: user must type or retry voice input"
         );
         return Err(AppError::BadRequest(format!(
-            "speech upload could not be transcoded: {}",
-            stderr.chars().take(300).collect::<String>()
+            "Smallest speech transcription failed with HTTP {}: {}",
+            status.as_u16(),
+            body.chars().take(300).collect::<String>()
         )));
     }
 
-    let pcm = tokio::fs::read(&output_path).await?;
-    let _ = tokio::fs::remove_file(&output_path).await;
-    if pcm.is_empty() {
-        return Err(AppError::BadRequest(
-            "speech upload transcoded to empty audio".to_string(),
-        ));
-    }
-    Ok(pcm)
-}
-
-async fn transcribe_smallest_streaming(
-    base_url: &str,
-    api_key: &str,
-    pcm: &[u8],
-) -> AppResult<String> {
-    let url = smallest_stt_url(base_url);
-    let mut request = url.into_client_request().map_err(|err| {
-        AppError::BadRequest(format!("invalid Smallest STT websocket URL: {err}"))
+    let value: Value = serde_json::from_str(&body).map_err(|_| {
+        AppError::BadRequest("Smallest returned invalid transcription JSON".to_string())
     })?;
-    request.headers_mut().insert(
-        "Authorization",
-        HeaderValue::from_str(&format!("Bearer {api_key}"))?,
-    );
-
-    let (ws_stream, _) = timeout(StdDuration::from_secs(15), connect_async(request))
-        .await
-        .map_err(|_| AppError::BadRequest("Smallest speech-to-text connection timed out".to_string()))?
-        .map_err(|err| {
-            warn!(
-                "🔴 FALLBACK: Smallest speech transcription failed - Reason: websocket connection failed - Impact: user must type or retry voice input"
-            );
-            AppError::BadRequest(format!("Smallest speech transcription failed: {err}"))
-        })?;
-    let (mut write, mut read) = ws_stream.split();
-    let mut send_done = Box::pin(async move {
-        for chunk in pcm.chunks(3_200) {
-            write.send(Message::Binary(chunk.to_vec().into())).await?;
-        }
-        Ok::<(), tokio_tungstenite::tungstenite::Error>(())
-    });
-
-    let started = Instant::now();
-    let mut last_frame_at = Instant::now();
-    let mut final_segments = Vec::new();
-    let mut latest_text = String::new();
-    let mut sent_all_audio = false;
-
-    loop {
-        tokio::select! {
-            send_result = &mut send_done, if !sent_all_audio => {
-                sent_all_audio = true;
-                if let Err(err) = send_result {
-                    warn!(
-                        "🔴 FALLBACK: Smallest speech transcription failed - Reason: websocket send failed - Impact: user must type or retry voice input"
-                    );
-                    return Err(AppError::BadRequest(format!("Smallest speech upload failed: {err}")));
-                }
-            }
-            maybe_message = timeout(StdDuration::from_secs(1), read.next()) => {
-                match maybe_message {
-                    Ok(Some(Ok(Message::Text(raw)))) => {
-                        last_frame_at = Instant::now();
-                        if let Some((text, is_final)) = parse_smallest_transcript(&raw) {
-                            latest_text = text.clone();
-                            if is_final {
-                                final_segments.push(text);
-                            }
-                        }
-                    }
-                    Ok(Some(Ok(Message::Binary(_)))) => {
-                        last_frame_at = Instant::now();
-                    }
-                    Ok(Some(Ok(Message::Ping(_))))
-                    | Ok(Some(Ok(Message::Pong(_))))
-                    | Ok(Some(Ok(Message::Frame(_)))) => {
-                        last_frame_at = Instant::now();
-                    }
-                    Ok(Some(Ok(Message::Close(_)))) | Ok(None) => break,
-                    Ok(Some(Err(err))) => {
-                        warn!(
-                            "🔴 FALLBACK: Smallest speech transcription failed - Reason: websocket read failed - Impact: user must type or retry voice input"
-                        );
-                        return Err(AppError::BadRequest(format!("Smallest speech transcription failed: {err}")));
-                    }
-                    Err(_) => {
-                        if sent_all_audio && last_frame_at.elapsed() > StdDuration::from_secs(4) {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if started.elapsed() > StdDuration::from_secs(45) {
-            break;
-        }
-    }
-
-    let text = if final_segments.is_empty() {
-        latest_text
-    } else {
-        final_segments.join(" ")
-    };
-    Ok(text.trim().to_string())
-}
-
-fn smallest_stt_url(base_url: &str) -> String {
-    let separator = if base_url.contains('?') { '&' } else { '?' };
-    format!(
-        "{base_url}{separator}language=en&encoding=linear16&sample_rate=16000&word_timestamps=true"
-    )
-}
-
-fn parse_smallest_transcript(raw: &str) -> Option<(String, bool)> {
-    let value: Value = serde_json::from_str(raw).ok()?;
     let text = value
-        .get("full_transcript")
-        .or_else(|| value.get("transcription"))
-        .or_else(|| value.get("transcript"))
-        .and_then(Value::as_str)?
+        .get("transcription")
+        .or_else(|| value.get("text"))
+        .or_else(|| value.get("full_transcript"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
         .trim()
         .to_string();
-    if text.is_empty() {
-        return None;
-    }
-    let is_final = value
-        .get("is_final")
-        .or_else(|| value.get("is_last"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    Some((text, is_final))
+    Ok(text)
+}
+
+fn smallest_prerecorded_stt_url(base_url: &str) -> String {
+    let separator = if base_url.contains('?') { '&' } else { '?' };
+    format!("{base_url}{separator}model=pulse&language=en")
 }
 
 async fn collect_inworld_streamed_audio(response: reqwest::Response) -> AppResult<Vec<u8>> {

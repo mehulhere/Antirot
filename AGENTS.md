@@ -23,6 +23,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 ## 🤖 Autonomy
 - Continue when the next step is obvious from the repo, logs, runtime output, or the user’s goal
 - Do not stop for permission on obvious follow-up fixes, validation steps, log checks, or targeted reruns
+- When a failure exposes an obvious related setup or automation gap, fix the durable path when practical instead of only reporting the immediate blocker
 - Stop and ask only when safe progress is blocked by a material unknown, such as conflicting product choices, missing credentials or environment access, destructive operations, or a required artifact that cannot be derived locally
 
 ## 🪵 Logging
@@ -46,11 +47,10 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 
 ## 💬 Response Format
 - Keep completion summaries crisp
-- Start with a TL;DR summary
 - Use bullet points for long paragraphs
 - When giving options, score each choice
 - Use emojis and tables where they improve readability
-- Always end the final answer with a short bottom line
+- Always end the final answer with a short TL;DR summary instead of starting with one
 - Include these final response sections only when they are needed, and keep this order when more than one is present:
 - `**📝 Changes**`
 - `**🎯 Final Recommendation**`

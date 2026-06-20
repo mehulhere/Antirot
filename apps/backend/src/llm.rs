@@ -570,8 +570,10 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     let recovery_context = mentions_recovery_context(&user_message_lower);
     let relationship_context = mentions_relationship_context(&user_message_lower);
     let onboarding_context = mentions_onboarding_start(&user_message_lower);
+    let sleep_baseline_context = mentions_sleep_baseline_context(&user_message_lower);
 
     match tool_name {
+        "patch_file" if sleep_baseline_context => "Sleep baseline saved. Next, answer in one line: what work target needs protection today, and what blocker keeps pulling you away?".to_string(),
         "patch_file" if onboarding_context => onboarding_setup_reply(),
         "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
@@ -640,8 +642,17 @@ fn mentions_onboarding_start(user_message_lower: &str) -> bool {
         || user_message_lower.contains("onboarding me")
 }
 
+fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
+    (user_message_lower.contains("usual sleep")
+        || user_message_lower.contains("sleep schedule")
+        || user_message_lower.contains("sleep around")
+        || user_message_lower.contains("wake around")
+        || user_message_lower.contains("target sleep"))
+        && (user_message_lower.contains("sleep") || user_message_lower.contains("wake"))
+}
+
 fn onboarding_setup_reply() -> String {
-    "Welcome. Give me the raw data: 1. primary goal this week, 2. timezone and target sleep/wake, 3. fixed daily commitments, 4. current work task to protect from drift.".to_string()
+    "Good. Start simple: answer in one line with the work target you most need protected today, and the main blocker pulling you away.".to_string()
 }
 
 fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
@@ -1946,13 +1957,13 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "patch_file",
-                "description": "Edits a user memory file (personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or a date-based log like YYYY-MM-DD_WorkLog.md or YYYY-MM-DD_Summary.md) using a git-conflict style SEARCH/REPLACE block. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
+                "description": "Edits a user memory file (personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or a date-based log like YYYY-MM-DD_WorkLog.md or YYYY-MM-DD_Summary.md) using a git-conflict style SEARCH/REPLACE block. Use sleep.md for baseline sleep/wake timing and target sleep hours. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "The target memory file to update. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md"
+                            "description": "The target memory file to update. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md. Choose sleep.md for usual sleep time, usual wake time, or target sleep hours."
                         },
                         "patch": {
                             "type": "string",

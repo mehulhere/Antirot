@@ -107,7 +107,7 @@ ANTIROT_WORKSPACE_ID=main
 
 GOOGLE_CLOUD_CREDENTIALS=PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE
 
-SMALLEST_STT_URL=wss://api.smallest.ai/waves/v1/pulse/get_text
+SMALLEST_STT_URL=https://api.smallest.ai/waves/v1/stt/
 SMALLEST_API_KEY=YOUR_SMALLEST_KEY
 
 INWORLD_BASE_URL=https://api.inworld.ai
@@ -129,7 +129,7 @@ Placeholder notes:
 - Replace `CHANGE_LONG_ADMIN_TOKEN` with a long random admin token.
 - Replace `CHANGE_LONG_DEVICE_TOKEN` with a different long random device token.
 - Replace `PASTE_VERTEX_SERVICE_ACCOUNT_JSON_ON_ONE_LINE` with the full Google Vertex service-account JSON content. This is required for coach chat.
-- Replace `YOUR_SMALLEST_KEY` with the Smallest API key for streaming speech-to-text.
+- Replace `YOUR_SMALLEST_KEY` with the Smallest API key for Pulse HTTP speech-to-text.
 - Replace `YOUR_INWORLD_KEY` with the Inworld API key for streaming text-to-speech.
 - `INWORLD_TTS_VOICE_ID` uses Inworld's `Dennis` voice by default; replace it with another Inworld voice id if you want a different coach voice.
 - Replace `YOUR_GEMINI_KEY` with the Gemini API key used for memory embeddings.

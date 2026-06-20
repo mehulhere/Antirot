@@ -53,7 +53,11 @@
 - Verify GitHub Backend CI blocks prompt snapshot drift and runs backend no-LLM userflows against Postgres on pull requests.
 - Run `npm run test:backend-userflows-llm` followed by `CROF_API_KEY=... npm run test:llm-judge-quality`, then review `.antirot/llm-judge-quality-report.json` for Qwen judge scores and issues before treating live LLM output as paid-product ready.
 - Build the iOS app on a real iPhone, verify Coach/Plan/Alarms/Settings render correctly, record a voice check-in through Smallest STT, send Done/Start/Break buttons through chat, and confirm Inworld TTS playback after `INWORLD_TTS_VOICE_ID` is configured.
-- Verify `/v1/speech/transcribe` uses Smallest streaming STT and `/v1/speech/synthesize` returns playable Inworld streaming TTS audio on the VPS.
+- Verify `/v1/speech/transcribe` uses Smallest Pulse HTTP STT and `/v1/speech/synthesize` returns playable Inworld streaming TTS audio on the VPS.
 - Launch the backend-only VPS setup from `docs/backend-vps-new-user.md` with fresh `antirot` and `antirot-backend` Linux users, then verify `/health`, `/v1/chat`, and `/v1/speech/transcribe` through the public HTTPS domain.
 - Open the VPS frontend lab on its configured port and verify `/`, `/icon.svg`, `main-app.js`, `app-pages-internals.js`, `page.js`, and `layout.css` return 200.
-- Press Speak in the frontend lab and verify browser audio streams through `/v1/speech/transcribe/stream` with live and final Smallest STT transcript updates.
+- Press Speak in the frontend lab and verify gentle VAD sends 10s-minimum, 30-60s-preferred audio chunks through `/v1/speech/transcribe`.
+- Build iOS and Android on real phones, then verify state-aware coach chips and gentle voice capture send 10s-minimum, 30-60s-preferred clips through `/v1/speech/transcribe` before `/v1/chat`.
+- In frontend, iOS, and Android onboarding, enter the name in the popup and verify the coach continues the remaining onboarding through chat or voice.
+- In frontend, iOS, and Android voice chat, speak multiple VAD chunks quickly and verify transcriptions and coach sends process in capture order without dropped messages.
+- Run `npm run frontend:dev` with a localhost `DATABASE_URL` and Postgres stopped, then verify the launcher starts/creates `antirot-postgres` before Next.js serves the lab.

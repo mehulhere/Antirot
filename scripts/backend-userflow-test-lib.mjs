@@ -1,5 +1,3 @@
-/* global process, console, fetch, setTimeout, clearTimeout */
-
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -72,8 +70,8 @@ export async function startBackend(extraEnv = {}) {
     console.log(`Starting backend with tailored LLM provider=${tailoredProvider} model=${tailoredModel} vertexCredentials=${hasVertexCredentials ? "present" : "absent"}`);
 
     const env = {
-        ...process.env,
         ...dotEnv,
+        ...process.env,
         ...extraEnv,
         ANTIROT_BACKEND_BIND: "127.0.0.1:0",
         ANTIROT_ADMIN_TOKEN: adminToken,

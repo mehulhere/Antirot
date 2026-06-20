@@ -1,5 +1,3 @@
-/* global console, process */
-
 import assert from "node:assert/strict";
 
 import {

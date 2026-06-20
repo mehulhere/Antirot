@@ -78,7 +78,7 @@ impl Config {
 fn speech_config() -> SpeechConfig {
     SpeechConfig {
         smallest_stt_url: env::var("SMALLEST_STT_URL")
-            .unwrap_or_else(|_| "wss://api.smallest.ai/waves/v1/pulse/get_text".to_string()),
+            .unwrap_or_else(|_| "https://api.smallest.ai/waves/v1/stt/".to_string()),
         smallest_api_key: env::var("SMALLEST_API_KEY")
             .ok()
             .filter(|value| !value.trim().is_empty()),
@@ -233,7 +233,7 @@ mod tests {
         let config = speech_config();
         assert_eq!(
             config.smallest_stt_url,
-            "wss://api.smallest.ai/waves/v1/pulse/get_text"
+            "https://api.smallest.ai/waves/v1/stt/"
         );
         assert_eq!(config.smallest_api_key, None);
         assert_eq!(config.inworld_base_url, "https://api.inworld.ai");

@@ -5,6 +5,9 @@ struct HomeView: View {
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
     @FocusState private var draftFocused: Bool
+    @State private var onboardingName = ""
+    @State private var showNamePrompt = false
+    @State private var namePromptSent = false
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
@@ -52,6 +55,20 @@ struct HomeView: View {
         }
         .task {
             await alarmCenter.pollPendingAlarms()
+            await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+            presentNamePromptIfNeeded()
+        }
+        .onChange(of: coach.runtimeState) { _, _ in
+            presentNamePromptIfNeeded()
+        }
+        .alert("Your name", isPresented: $showNamePrompt) {
+            TextField("Name", text: $onboardingName)
+            Button("Continue") {
+                Task { await sendNameOnboarding() }
+            }
+            .disabled(onboardingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("The rest can be handled by voice.")
         }
     }
 
@@ -111,11 +128,16 @@ struct HomeView: View {
     }
 
     private var quickActions: some View {
+        let actions = CoachQuickAction.primary(for: coach.runtimeState)
+
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(CoachQuickAction.primary) { action in
+                ForEach(actions) { action in
                     Button {
-                        Task { await coach.handleQuickAction(action, client: client) }
+                        Task {
+                            await coach.handleQuickAction(action, client: client)
+                            await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+                        }
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: action.systemImage)
@@ -136,9 +158,40 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                if actions.isEmpty {
+                    Text("No quick actions for this state.")
+                        .font(.caption)
+                        .foregroundStyle(.antirotTextMuted)
+                        .padding(.vertical, 10)
+                }
             }
             .padding(.vertical, 2)
         }
+    }
+
+    private func presentNamePromptIfNeeded() {
+        guard !namePromptSent else { return }
+        showNamePrompt = coach.runtimeState == "onboarding" || coach.runtimeState == "unknown"
+    }
+
+    private func sendNameOnboarding() async {
+        let name = onboardingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            showNamePrompt = true
+            return
+        }
+        namePromptSent = true
+        showNamePrompt = false
+        await coach.send(onboardingMessage(name: name), client: client)
+        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+    }
+
+    private func onboardingMessage(name: String) -> String {
+        [
+            "Start onboarding with this user's name. Save it, then continue onboarding conversationally through chat or speech.",
+            "Name: \(name)"
+        ].joined(separator: "\n")
     }
 
     private var transcript: some View {
@@ -200,7 +253,10 @@ struct HomeView: View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
                 Button {
-                    Task { await coach.toggleVoice(client: client) }
+                    Task {
+                        await coach.toggleVoice(client: client)
+                        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+                    }
                 } label: {
                     Image(systemName: coach.isRecording ? "stop.fill" : "mic.fill")
                         .font(.title3.weight(.bold))
@@ -234,7 +290,10 @@ struct HomeView: View {
                     )
 
                 Button {
-                    Task { await coach.sendDraft(client: client) }
+                    Task {
+                        await coach.sendDraft(client: client)
+                        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+                    }
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.headline.weight(.bold))
@@ -247,7 +306,7 @@ struct HomeView: View {
                 .opacity(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
             }
 
-            Text(coach.isRecording ? "Listening now" : "Voice is preferred. Typing is the fallback.")
+            Text(coach.isRecording ? "Listening: 10s minimum, gentle silence cutoff." : "Voice is preferred. Typing is the fallback.")
                 .font(.caption2)
                 .foregroundStyle(.antirotTextMuted)
         }

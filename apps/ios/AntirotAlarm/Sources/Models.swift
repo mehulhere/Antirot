@@ -107,6 +107,15 @@ struct ChatCoachResponse: Codable {
     var reply: String
 }
 
+struct RuntimeStateResponse: Codable {
+    var runtimeState: RuntimeStatePayload?
+}
+
+struct RuntimeStatePayload: Codable {
+    var state: String?
+    var sourceTool: String?
+}
+
 struct SpeechTranscriptionResponse: Codable {
     var ok: Bool
     var text: String
@@ -150,9 +159,9 @@ struct CoachQuickAction: Identifiable, Equatable {
     static let primary: [CoachQuickAction] = [
         CoachQuickAction(
             id: "start_working",
-            title: "Start Working",
+            title: "Ready Work",
             systemImage: "play.fill",
-            message: "I am starting a focused work session now. Help me choose the exact next task and timer."
+            message: "I am ready to work. Start the next serious work block."
         ),
         CoachQuickAction(
             id: "done",
@@ -162,9 +171,9 @@ struct CoachQuickAction: Identifiable, Equatable {
         ),
         CoachQuickAction(
             id: "need_break",
-            title: "Need Break",
+            title: "Real Break",
             systemImage: "pause.fill",
-            message: "I need a break. Keep it honest and short unless I justify more."
+            message: "I need a real break. Help me choose the minimum honest break."
         ),
         CoachQuickAction(
             id: "log_work",
@@ -177,13 +186,41 @@ struct CoachQuickAction: Identifiable, Equatable {
             id: "good_night",
             title: "Good Night",
             systemImage: "moon.fill",
-            message: "Good night. Start sleep and distill today's memory."
+            message: "Good night. Close today and prepare tomorrow."
         ),
         CoachQuickAction(
             id: "wake_up",
             title: "Awake",
             systemImage: "sun.max.fill",
-            message: "I am awake. Log wake and decide the first move."
+            message: "I am awake. Log it and tell me the first concrete move."
+        ),
+        CoachQuickAction(
+            id: "movie_break",
+            title: "Movie Check",
+            systemImage: "film.fill",
+            message: "I want a 2 hour movie break because I deserve it. Please please."
         )
     ]
+
+    static func primary(for runtimeState: String) -> [CoachQuickAction] {
+        let byId = Dictionary(uniqueKeysWithValues: primary.map { ($0.id, $0) })
+        let ids: [String]
+        switch runtimeState.lowercased() {
+        case "onboarding":
+            ids = ["start_working", "good_night"]
+        case "idle":
+            ids = ["start_working", "need_break", "good_night", "movie_break"]
+        case "working":
+            ids = ["done", "need_break", "log_work"]
+        case "break":
+            ids = ["start_working", "good_night"]
+        case "sleeping":
+            ids = ["wake_up"]
+        case "vacation", "unknown":
+            ids = []
+        default:
+            ids = []
+        }
+        return ids.compactMap { byId[$0] }
+    }
 }

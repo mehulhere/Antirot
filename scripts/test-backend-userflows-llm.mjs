@@ -1,5 +1,3 @@
-/* global console, process, setTimeout */
-
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -26,7 +24,7 @@ const runEnabled = process.env.ANTIROT_RUN_LLM_USERFLOW_TESTS === "1";
 const progressPath = path.resolve(import.meta.dirname, "../.antirot/llm-regression-progress.json");
 const transcriptCachePath = path.resolve(import.meta.dirname, "../.antirot/llm-transcript-cache.json");
 const quotaBackoffMs = [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000];
-const caseCount = 19;
+const caseCount = 20;
 const promptFingerprintFiles = [
     "apps/backend/src/prompt.rs",
     "apps/backend/src/llm.rs",
@@ -232,11 +230,17 @@ function assertNoStaleVacationCopy(reply) {
 function assertOnboardingQuality(reply) {
     assert.doesNotMatch(
         reply,
-        /\balready laid out\b|\bif you missed it\b|\bmissed it\b/iu,
+        /\balready laid out\b|\bif you missed it\b|\bmissed it\b|\btimezone\b|\braw data\b|\b1\.\s|\b2\.\s|\b3\.\s|\b4\.\s/iu,
         `onboarding reply sounded like stale repeated context: ${reply}`
     );
-    assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b/iu, `onboarding did not ask about goals: ${reply}`);
-    assert.match(reply, /\broutine\b|\brhythm\b|\bsleep\b|\bwake\b/iu, `onboarding did not ask about routine/sleep: ${reply}`);
+    assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b|\btask\b|\bblocker\b|\bwork\b/iu, `onboarding did not ask for one useful next detail: ${reply}`);
+    const askedCategories = [
+        /\bgoals?\b|\bobjective\b|\btarget\b|\bwork\b/iu,
+        /\broutine\b|\bfixed daily\b|\bcommitments?\b/iu,
+        /\brhythm\b|\bsleep\b|\bwake\b/iu,
+        /\bblocker\b|\bstuck\b|\bdrift\b/iu
+    ].filter((pattern) => pattern.test(reply)).length;
+    assert.ok(askedCategories <= 2, `onboarding asked for too much at once: ${reply}`);
 }
 
 function assertNoLongMovieBreak(reply, state) {
@@ -313,7 +317,7 @@ async function main() {
         }
 
         let onboardingFixture = progress.fixtures?.onboarding;
-        if (!onboardingFixture && shouldRun(progress, 13)) {
+        if (!onboardingFixture && (shouldRun(progress, 13) || shouldRun(progress, 20))) {
             onboardingFixture = await resetFixture(backend.baseUrl, "llm-onboarding");
             progress.fixtures = { ...(progress.fixtures ?? {}), onboarding: onboardingFixture };
             saveProgress(progress);
@@ -675,6 +679,27 @@ async function main() {
             rememberTranscript(transcript, 19, "bizarre movie pleading", combinedReply);
             pass("LLM-19 bizarre movie pleading does not fold", combinedReply.replace(/\s+/gu, " ").slice(0, 220));
             markPassed(progress, 19, "bizarre movie pleading", combinedReply);
+        }
+
+        if (!skipPassed(progress, 20, "LLM-20 baseline sleep schedule updates sleep memory")) {
+            reply = await chat(
+                backend.baseUrl,
+                onboardingFixture.deviceToken,
+                "My usual sleep schedule is sleep around 2 a.m. and wake around 10 a.m. I want at least 8 hours in a day. Keep onboarding me by voice after saving that."
+            );
+            rememberTranscript(transcript, 20, "baseline sleep schedule", reply);
+            assertProductionQuality(reply);
+            assertNotActiveSleepCopy(reply);
+            assert.match(reply, /\bwork\b|\btarget\b|\bblocker\b|\bpulling\b/iu, `baseline sleep onboarding reply lacked a concrete next prompt: ${reply}`);
+            const sleep = await getMemory(backend.baseUrl, onboardingFixture.deviceToken, "sleep");
+            assert.match(sleep.content, /2\s*a\.?m\.?|02:00|two\s*a\.?m/isu);
+            assert.match(sleep.content, /10\s*a\.?m\.?|10:00|ten\s*a\.?m/isu);
+            assert.match(sleep.content, /8\s*hours|eight\s*hours|target sleep/isu);
+            const onboardingState = await snapshot(backend.baseUrl, onboardingFixture.userId, onboardingFixture.deviceId);
+            assertState(onboardingState, "onboarding");
+            assertNoAlarms(onboardingState);
+            pass("LLM-20 baseline sleep schedule updates sleep memory", reply.replace(/\s+/gu, " ").slice(0, 220));
+            markPassed(progress, 20, "baseline sleep schedule", reply);
         }
 
         printTranscript(transcript);

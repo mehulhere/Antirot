@@ -1,5 +1,3 @@
-/* global AbortController, clearTimeout, console, fetch, process, setTimeout */
-
 import assert from "node:assert/strict";
 import dns from "node:dns";
 import fs from "node:fs";
@@ -17,7 +15,7 @@ const minOverall = Number(process.env.ANTIROT_JUDGE_MIN_OVERALL || 8);
 const minDimension = Number(process.env.ANTIROT_JUDGE_MIN_DIMENSION || 7);
 const requestTimeoutMs = Number(process.env.ANTIROT_JUDGE_TIMEOUT_MS || 120_000);
 const judgeMaxTokens = Number(process.env.ANTIROT_JUDGE_MAX_TOKENS || 1200);
-const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 19);
+const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 20);
 const retryDelaysMs = [2_000, 5_000, 10_000];
 
 const criteria = [

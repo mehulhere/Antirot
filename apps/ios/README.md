@@ -71,9 +71,10 @@ If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SD
 
 ## MVP Features
 
-- Voice-first coach home screen with Smallest streaming transcription through the backend.
-- Quick actions that send normal chat messages instead of bypassing coach policy.
-- Done, Start Working, Need Break, Log Work, Good Night, and Awake actions.
+- Voice-first coach home screen with gentle VAD, 10-second minimum clips, 30-60-second preferred clips, and Smallest Pulse transcription through the backend.
+- Onboarding starts with a name popup; the coach collects the rest conversationally through chat or voice.
+- Runtime-state-aware quick actions that send normal chat messages instead of bypassing coach policy.
+- Done, Ready Work, Real Break, Log Work, Good Night, Awake, and Movie Check actions when the current state allows them.
 - Plan page for routine anchors, state actions, and daily review.
 - Inworld streaming text-to-speech playback through the backend when `INWORLD_TTS_VOICE_ID` is configured.
 - Register device with the managed backend.
@@ -95,7 +96,7 @@ The first build has four pages:
 - Alarms: pending alarms, local alarm tests, and notification/AlarmKit checks.
 - Settings: account, permissions, widget status, device details, and hidden developer tools.
 
-Buttons and chat intentionally share one backend path. A button sends a short, explicit user message to `/v1/chat`; voice input transcribes through `/v1/speech/transcribe` and then sends the transcript to `/v1/chat`; typed fallback does the same. This keeps state transitions backend-owned and lets the coach challenge or accept the user's intent through the existing tool policy.
+Buttons and chat intentionally share one backend path. A button sends a short, explicit user message to `/v1/chat`; voice input uses gentle local VAD to avoid tiny fragments, transcribes through `/v1/speech/transcribe`, and then sends the transcript to `/v1/chat`; typed fallback does the same. This keeps state transitions backend-owned and lets the coach challenge or accept the user's intent through the existing tool policy.
 
 Voice provider defaults:
 

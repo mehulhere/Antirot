@@ -2,6 +2,7 @@ package com.mehulhere.antirot;
 
 import android.Manifest;
 import android.app.AlarmManager;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.media.RingtoneManager;
@@ -15,6 +16,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.File;
+import java.util.ArrayDeque;
 import java.util.List;
 
 public class MainActivity extends android.app.Activity {
@@ -24,16 +27,31 @@ public class MainActivity extends android.app.Activity {
     private TextView status;
     private EditText serverUrl;
     private EditText apiToken;
+    private EditText coachDraft;
+    private TextView coachTranscript;
+    private Button voiceButton;
+    private LinearLayout quickActionRow;
     private LinearLayout root;
     private boolean showDeveloperSettings = false;
+    private boolean namePromptSent = false;
+    private String onboardingName = "";
+    private String runtimeState = "unknown";
+    private final StringBuilder coachLog = new StringBuilder();
+    private final ArrayDeque<String> chatQueue = new ArrayDeque<>();
+    private final ArrayDeque<File> speechQueue = new ArrayDeque<>();
+    private boolean chatQueueProcessing = false;
+    private boolean speechQueueProcessing = false;
+    private GentleVoiceRecorder voiceRecorder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         settings = new SettingsStore(this);
+        voiceRecorder = new GentleVoiceRecorder(this);
         NotificationHelper.ensureChannels(this);
         setContentView(buildView());
         requestNotificationPermissionIfNeeded();
+        refreshRuntimeState();
     }
 
     private ScrollView buildView() {
@@ -62,6 +80,8 @@ public class MainActivity extends android.app.Activity {
         backend.setTextColor(0xFFA7B0BA);
         backend.setPadding(0, 0, 0, 16);
         root.addView(backend);
+
+        renderCoachSurface();
 
         root.addView(button("Register device", this::registerDevice));
         root.addView(button("Reset local login", this::resetBackendSession));
@@ -101,6 +121,236 @@ public class MainActivity extends android.app.Activity {
         button.setAllCaps(false);
         button.setOnClickListener(view -> action.run());
         return button;
+    }
+
+    private void renderCoachSurface() {
+        TextView heading = new TextView(this);
+        heading.setText("Coach chat");
+        heading.setTextColor(0xFFF5F7FA);
+        heading.setTextSize(22);
+        heading.setPadding(0, 18, 0, 8);
+        root.addView(heading);
+
+        TextView state = new TextView(this);
+        state.setText("State: " + runtimeState);
+        state.setTextColor(0xFFA7B0BA);
+        state.setPadding(0, 0, 0, 8);
+        root.addView(state);
+
+        quickActionRow = new LinearLayout(this);
+        quickActionRow.setOrientation(LinearLayout.VERTICAL);
+        root.addView(quickActionRow);
+        renderQuickActions();
+
+        coachTranscript = new TextView(this);
+        coachTranscript.setText(coachLog.length() == 0
+                ? "Antirot is ready. Speak or send a short check-in."
+                : coachLog.toString());
+        coachTranscript.setTextColor(0xFFF5F7FA);
+        coachTranscript.setPadding(0, 10, 0, 8);
+        root.addView(coachTranscript);
+
+        voiceButton = button("Speak", this::toggleVoice);
+        root.addView(voiceButton);
+
+        coachDraft = input("Speak or type the user's next message", "");
+        root.addView(coachDraft);
+        root.addView(button("Send to coach", this::sendDraftToCoach));
+        root.addView(button("Refresh state options", this::refreshRuntimeState));
+    }
+
+    private void renderQuickActions() {
+        if (quickActionRow == null) {
+            return;
+        }
+        quickActionRow.removeAllViews();
+        List<CoachQuickAction> actions = CoachQuickAction.forState(runtimeState);
+        if (actions.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("No quick actions for this state.");
+            empty.setTextColor(0xFFA7B0BA);
+            quickActionRow.addView(empty);
+            return;
+        }
+        for (CoachQuickAction action : actions) {
+            quickActionRow.addView(button(action.title, () -> handleQuickAction(action)));
+        }
+    }
+
+    private void handleQuickAction(CoachQuickAction action) {
+        if (action.fillsDraft) {
+            coachDraft.setText(action.message);
+            coachDraft.setSelection(coachDraft.getText().length());
+            status.setText("Finish the sentence.");
+            return;
+        }
+        sendCoachMessage(action.message);
+    }
+
+    private void sendDraftToCoach() {
+        String text = coachDraft.getText().toString().trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        coachDraft.setText("");
+        sendCoachMessage(text);
+    }
+
+    private void sendCoachMessage(String message) {
+        String trimmed = message == null ? "" : message.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        chatQueue.add(trimmed);
+        processChatQueue();
+    }
+
+    private void processChatQueue() {
+        if (chatQueueProcessing || chatQueue.isEmpty()) {
+            return;
+        }
+        chatQueueProcessing = true;
+        String message = chatQueue.poll();
+        appendCoach("you", message);
+        status.setText(chatQueue.isEmpty() ? "Thinking" : "Thinking (" + chatQueue.size() + " queued)");
+        new AntirotApiClient(this).chat(message, reply -> runOnUiThread(() -> {
+            if (reply.startsWith("Failed:")) {
+                status.setText(reply);
+                appendCoach("system", reply);
+                chatQueueProcessing = false;
+                processChatQueue();
+                return;
+            }
+            appendCoach("coach", reply);
+            status.setText("Ready");
+            chatQueueProcessing = false;
+            refreshRuntimeState();
+            processChatQueue();
+        }));
+    }
+
+    private void appendCoach(String speaker, String message) {
+        coachLog.append(speaker).append(": ").append(message).append("\n\n");
+        if (coachTranscript != null) {
+            coachTranscript.setText(coachLog.toString());
+        }
+    }
+
+    private void toggleVoice() {
+        if (voiceRecorder.isRecording()) {
+            File file = voiceRecorder.stop();
+            voiceButton.setText("Speak");
+            if (file != null) {
+                transcribeAndSend(file);
+            }
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 11);
+            status.setText("Grant microphone permission, then tap Speak again.");
+            return;
+        }
+
+        try {
+            voiceRecorder.start(file -> runOnUiThread(() -> {
+                voiceButton.setText("Speak");
+                transcribeAndSend(file);
+            }));
+            voiceButton.setText("Stop");
+            status.setText("Listening: 10s minimum, gentle silence cutoff.");
+        } catch (Exception error) {
+            status.setText("Voice failed: " + error.getMessage());
+        }
+    }
+
+    private void transcribeAndSend(File file) {
+        speechQueue.add(file);
+        processSpeechQueue();
+    }
+
+    private void processSpeechQueue() {
+        if (speechQueueProcessing || speechQueue.isEmpty()) {
+            return;
+        }
+        speechQueueProcessing = true;
+        File file = speechQueue.poll();
+        status.setText(speechQueue.isEmpty() ? "Transcribing" : "Transcribing (" + speechQueue.size() + " queued)");
+        new AntirotApiClient(this).transcribeAudio(file, text -> runOnUiThread(() -> {
+            file.delete();
+            String trimmed = text == null ? "" : text.trim();
+            if (trimmed.startsWith("Failed:")) {
+                status.setText(trimmed);
+                appendCoach("system", trimmed);
+                speechQueueProcessing = false;
+                processSpeechQueue();
+                return;
+            }
+            if (trimmed.isEmpty()) {
+                status.setText("No speech detected.");
+                speechQueueProcessing = false;
+                processSpeechQueue();
+                return;
+            }
+            appendCoach("system", "Transcribed voice: " + trimmed);
+            sendCoachMessage(trimmed);
+            speechQueueProcessing = false;
+            processSpeechQueue();
+        }));
+    }
+
+    private void refreshRuntimeState() {
+        new AntirotApiClient(this).fetchRuntimeState(new AntirotApiClient.RuntimeStateCallback() {
+            @Override
+            public void onRuntimeState(String state) {
+                runOnUiThread(() -> {
+                    runtimeState = state == null || state.trim().isEmpty() ? "unknown" : state.trim();
+                    setContentView(buildView());
+                    status.setText("State refreshed: " + runtimeState);
+                    promptNameIfNeeded();
+                });
+            }
+
+            @Override
+            public void onResult(String message) {
+                runOnUiThread(() -> {
+                    runtimeState = "unknown";
+                    renderQuickActions();
+                    if (status != null) {
+                        status.setText("State unavailable: " + message);
+                    }
+                });
+            }
+        });
+    }
+
+    private void promptNameIfNeeded() {
+        if (namePromptSent || (!"onboarding".equals(runtimeState) && !"unknown".equals(runtimeState))) {
+            return;
+        }
+        EditText input = input("Name", onboardingName);
+        new AlertDialog.Builder(this)
+                .setTitle("Your name")
+                .setMessage("The rest can be handled by voice.")
+                .setView(input)
+                .setPositiveButton("Continue", (dialog, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) {
+                        status.setText("Add the user's name first.");
+                        promptNameIfNeeded();
+                        return;
+                    }
+                    onboardingName = name;
+                    namePromptSent = true;
+                    sendCoachMessage(onboardingMessage(name));
+                })
+                .show();
+    }
+
+    private String onboardingMessage(String name) {
+        return "Start onboarding with this user's name. Save it, then continue onboarding conversationally through chat or speech.\n" +
+                "Name: " + name;
     }
 
     private void saveSettings() {
