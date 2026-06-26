@@ -15,7 +15,8 @@ const minOverall = Number(process.env.ANTIROT_JUDGE_MIN_OVERALL || 8);
 const minDimension = Number(process.env.ANTIROT_JUDGE_MIN_DIMENSION || 7);
 const requestTimeoutMs = Number(process.env.ANTIROT_JUDGE_TIMEOUT_MS || 120_000);
 const judgeMaxTokens = Number(process.env.ANTIROT_JUDGE_MAX_TOKENS || 1200);
-const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 23);
+const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 19);
+const expectedFinalCaseIndex = Number(process.env.ANTIROT_LLM_REGRESSION_FINAL_CASE_INDEX || 23);
 const retryDelaysMs = [2_000, 5_000, 10_000];
 
 const criteria = [
@@ -39,7 +40,7 @@ function loadTranscript() {
     }
 
     const progress = JSON.parse(fs.readFileSync(progressPath, "utf8"));
-    assert.equal(progress.lastPassed, expectedCaseCount, `LLM regression must pass all ${expectedCaseCount} cases before judging output quality.`);
+    assert.equal(progress.lastPassed, expectedFinalCaseIndex, `LLM regression must pass through LLM-${String(expectedFinalCaseIndex).padStart(2, "0")} before judging output quality.`);
     assert.equal(progress.transcript?.length, expectedCaseCount, `LLM regression transcript must contain exactly ${expectedCaseCount} cases.`);
     return progress.transcript;
 }

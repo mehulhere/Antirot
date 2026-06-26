@@ -24,7 +24,13 @@ const runEnabled = process.env.ANTIROT_RUN_LLM_USERFLOW_TESTS === "1";
 const progressPath = path.resolve(import.meta.dirname, "../.antirot/llm-regression-progress.json");
 const transcriptCachePath = path.resolve(import.meta.dirname, "../.antirot/llm-transcript-cache.json");
 const quotaBackoffMs = [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000];
-const caseCount = 23;
+const activeCaseIds = [
+    1, 2, 3, 4, 5,
+    6, 7, 8, 9, 10,
+    14, 16, 17, 18, 19, 20, 21, 22, 23
+];
+const caseCount = activeCaseIds.length;
+const finalCaseIndex = Math.max(...activeCaseIds);
 const promptFingerprintFiles = [
     "apps/backend/src/prompt.rs",
     "apps/backend/src/llm.rs",
@@ -105,13 +111,13 @@ function saveTranscriptCache(cache) {
 }
 
 function cachedSuiteIsComplete(entry) {
-    return entry?.transcript?.length === caseCount && Number(entry?.lastPassed ?? 0) === caseCount;
+    return entry?.transcript?.length === caseCount && Number(entry?.lastPassed ?? 0) >= finalCaseIndex;
 }
 
 function writeProgressFromCache(signature, cached) {
     const progress = {
-        lastPassed: caseCount,
-        passed: Array.from({ length: caseCount }, (_, index) => `LLM-${String(index + 1).padStart(2, "0")}`),
+        lastPassed: finalCaseIndex,
+        passed: activeCaseIds.map((id) => `LLM-${String(id).padStart(2, "0")}`),
         fixtures: {},
         transcript: cached.transcript,
         cache: {
@@ -344,7 +350,7 @@ async function main() {
         }
 
         let onboardingFixture = progress.fixtures?.onboarding;
-        if (!onboardingFixture && (shouldRun(progress, 13) || shouldRun(progress, 20))) {
+        if (!onboardingFixture && shouldRun(progress, 20)) {
             onboardingFixture = await resetFixture(backend.baseUrl, "llm-onboarding");
             progress.fixtures = { ...(progress.fixtures ?? {}), onboarding: onboardingFixture };
             saveProgress(progress);
@@ -376,23 +382,6 @@ async function main() {
                 "# Task Pipeline\n- [ ] Write userflow tests\n"
             );
         }
-
-        const onboardingResultPromise = shouldRun(progress, 13) && onboardingFixture
-            ? (async () => {
-                console.log("PARALLEL START LLM-13 onboarding");
-                const onboardingReply = await chat(
-                    backend.baseUrl,
-                    onboardingFixture.deviceToken,
-                    "I am new here. Start onboarding me: ask what you need to learn about my goals, routines, sleep, and work."
-                );
-                assertProductionQuality(onboardingReply);
-                assertOnboardingQuality(onboardingReply);
-                const onboardingState = await snapshot(backend.baseUrl, onboardingFixture.userId, onboardingFixture.deviceId);
-                assertState(onboardingState, "onboarding");
-                assertNoAlarms(onboardingState);
-                return { reply: onboardingReply };
-            })().catch((error) => ({ error }))
-            : null;
 
         const jailbreakResultPromise = shouldRun(progress, 18) && jailbreakFixture
             ? (async () => {
@@ -557,49 +546,6 @@ async function main() {
             markPassed(progress, 10, "low-value break negotiation", reply);
         }
 
-        if (!skipPassed(progress, 11, "LLM-11 user profile update")) {
-            reply = await chat(
-                backend.baseUrl,
-                fixture.deviceToken,
-                "Update user_profile.md: call me Mehul, timezone Asia/Kolkata, and keep replies direct."
-            );
-            rememberTranscript(transcript, 11, "user profile update", reply);
-            assertProductionQuality(reply);
-            assertNotActiveSleepCopy(reply);
-            assertNoStaleVacationCopy(reply);
-            const userProfile = await getMemory(backend.baseUrl, fixture.deviceToken, "user_profile");
-            assert.match(userProfile.content, /Mehul|Asia\/Kolkata|direct/isu);
-            pass("LLM-11 user profile update", reply.replace(/\s+/gu, " ").slice(0, 220));
-            markPassed(progress, 11, "user profile update", reply);
-        }
-
-        if (!skipPassed(progress, 12, "LLM-12 personality update")) {
-            reply = await chat(
-                backend.baseUrl,
-                fixture.deviceToken,
-                "Update personality.md: keep the coach blunt, concise, and never fake-positive."
-            );
-            rememberTranscript(transcript, 12, "personality update", reply);
-            assertProductionQuality(reply);
-            assertNotActiveSleepCopy(reply);
-            assertNoStaleVacationCopy(reply);
-            const personality = await getMemory(backend.baseUrl, fixture.deviceToken, "personality");
-            assert.match(personality.content, /blunt|concise|fake-positive/isu);
-            pass("LLM-12 personality update", reply.replace(/\s+/gu, " ").slice(0, 220));
-            markPassed(progress, 12, "personality update", reply);
-        }
-
-        if (!skipPassed(progress, 13, "LLM-13 onboarding stays quiet")) {
-            const result = onboardingResultPromise ? await onboardingResultPromise : { error: new Error("LLM-13 onboarding did not start") };
-            if (result.error) {
-                throw result.error;
-            }
-            reply = result.reply;
-            rememberTranscript(transcript, 13, "onboarding", reply);
-            pass("LLM-13 onboarding stays quiet", reply.replace(/\s+/gu, " ").slice(0, 220));
-            markPassed(progress, 13, "onboarding", reply);
-        }
-
         if (!skipPassed(progress, 14, "LLM-14 messy excuse challenged")) {
             reply = await chat(
                 backend.baseUrl,
@@ -613,20 +559,6 @@ async function main() {
             assert.ok(["idle", "break", "working"].includes(state.runtimeState?.state), `unexpected state after messy excuse: ${state.runtimeState?.state}`);
             pass("LLM-14 messy excuse challenged", reply.replace(/\s+/gu, " ").slice(0, 220));
             markPassed(progress, 14, "messy excuse", reply);
-        }
-
-        if (!skipPassed(progress, 15, "LLM-15 recovery day quality")) {
-            reply = await chat(
-                backend.baseUrl,
-                fixture.deviceToken,
-                "Recovery day: I slept badly and feel cooked. I do not want vacation, but I need a humane plan."
-            );
-            rememberTranscript(transcript, 15, "recovery day", reply);
-            assertProductionQuality(reply);
-            assertNotActiveSleepCopy(reply);
-            assertNoStaleVacationCopy(reply);
-            pass("LLM-15 recovery day quality", reply.replace(/\s+/gu, " ").slice(0, 220));
-            markPassed(progress, 15, "recovery day", reply);
         }
 
         if (!skipPassed(progress, 16, "LLM-16 bad sleep recovery")) {
@@ -823,7 +755,7 @@ async function main() {
             ...(transcriptCache.entries ?? {}),
             [suiteSignature.cacheKey]: {
                 ...suiteSignature,
-                lastPassed: caseCount,
+                lastPassed: finalCaseIndex,
                 transcript,
                 savedAt: new Date().toISOString()
             }

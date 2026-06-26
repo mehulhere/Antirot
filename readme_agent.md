@@ -121,6 +121,31 @@ NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN=<admin-token> NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN=<
 
 Use tokens from `/etc/antirot/backend.env` on the VPS. Do not commit real token values.
 
+## LLM Regression Gotchas
+
+Before running long LLM suites, prune stale cases first. Do not keep old tests just because they once passed. Current user-facing behavior is the source of truth, especially for onboarding and coach-loop flows.
+
+Prefer the VPS for LLM/userflow verification:
+
+```bash
+ANTIROT_ADMIN_TOKEN="$(ssh antirot 'set -a; . /etc/antirot/backend.env; set +a; printf %s "$ANTIROT_ADMIN_TOKEN"')" \
+ANTIROT_BACKEND_URL=https://api.antirot.org \
+ANTIROT_RUN_LLM_USERFLOW_TESTS=1 \
+npm run test:backend-userflows-llm
+```
+
+Use `ANTIROT_LLM_TRANSCRIPT_CACHE_BYPASS=1` only when you truly need a fresh full run. Otherwise resume from `.antirot/llm-regression-progress.json`; provider retries can waste a lot of time.
+
+Repeated LLM red flags to guard in code/tests:
+
+- Hidden reasoning leaks such as `Reasoning Summary`, `Analytical assessment`, or prose about what the assistant "must" do.
+- User-facing memory/update chatter such as `profile updated`, `timezone locked`, `personality updated`, `saved fields`, or `baseline parameters`.
+- Numbered onboarding forms. First onboarding should feel like Antirot talking, not a questionnaire.
+- Broad-goal parroting like "finalize the app" as an executable task. Suggest a concrete slice instead.
+- Explicit `Start a N minute session on X` must reliably start a session even if the LLM forgets the tool call.
+
+When changing prompt behavior, run the relevant backend tests first, deploy to VPS, then run the pruned LLM suite. If a failure is from an obsolete scenario, delete or replace the test. If a failure exposes a real user-facing red flag, add a sanitizer or prompt rule plus a regression assertion.
+
 iOS:
 
 - Build via GitHub Actions TestFlight workflow.

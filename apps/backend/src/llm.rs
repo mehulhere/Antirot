@@ -609,8 +609,8 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
         "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
         "start_session" if recovery_context => "Recovery pace: one low-friction work block is started. Work exactly 20 minutes, stop at the timer, then choose recovery or sleep if your body is still cooked.".to_string(),
-        "start_session" if mentions_messy_excuse_context(&user_message_lower) => "If this is fatigue, say it directly now. Otherwise desk stays as-is: work block started, ship one concrete piece, and report done or blocked when it ends.".to_string(),
-        "start_session" => "Work block started. If sleep, recovery, or relationship constraints are active, say so now; otherwise focus only on the named task and report done or blocked when the timer ends.".to_string(),
+        "start_session" if mentions_messy_excuse_context(&user_message_lower) => "Work block started. Keep the environment as-is, ship one concrete piece, then report done or blocked.".to_string(),
+        "start_session" => start_session_reply(user_message),
         "extend_session" => "Extension logged. Use it deliberately; the next check-in still counts.".to_string(),
         "end_session" => "Logged. One block is closed. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
         "start_break" if recovery_context => {
@@ -670,7 +670,8 @@ fn mentions_relationship_context(user_message_lower: &str) -> bool {
 }
 
 fn mentions_messy_excuse_context(user_message_lower: &str) -> bool {
-    user_message_lower.contains("vibe")
+    user_message_lower.contains("vibe is wrong")
+        || user_message_lower.contains("wrong vibe")
         || user_message_lower.contains("reorganize")
         || user_message_lower.contains("organize my desk")
         || user_message_lower.contains("clean my desk")
@@ -694,8 +695,20 @@ fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
 }
 
 fn onboarding_setup_reply() -> String {
-    "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile, Give me a jist of your longterm and shorterm goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.".to_string()
+    "I’m Antirot. Smart, intense people still drift when the hour gets ugly, so give me the real picture: long-term goal, short-term goal, day shape, and today’s concrete plan.".to_string()
 }
+
+fn start_session_reply(user_message: &str) -> String {
+    let task = extract_task_after_on(user_message);
+    match task {
+        Some(t) => format!(
+            "Work block started. Focus only on {} and report done or blocked when the timer ends.",
+            t
+        ),
+        None => "Work block started. Focus only on the named task and report done or blocked when the timer ends.".to_string(),
+    }
+}
+
 
 fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
     let marker = "Break started for ";
@@ -1249,7 +1262,10 @@ fn sanitize_tool_locked_reply(reply: &str) -> String {
 
 fn sanitize_reasoning_summary_reply(reply: &str) -> String {
     let reply_lower = reply.to_ascii_lowercase();
-    if !reply_lower.contains("reasoning summary") {
+    if !reply_lower.contains("reasoning summary")
+        && !reply_lower.contains("analytical assessment")
+        && !reply_lower.contains("assessment of the user's request")
+    {
         return reply.to_string();
     }
 
@@ -2376,11 +2392,11 @@ mod tests {
             "The user just shared their name during onboarding. Save it, then continue like a conversational coach.\nName: Mehul",
         );
 
-        assert!(reply.contains("what your day looks like"), "{reply}");
-        assert!(
-            reply.contains("jist of your longterm and shorterm goals"),
-            "{reply}"
-        );
+        assert!(reply.contains("I’m Antirot"), "{reply}");
+        assert!(reply.contains("long-term goal"), "{reply}");
+        assert!(reply.contains("short-term goal"), "{reply}");
+        assert!(reply.contains("day shape"), "{reply}");
+        assert!(reply.contains("today’s concrete plan"), "{reply}");
         assert!(!reply.contains("New standard is in"), "{reply}");
     }
 }

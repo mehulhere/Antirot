@@ -424,6 +424,8 @@ export function assertNoBackendLeak(reply) {
         /\bJSON\b/u,
         /\bSQL\b/u,
         /\breasoning summary\b/iu,
+        /\banalytical assessment\b/iu,
+        /\bassessment of the user's request\b/iu,
         /\bmust push back\b/iu,
         /\btool call\b/iu,
         /\btool names?\b/iu,
