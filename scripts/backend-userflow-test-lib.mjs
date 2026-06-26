@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 export const repoRoot = path.resolve(import.meta.dirname, "..");
-export const adminToken = "test-admin-token";
+export const defaultAdminToken = "test-admin-token";
+const postgresContainerName = "antirot-postgres";
 
 export function readDotEnv() {
     const envPath = path.join(repoRoot, ".env");
@@ -67,14 +70,27 @@ export async function startBackend(extraEnv = {}) {
         tailoredKey
     } = resolveTailoredLlmConfig(extraEnv);
 
-    console.log(`Starting backend with tailored LLM provider=${tailoredProvider} model=${tailoredModel} vertexCredentials=${hasVertexCredentials ? "present" : "absent"}`);
+    const externalBaseUrl = extraEnv.ANTIROT_BACKEND_URL
+        || process.env.ANTIROT_BACKEND_URL
+        || dotEnv.ANTIROT_BACKEND_URL
+        || "";
+    if (externalBaseUrl) {
+        const baseUrl = externalBaseUrl.replace(/\/+$/u, "");
+        console.log(`Using external backend userflow target: ${baseUrl}`);
+        await waitForHealth(baseUrl);
+        return {
+            baseUrl,
+            output: () => "",
+            stop: async () => {}
+        };
+    }
 
     const env = {
         ...dotEnv,
         ...process.env,
         ...extraEnv,
         ANTIROT_BACKEND_BIND: "127.0.0.1:0",
-        ANTIROT_ADMIN_TOKEN: adminToken,
+        ANTIROT_ADMIN_TOKEN: defaultAdminToken,
         ANTIROT_DEVICE_TOKEN: "test-device-token",
         ANTIROT_ENABLE_TEST_ENDPOINTS: "1",
         ANTIROT_MEMORY_GEMINI_API_KEY: "",
@@ -83,6 +99,9 @@ export async function startBackend(extraEnv = {}) {
         ANTIROT_TAILORED_LLM_MODEL: tailoredModel,
         ANTIROT_TAILORED_LLM_KEY: tailoredKey
     };
+
+    await ensureLocalPostgres(env.DATABASE_URL || "");
+    console.log(`Starting backend with tailored LLM provider=${tailoredProvider} model=${tailoredModel} vertexCredentials=${hasVertexCredentials ? "present" : "absent"}`);
 
     const child = spawn("cargo", ["run", "--manifest-path", "apps/backend/Cargo.toml", "--bin", "antirot-backend"], {
         cwd: repoRoot,
@@ -134,6 +153,141 @@ export async function startBackend(extraEnv = {}) {
     };
 }
 
+function isLocalHost(hostname) {
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function commandExists(command) {
+    const result = spawnSync(command, ["--version"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "ignore", "ignore"]
+    });
+    return result.status === 0;
+}
+
+function findContainerRuntime() {
+    if (commandExists("podman")) {
+        return "podman";
+    }
+    if (commandExists("docker")) {
+        return "docker";
+    }
+    return "";
+}
+
+function canConnectTcp(host, targetPort) {
+    return new Promise((resolve) => {
+        const socket = net.createConnection({ host, port: targetPort });
+        const done = (ok) => {
+            socket.removeAllListeners();
+            socket.destroy();
+            resolve(ok);
+        };
+        socket.setTimeout(1000);
+        socket.once("connect", () => done(true));
+        socket.once("error", () => done(false));
+        socket.once("timeout", () => done(false));
+    });
+}
+
+async function waitForPostgres(host, targetPort) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (await canConnectTcp(host, targetPort)) {
+            return true;
+        }
+        await delay(1000);
+    }
+    return false;
+}
+
+function containerExists(runtime) {
+    const result = spawnSync(runtime, ["inspect", postgresContainerName], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "ignore", "ignore"]
+    });
+    return result.status === 0;
+}
+
+function runContainerCommand(runtime, args, description) {
+    const result = spawnSync(runtime, args, {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: "inherit"
+    });
+    if (result.status !== 0) {
+        throw new Error(`${description} failed with exit code ${result.status ?? "unknown"}`);
+    }
+}
+
+async function ensureLocalPostgres(databaseUrl) {
+    if (process.env.ANTIROT_SKIP_DB_SETUP === "1" || !databaseUrl) {
+        return;
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(databaseUrl);
+    } catch {
+        return;
+    }
+
+    if (!parsed.protocol.startsWith("postgres") || !isLocalHost(parsed.hostname)) {
+        return;
+    }
+
+    const dbHost = parsed.hostname;
+    const dbPort = Number(parsed.port || "5432");
+    if (await canConnectTcp(dbHost, dbPort)) {
+        return;
+    }
+
+    const runtime = findContainerRuntime();
+    if (!runtime) {
+        throw new Error(
+            [
+                `Local Postgres is not listening on ${dbHost}:${dbPort}.`,
+                "Install Docker or Podman, start Postgres manually, or set ANTIROT_SKIP_DB_SETUP=1 to bypass the automatic test DB setup."
+            ].join(" ")
+        );
+    }
+
+    const dbName = decodeURIComponent(parsed.pathname.replace(/^\//, "") || "antirot_backend");
+    const dbUser = decodeURIComponent(parsed.username || "antirot_backend");
+    const dbPassword = decodeURIComponent(parsed.password || "antirot_backend");
+
+    if (containerExists(runtime)) {
+        console.log(`Starting existing ${postgresContainerName} container with ${runtime}.`);
+        runContainerCommand(runtime, ["start", postgresContainerName], "Postgres container start");
+    } else {
+        console.log(`Creating ${postgresContainerName} local Postgres container with ${runtime}.`);
+        runContainerCommand(
+            runtime,
+            [
+                "run",
+                "-d",
+                "--name",
+                postgresContainerName,
+                "-e",
+                `POSTGRES_USER=${dbUser}`,
+                "-e",
+                `POSTGRES_PASSWORD=${dbPassword}`,
+                "-e",
+                `POSTGRES_DB=${dbName}`,
+                "-p",
+                `127.0.0.1:${dbPort}:5432`,
+                "postgres:16-alpine"
+            ],
+            "Postgres container create"
+        );
+    }
+
+    if (!(await waitForPostgres(dbHost, dbPort))) {
+        throw new Error(`Postgres did not start listening on ${dbHost}:${dbPort} within 30s.`);
+    }
+}
+
 async function waitForHealth(baseUrl) {
     for (let attempt = 0; attempt < 60; attempt += 1) {
         try {
@@ -170,7 +324,7 @@ export async function api(baseUrl, pathName, options = {}) {
     return body;
 }
 
-export function authHeaders(token = adminToken) {
+export function authHeaders(token = process.env.ANTIROT_ADMIN_TOKEN || readDotEnv().ANTIROT_ADMIN_TOKEN || defaultAdminToken) {
     return { Authorization: `Bearer ${token}` };
 }
 
@@ -269,11 +423,31 @@ export function assertNoBackendLeak(reply) {
         /\buser_runtime/iu,
         /\bJSON\b/u,
         /\bSQL\b/u,
+        /\breasoning summary\b/iu,
+        /\bmust push back\b/iu,
         /\btool call\b/iu,
         /\btool names?\b/iu,
+        /\btools? (?:are )?locked\b/iu,
         /\bbackend state\b/iu,
         /\braw payloads?\b/iu,
-        /\bstate machine\b/iu
+        /\bstate machine\b/iu,
+        /\bbaseline parameters\b/iu,
+        /\bhidden context\b/iu,
+        /\bsaved fields?\b/iu,
+        /\bprofile setup\b/iu,
+        /\bprofile updates?\b/iu,
+        /\bprofile (?:is )?updated\b/iu,
+        /\bprofile has been updated\b/iu,
+        /\btimezone (?:is )?updated\b/iu,
+        /\btimezone (?:is )?locked\b/iu,
+        /\bmemory (?:is )?updated\b/iu,
+        /\bpersonality profile (?:is )?updated\b/iu,
+        /\bpersonality updated\b/iu,
+        /\bpersonality configuration\b/iu,
+        /\bconfiguration (?:is )?locked\b/iu,
+        /\bmemory files?\b/iu,
+        /\bmemory logs?\b/iu,
+        /\b[A-Za-z0-9_-]+\.md\b/u
     ];
     for (const pattern of forbidden) {
         assert.doesNotMatch(reply, pattern, `reply leaked backend internals: ${reply}`);

@@ -351,17 +351,21 @@ pub async fn chat_with_coach(
     let mut loop_count = 0;
     let max_loops = 5;
     let mut final_text = String::new();
+    let mut start_session_called = false;
 
     while loop_count < max_loops {
         loop_count += 1;
         info!(loop_count, url, "sending request to LLM");
 
-        let request_payload = json!({
+        let mut request_payload = json!({
             "model": model,
             "messages": request_messages,
             "tools": tools,
             "tool_choice": "auto"
         });
+        if let Some(thinking_config) = gemini_minimal_thinking_extra_body(&provider, &model) {
+            request_payload["extra_body"] = thinking_config;
+        }
 
         let mut request = http_client.post(&url).json(&request_payload);
         if provider == "vertex" {
@@ -446,6 +450,9 @@ pub async fn chat_with_coach(
             let mut blocked_tool_reply = false;
             for call in calls {
                 info!(tool = %call.function.name, "LLM requested tool execution");
+                if call.function.name == "start_session" {
+                    start_session_called = true;
+                }
                 let mut tool_arguments = call.function.arguments.clone();
                 if let Some(reply) = high_drift_break_guard_reply(
                     &call.function.name,
@@ -453,7 +460,7 @@ pub async fn chat_with_coach(
                     user_message,
                     &messages,
                 ) {
-                    user_facing_results.push(reply);
+                    push_unique_user_facing_result(&mut user_facing_results, reply);
                     blocked_tool_reply = true;
                     continue;
                 }
@@ -473,11 +480,10 @@ pub async fn chat_with_coach(
                     &tool_arguments,
                 )
                 .await;
-                user_facing_results.push(user_facing_tool_result(
-                    &call.function.name,
-                    &result_text,
-                    user_message,
-                ));
+                push_unique_user_facing_result(
+                    &mut user_facing_results,
+                    user_facing_tool_result(&call.function.name, &result_text, user_message),
+                );
                 tool_results.push(format!("{}: {}", call.function.name, result_text));
 
                 let tool_msg = LlmMessage {
@@ -509,7 +515,7 @@ pub async fn chat_with_coach(
                     .await?;
             }
 
-            if blocked_tool_reply || provider_uses_deterministic_tool_reply(&provider) {
+            if blocked_tool_reply {
                 final_text = if user_facing_results.is_empty() {
                     content.unwrap_or_default()
                 } else {
@@ -551,13 +557,38 @@ pub async fn chat_with_coach(
         }
     }
 
+    if !start_session_called {
+        if let Some((task_id, estimated_minutes)) = explicit_start_session_request(user_message) {
+            let result_text = execute_tool_locally(
+                pool,
+                config,
+                user_id,
+                "start_session",
+                &json!({
+                    "task_id": task_id,
+                    "estimated_minutes": estimated_minutes
+                })
+                .to_string(),
+            )
+            .await;
+            if result_text.starts_with("Success:") {
+                final_text = user_facing_tool_result("start_session", &result_text, user_message);
+            }
+        }
+    }
+
     final_text = sanitize_stale_vacation_reply(&final_text, runtime_state.as_deref(), user_message);
     final_text = sanitize_stale_recovery_reply(&final_text, user_message);
+    final_text = sanitize_reasoning_summary_reply(&final_text);
+    final_text = sanitize_tool_locked_reply(&final_text);
     final_text = sanitize_onboarding_repeat_reply(&final_text, user_message);
+    final_text = sanitize_sleep_baseline_reply(&final_text, user_message);
+    final_text = sanitize_bad_sleep_reply(&final_text, user_message);
     final_text = sanitize_messy_excuse_reply(&final_text, user_message);
     final_text = sanitize_high_drift_break_reply(&final_text, user_message, &messages);
     final_text = sanitize_soft_personality_jailbreak_reply(&final_text, user_message);
     final_text = sanitize_internal_inspection_reply(&final_text, user_message);
+    final_text = sanitize_memory_update_announcement_reply(&final_text, user_message);
     Ok(final_text)
 }
 
@@ -573,7 +604,7 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     let sleep_baseline_context = mentions_sleep_baseline_context(&user_message_lower);
 
     match tool_name {
-        "patch_file" if sleep_baseline_context => "Sleep baseline saved. Next, answer in one line: what work target needs protection today, and what blocker keeps pulling you away?".to_string(),
+        "patch_file" if sleep_baseline_context => "Got your day shape. Pick the smallest useful slice from today's plan, then press Start when you are ready to begin.".to_string(),
         "patch_file" if onboarding_context => onboarding_setup_reply(),
         "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
@@ -615,6 +646,15 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     }
 }
 
+fn push_unique_user_facing_result(results: &mut Vec<String>, reply: String) {
+    if reply.trim().is_empty() {
+        return;
+    }
+    if !results.iter().any(|existing| existing == &reply) {
+        results.push(reply);
+    }
+}
+
 fn mentions_recovery_context(user_message_lower: &str) -> bool {
     user_message_lower.contains("recovery day")
         || user_message_lower.contains("slept badly")
@@ -640,6 +680,8 @@ fn mentions_onboarding_start(user_message_lower: &str) -> bool {
     user_message_lower.contains("new here")
         || user_message_lower.contains("start onboarding")
         || user_message_lower.contains("onboarding me")
+        || user_message_lower.contains("during onboarding")
+        || user_message_lower.contains("shared their name")
 }
 
 fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
@@ -652,7 +694,7 @@ fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
 }
 
 fn onboarding_setup_reply() -> String {
-    "Good. Start simple: answer in one line with the work target you most need protected today, and the main blocker pulling you away.".to_string()
+    "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile, Give me a jist of your longterm and shorterm goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.".to_string()
 }
 
 fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
@@ -665,8 +707,86 @@ fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
     digits.parse().ok()
 }
 
-fn provider_uses_deterministic_tool_reply(provider: &str) -> bool {
-    matches!(provider, "gemini" | "vertex")
+fn explicit_start_session_request(user_message: &str) -> Option<(String, i64)> {
+    let lower = user_message.to_ascii_lowercase();
+    if lower.contains("start break")
+        || lower.contains("start sleep")
+        || lower.contains("start vacation")
+        || lower.contains("good night")
+    {
+        return None;
+    }
+    if !lower.contains("start") || !lower.contains("minute") {
+        return None;
+    }
+    if !lower.contains("session") && !lower.contains("work block") && !lower.contains("sprint") {
+        return None;
+    }
+
+    let estimated_minutes = extract_first_integer(&lower).unwrap_or(25).clamp(1, 240);
+    let task_id = extract_task_after_on(user_message)
+        .unwrap_or_else(|| "Current task".to_string())
+        .trim()
+        .trim_matches(|ch: char| matches!(ch, '.' | '!' | '?' | '"' | '\''))
+        .to_string();
+    if task_id.is_empty() {
+        return Some(("Current task".to_string(), estimated_minutes));
+    }
+
+    Some((task_id, estimated_minutes))
+}
+
+fn extract_first_integer(text: &str) -> Option<i64> {
+    let mut digits = String::new();
+    for ch in text.chars() {
+        if ch.is_ascii_digit() {
+            digits.push(ch);
+        } else if !digits.is_empty() {
+            break;
+        }
+    }
+    digits.parse().ok()
+}
+
+fn extract_task_after_on(user_message: &str) -> Option<String> {
+    let lower = user_message.to_ascii_lowercase();
+    let marker = " on ";
+    let index = lower.rfind(marker)?;
+    let task = user_message[index + marker.len()..].trim();
+    if task.is_empty() {
+        None
+    } else {
+        Some(task.to_string())
+    }
+}
+
+fn gemini_minimal_thinking_extra_body(provider: &str, model: &str) -> Option<Value> {
+    if !matches!(provider, "gemini" | "vertex") {
+        return None;
+    }
+
+    let model_lower = model.to_lowercase();
+    if !model_lower.contains("gemini") {
+        return None;
+    }
+
+    if model_lower.contains("gemini-3") {
+        return Some(json!({
+            "google": {
+                "thinking_config": {
+                    "thinking_level": "minimal"
+                }
+            }
+        }));
+    }
+
+    Some(json!({
+        "google": {
+            "thinking_config": {
+                "thinking_budget": 0
+            }
+        }
+    }))
 }
 
 fn high_drift_break_guard_reply(
@@ -1093,6 +1213,15 @@ fn sanitize_onboarding_repeat_reply(reply: &str, user_message: &str) -> String {
     let bad_opener = reply_lower.contains("repeated the prompt")
         || reply_lower.contains("stop stalling")
         || reply_lower.contains("if you missed it")
+        || reply_lower.contains("timezone")
+        || reply_lower.contains("raw data")
+        || reply_lower.contains("tell me:\n1.")
+        || reply_lower.contains("1. what")
+        || reply_lower.contains("2. what")
+        || reply_lower.contains("3. what")
+        || reply_lower.contains("daily routine")
+        || reply_lower.contains("target sleep")
+        || reply_lower.contains("wake times")
         || reply_lower.contains("exact prompt")
         || reply_lower.contains("copy-past")
         || reply_lower.contains("repeat myself")
@@ -1103,6 +1232,123 @@ fn sanitize_onboarding_repeat_reply(reply: &str, user_message: &str) -> String {
     }
 
     onboarding_setup_reply()
+}
+
+fn sanitize_tool_locked_reply(reply: &str) -> String {
+    let reply_lower = reply.to_ascii_lowercase();
+    if !reply_lower.contains("tools are locked") && !reply_lower.contains("tool is locked") {
+        return reply.to_string();
+    }
+
+    reply
+        .replace("The tools are locked. ", "")
+        .replace("The tool is locked. ", "")
+        .replace("Tools are locked. ", "")
+        .replace("Tool is locked. ", "")
+}
+
+fn sanitize_reasoning_summary_reply(reply: &str) -> String {
+    let reply_lower = reply.to_ascii_lowercase();
+    if !reply_lower.contains("reasoning summary") {
+        return reply.to_string();
+    }
+
+    if let Some(separator_index) = reply.find("***") {
+        return reply[separator_index + 3..].trim().to_string();
+    }
+
+    let mut lines = Vec::new();
+    let mut skipping = false;
+    for line in reply.lines() {
+        let line_lower = line.to_ascii_lowercase();
+        if line_lower.contains("reasoning summary") {
+            skipping = true;
+            continue;
+        }
+        if skipping && line.trim().is_empty() {
+            skipping = false;
+            continue;
+        }
+        if !skipping {
+            lines.push(line);
+        }
+    }
+
+    let cleaned = lines.join("\n").trim().to_string();
+    if cleaned.is_empty() {
+        "No. That is drift wearing a fake recovery badge. Take a 10-minute screen-free reset, or say plainly that you are choosing the low-value break.".to_string()
+    } else {
+        cleaned
+    }
+}
+
+fn sanitize_sleep_baseline_reply(reply: &str, user_message: &str) -> String {
+    if !mentions_sleep_baseline_context(&user_message.to_ascii_lowercase()) {
+        return reply.to_string();
+    }
+
+    let reply_lower = reply.to_ascii_lowercase();
+    let bad_sleep_baseline_reply = reply_lower.contains("baseline parameters")
+        || reply_lower.contains("baseline is updated")
+        || reply_lower.contains("baseline updated")
+        || reply_lower.contains("locked your")
+        || reply_lower.contains("sleep is locked")
+        || reply_lower.contains("sleep's locked")
+        || reply_lower.contains("locked in")
+        || reply_lower.contains("target into")
+        || reply_lower.contains("saved");
+
+    if !bad_sleep_baseline_reply {
+        return reply.to_string();
+    }
+
+    "Noted. Now pick the next concrete slice from today: a screen, bug, test, or 20-minute implementation pass. Press Start when ready.".to_string()
+}
+
+fn sanitize_bad_sleep_reply(reply: &str, user_message: &str) -> String {
+    let user_lower = user_message.to_ascii_lowercase();
+    let bad_sleep_context = user_lower.contains("bad sleep")
+        || user_lower.contains("sleep quality")
+        || user_lower.contains("quality was 1")
+        || user_lower.contains("1 out of 5");
+
+    if !bad_sleep_context || reply.chars().count() <= 700 {
+        return reply.to_string();
+    }
+
+    "Bad sleep lowers the ceiling, not the standard. Today is short, dumb, structured work: pick one brain-dead 15-minute task, then take a screen-free movement break. What is the task?".to_string()
+}
+
+fn sanitize_memory_update_announcement_reply(reply: &str, user_message: &str) -> String {
+    let user_lower = user_message.to_ascii_lowercase();
+    let reply_lower = reply.to_ascii_lowercase();
+    let is_memory_edit = user_lower.contains(".md")
+        || user_lower.contains("user_profile")
+        || user_lower.contains("personality")
+        || user_lower.contains("timezone");
+    let announced_hidden_update = reply_lower.contains("profile updated")
+        || reply_lower.contains("profile is updated")
+        || reply_lower.contains("profile has been updated")
+        || reply_lower.contains("profile and timezone are updated")
+        || reply_lower.contains("timezone is updated")
+        || reply_lower.contains("timezone updated")
+        || reply_lower.contains("timezone is locked")
+        || reply_lower.contains("timezone locked")
+        || reply_lower.contains("personality profile is updated")
+        || reply_lower.contains("personality profile has been updated")
+        || reply_lower.contains("personality is updated")
+        || reply_lower.contains("personality updated")
+        || reply_lower.contains("personality configuration")
+        || reply_lower.contains("configuration is locked")
+        || reply_lower.contains("configuration locked")
+        || reply_lower.contains("memory updated")
+        || reply_lower.contains("saved");
+
+    if !is_memory_edit || !announced_hidden_update {
+        return reply.to_string();
+    }
+
+    "Noted. Now stop polishing settings and pick the next concrete work slice. What are you starting right now?".to_string()
 }
 
 fn sanitize_messy_excuse_reply(reply: &str, user_message: &str) -> String {
@@ -2116,4 +2362,25 @@ fn get_tool_definitions() -> Value {
             }
         }
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frontend_name_onboarding_patch_gets_onboarding_reply() {
+        let reply = user_facing_tool_result(
+            "patch_file",
+            "Success: user_profile.md updated",
+            "The user just shared their name during onboarding. Save it, then continue like a conversational coach.\nName: Mehul",
+        );
+
+        assert!(reply.contains("what your day looks like"), "{reply}");
+        assert!(
+            reply.contains("jist of your longterm and shorterm goals"),
+            "{reply}"
+        );
+        assert!(!reply.contains("New standard is in"), "{reply}");
+    }
 }

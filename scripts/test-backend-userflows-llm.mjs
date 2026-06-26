@@ -24,7 +24,7 @@ const runEnabled = process.env.ANTIROT_RUN_LLM_USERFLOW_TESTS === "1";
 const progressPath = path.resolve(import.meta.dirname, "../.antirot/llm-regression-progress.json");
 const transcriptCachePath = path.resolve(import.meta.dirname, "../.antirot/llm-transcript-cache.json");
 const quotaBackoffMs = [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000];
-const caseCount = 20;
+const caseCount = 23;
 const promptFingerprintFiles = [
     "apps/backend/src/prompt.rs",
     "apps/backend/src/llm.rs",
@@ -233,14 +233,41 @@ function assertOnboardingQuality(reply) {
         /\balready laid out\b|\bif you missed it\b|\bmissed it\b|\btimezone\b|\braw data\b|\b1\.\s|\b2\.\s|\b3\.\s|\b4\.\s/iu,
         `onboarding reply sounded like stale repeated context: ${reply}`
     );
-    assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b|\btask\b|\bblocker\b|\bwork\b/iu, `onboarding did not ask for one useful next detail: ${reply}`);
+    assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b|\btask\b|\bblocker\b|\bwork\b|\bday\b|\bbuild(?:ing)? toward\b|\bplanning\b|\bdone today\b/iu, `onboarding did not ask for useful next context: ${reply}`);
     const askedCategories = [
-        /\bgoals?\b|\bobjective\b|\btarget\b|\bwork\b/iu,
+        /\bgoals?\b|\bobjective\b|\btarget\b|\bwork\b|\bbuild(?:ing)? toward\b/iu,
         /\broutine\b|\bfixed daily\b|\bcommitments?\b/iu,
         /\brhythm\b|\bsleep\b|\bwake\b/iu,
-        /\bblocker\b|\bstuck\b|\bdrift\b/iu
+        /\bblocker\b|\bstuck\b|\bdrift\b/iu,
+        /\bday\b|\bplanning\b|\bdone today\b/iu
     ].filter((pattern) => pattern.test(reply)).length;
-    assert.ok(askedCategories <= 2, `onboarding asked for too much at once: ${reply}`);
+    assert.ok(askedCategories <= 3, `onboarding asked for too much at once: ${reply}`);
+}
+
+function assertFirstOnboardingOpener(reply) {
+    assert.match(reply, /I(?:'|’)m Antirot/iu, `first onboarding reply did not introduce Antirot: ${reply}`);
+    assert.match(reply, /smart|intense|plans|ambition|drift|claim matters/iu, `first onboarding reply lost requested coach tone: ${reply}`);
+    assert.match(reply, /long[- ]?term/iu, `first onboarding reply did not ask long-term goals: ${reply}`);
+    assert.match(reply, /short[- ]?term/iu, `first onboarding reply did not ask short-term goals: ${reply}`);
+    assert.match(reply, /day .*look|what .*day|typical day/iu, `first onboarding reply did not ask day shape: ${reply}`);
+    assert.match(reply, /today|planning|get done/iu, `first onboarding reply did not ask today's plan: ${reply}`);
+    assert.doesNotMatch(reply, /timezone|raw data|numbered|1\.\s|2\.\s/iu, `first onboarding reply used stale form language: ${reply}`);
+}
+
+function assertSecondOnboardingLoopReply(reply) {
+    assertProductionQuality(reply);
+    assert.match(reply, /\blazy\b|\bsoft\b|\bgot\b|\bdetails\b|\bno more planning\b|\bship\b/iu, `second onboarding reply did not keep the sharper coach outline: ${reply}`);
+    assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b/iu, `second onboarding reply did not suggest a first task: ${reply}`);
+    assert.match(reply, /\bpress Start\b|\bStart button\b|\bhit Start\b/iu, `second onboarding reply did not tell user to press Start: ${reply}`);
+    assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
+    assert.doesNotMatch(reply, /main blocker|what blocker|what is blocking/iu, `second onboarding reply asked a filler blocker question: ${reply}`);
+    assert.doesNotMatch(reply, /2\s*a\.?m.*11\s*a\.?m.*girlfriend|girlfriend.*2\s*hours.*10\s*hours/isu, `second onboarding reply repeated too many user details: ${reply}`);
+}
+
+function assertDoneAsksProductiveDuration(reply) {
+    assertProductionQuality(reply);
+    assert.match(reply, /productive duration|actually productive|how (?:many|much).*(?:productive|minutes)|minutes.*productive/iu, `bare done did not ask productive duration: ${reply}`);
+    assert.doesNotMatch(reply, /\blogged\b|\bclosed\b|\bnext task\b|\bnext move\b/iu, `bare done looked closed before productive duration: ${reply}`);
 }
 
 function assertNoLongMovieBreak(reply, state) {
@@ -320,6 +347,13 @@ async function main() {
         if (!onboardingFixture && (shouldRun(progress, 13) || shouldRun(progress, 20))) {
             onboardingFixture = await resetFixture(backend.baseUrl, "llm-onboarding");
             progress.fixtures = { ...(progress.fixtures ?? {}), onboarding: onboardingFixture };
+            saveProgress(progress);
+        }
+
+        let coachLoopFixture = progress.fixtures?.coachLoop;
+        if (!coachLoopFixture && (shouldRun(progress, 21) || shouldRun(progress, 22) || shouldRun(progress, 23))) {
+            coachLoopFixture = await resetFixture(backend.baseUrl, "llm-coach-loop");
+            progress.fixtures = { ...(progress.fixtures ?? {}), coachLoop: coachLoopFixture };
             saveProgress(progress);
         }
 
@@ -690,7 +724,11 @@ async function main() {
             rememberTranscript(transcript, 20, "baseline sleep schedule", reply);
             assertProductionQuality(reply);
             assertNotActiveSleepCopy(reply);
-            assert.match(reply, /\bwork\b|\btarget\b|\bblocker\b|\bpulling\b/iu, `baseline sleep onboarding reply lacked a concrete next prompt: ${reply}`);
+            assert.doesNotMatch(reply, /answer in one line/iu, `baseline sleep onboarding reply used rigid one-line copy: ${reply}`);
+            assert.doesNotMatch(reply, /protected work block/iu, `baseline sleep onboarding reply used product-speak: ${reply}`);
+            assert.doesNotMatch(reply, /start today'?s first task:\s*finalize/iu, `baseline sleep onboarding reply parroted broad app goal as an executable task: ${reply}`);
+            assert.doesNotMatch(reply, /(Sleep baseline saved\\.?\\s*){2,}/iu, `baseline sleep onboarding reply repeated deterministic copy: ${reply}`);
+            assert.match(reply, /\bnext (?:concrete )?(?:slice|step|task|move)\b|\bwhich\b.*\b(?:screen|bug|test|commit|slice)\b|\b20-minute\b/iu, `baseline sleep onboarding reply lacked a concrete next-action prompt: ${reply}`);
             const sleep = await getMemory(backend.baseUrl, onboardingFixture.deviceToken, "sleep");
             assert.match(sleep.content, /2\s*a\.?m\.?|02:00|two\s*a\.?m/isu);
             assert.match(sleep.content, /10\s*a\.?m\.?|10:00|ten\s*a\.?m/isu);
@@ -700,6 +738,84 @@ async function main() {
             assertNoAlarms(onboardingState);
             pass("LLM-20 baseline sleep schedule updates sleep memory", reply.replace(/\s+/gu, " ").slice(0, 220));
             markPassed(progress, 20, "baseline sleep schedule", reply);
+        }
+
+        if (!skipPassed(progress, 21, "LLM-21 angry coach first onboarding opener")) {
+            reply = await chat(
+                backend.baseUrl,
+                coachLoopFixture.deviceToken,
+                [
+                    "The user just shared their name during onboarding. Use it naturally, then continue with the Antirot first onboarding message.",
+                    "Silent client context is available below for scheduling only.",
+                    "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
+                    "The first onboarding message asks for a gist of long-term goals, short-term goals, what the day looks like, and what the user plans to get done today.",
+                    "Name: Mehul",
+                    "Silent device timezone: Asia/Kolkata"
+                ].join("\n")
+            );
+            rememberTranscript(transcript, 21, "angry coach first onboarding opener", reply);
+            assertProductionQuality(reply);
+            assertFirstOnboardingOpener(reply);
+            state = await snapshot(backend.baseUrl, coachLoopFixture.userId, coachLoopFixture.deviceId);
+            assertState(state, "onboarding");
+            assertNoAlarms(state);
+            pass("LLM-21 angry coach first onboarding opener", reply.replace(/\s+/gu, " ").slice(0, 220));
+            markPassed(progress, 21, "angry coach first onboarding opener", reply);
+        }
+
+        if (!skipPassed(progress, 22, "LLM-22 second onboarding suggests start")) {
+            reply = await chat(
+                backend.baseUrl,
+                coachLoopFixture.deviceToken,
+                "Long term I want to build Antirot into a serious accountability product. Short term I need to ship the app. My day is coding, two hours with my girlfriend, sleep around 2 a.m. and wake around 11 a.m. Today I want to fix the onboarding loop and test it."
+            );
+            rememberTranscript(transcript, 22, "second onboarding suggests start", reply);
+            assertSecondOnboardingLoopReply(reply);
+            state = await snapshot(backend.baseUrl, coachLoopFixture.userId, coachLoopFixture.deviceId);
+            assertState(state, "onboarding");
+            assertNoAlarms(state);
+            pass("LLM-22 second onboarding suggests start", reply.replace(/\s+/gu, " ").slice(0, 220));
+            markPassed(progress, 22, "second onboarding suggests start", reply);
+        }
+
+        if (!skipPassed(progress, 23, "LLM-23 done asks productive duration before next task")) {
+            const startReply = await chat(
+                backend.baseUrl,
+                coachLoopFixture.deviceToken,
+                "Start a 25 minute session on fixing the onboarding loop test."
+            );
+            state = await snapshot(backend.baseUrl, coachLoopFixture.userId, coachLoopFixture.deviceId);
+            assertState(state, "working");
+            assertAlarmFamily(state, "session_alarm");
+
+            const doneReply = await chat(
+                backend.baseUrl,
+                coachLoopFixture.deviceToken,
+                "Done."
+            );
+            assertDoneAsksProductiveDuration(doneReply);
+            state = await snapshot(backend.baseUrl, coachLoopFixture.userId, coachLoopFixture.deviceId);
+            assertState(state, "working");
+
+            const durationReply = await chat(
+                backend.baseUrl,
+                coachLoopFixture.deviceToken,
+                "22 minutes were actually productive."
+            );
+            assertProductionQuality(durationReply);
+            assert.match(durationReply, /\bnext\b|\bnow\b|\bstart\b|\banother\b|\bbreak\b|\bsleep\b/iu, `duration reply did not continue the loop: ${durationReply}`);
+            state = await snapshot(backend.baseUrl, coachLoopFixture.userId, coachLoopFixture.deviceId);
+            assertState(state, "idle");
+            assertAlarmFamily(state, "idle_alarm");
+
+            const combinedReply = [
+                `Start: ${startReply}`,
+                `Done: ${doneReply}`,
+                `Duration: ${durationReply}`
+            ].join("\n");
+            rememberTranscript(transcript, 23, "done asks productive duration before next task", combinedReply);
+            pass("LLM-23 done asks productive duration before next task", combinedReply.replace(/\s+/gu, " ").slice(0, 220));
+            markPassed(progress, 23, "done asks productive duration before next task", combinedReply);
         }
 
         printTranscript(transcript);

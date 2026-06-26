@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
     @State private var namePromptSent = false
+    @State private var quickActionRefreshDate = Date()
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
@@ -60,6 +61,9 @@ struct HomeView: View {
         }
         .onChange(of: coach.runtimeState) { _, _ in
             presentNamePromptIfNeeded()
+        }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
+            quickActionRefreshDate = date
         }
         .alert("Your name", isPresented: $showNamePrompt) {
             TextField("Name", text: $onboardingName)
@@ -128,7 +132,7 @@ struct HomeView: View {
     }
 
     private var quickActions: some View {
-        let actions = CoachQuickAction.primary(for: coach.runtimeState)
+        let actions = CoachQuickAction.primary(for: coach.runtimeState, at: quickActionRefreshDate)
 
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {

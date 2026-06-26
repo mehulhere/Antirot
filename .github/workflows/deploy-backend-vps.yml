@@ -71,10 +71,11 @@ jobs:
           fi
 
           /home/antirot/.cargo/bin/cargo build --release --manifest-path apps/backend/Cargo.toml
-          cp apps/backend/target/release/antirot-backend apps/backend/antirot-backend
-          chmod 755 apps/backend/antirot-backend
+          cp apps/backend/target/release/antirot-backend /tmp/antirot-backend.new
+          chmod 755 /tmp/antirot-backend.new
+          mv -f /tmp/antirot-backend.new apps/backend/antirot-backend
 
-          sudo -n systemctl restart antirot-backend.service
-          sudo -n systemctl status antirot-backend.service --no-pager --full | sed -n '1,18p'
+          sudo -n /usr/bin/systemctl restart antirot-backend.service
+          sudo -n /usr/bin/systemctl status antirot-backend.service --no-pager --full | sed -n '1,18p'
           curl -fsS http://127.0.0.1:8787/health
           REMOTE

@@ -150,6 +150,9 @@ struct CoachMessage: Identifiable, Equatable {
 }
 
 struct CoachQuickAction: Identifiable, Equatable {
+    private static let nightActionStartHour = 20
+    private static let nightActionEndHour = 5
+
     var id: String
     var title: String
     var systemImage: String
@@ -202,7 +205,7 @@ struct CoachQuickAction: Identifiable, Equatable {
         )
     ]
 
-    static func primary(for runtimeState: String) -> [CoachQuickAction] {
+    static func primary(for runtimeState: String, at date: Date = Date()) -> [CoachQuickAction] {
         let byId = Dictionary(uniqueKeysWithValues: primary.map { ($0.id, $0) })
         let ids: [String]
         switch runtimeState.lowercased() {
@@ -221,6 +224,16 @@ struct CoachQuickAction: Identifiable, Equatable {
         default:
             ids = []
         }
-        return ids.compactMap { byId[$0] }
+        return ids.compactMap { id in
+            if id == "good_night", !isNightActionWindow(at: date) {
+                return nil
+            }
+            return byId[id]
+        }
+    }
+
+    private static func isNightActionWindow(at date: Date) -> Bool {
+        let hour = Calendar.current.component(.hour, from: date)
+        return hour >= nightActionStartHour || hour < nightActionEndHour
     }
 }

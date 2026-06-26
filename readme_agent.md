@@ -20,7 +20,53 @@ Antirot has one supported product architecture:
 
 LLM routing for tailored/default users should use Vertex with Gemini 3.5 Flash whenever `GOOGLE_CLOUD_CREDENTIALS` is present. Do not reintroduce alternative runtime architectures unless the user explicitly asks for a new product surface.
 
-For product testing, assume the backend should run on the VPS via `ssh antirot@antirot.org` unless the user explicitly asks for a local backend. The Next.js lab targets the VPS API by default; use local backend URLs only for narrow local debugging.
+For product testing, assume the backend should run on the VPS via `ssh antirot` unless the user explicitly asks for a local backend. The Next.js lab targets the VPS API by default; use local backend URLs only for narrow local debugging.
+
+## VPS First, No Token-Wasting Detours
+
+When debugging backend behavior, deployment, frontend-to-backend failures, LLM prompts, speech endpoints, or anything visible through `api.antirot.org`, use the VPS first. Do not spend time fixing local Postgres, local Docker/Podman, local systemd, or a local backend unless the user explicitly asks for local backend testing.
+
+Use these exact commands because the VPS sudoers rule allows exact command paths:
+
+```bash
+ssh antirot
+cd /opt/antirot
+sudo -n /usr/bin/systemctl status antirot-backend.service --no-pager --full
+sudo -n /usr/bin/systemctl restart antirot-backend.service
+curl -fsS https://api.antirot.org/v1/health
+```
+
+If debugging logs are needed and journal access is configured, use:
+
+```bash
+sudo -n /usr/bin/journalctl -u antirot-backend.service -n 120 --no-pager
+```
+
+Important: do not replace `/usr/bin/systemctl` with bare `systemctl` in deploy scripts or GitHub Actions. The sudoers rule may reject command forms that do not match exactly.
+
+If a local test fails with `Local Postgres is not listening` or `failed to get Postgres client`, report that local DB tooling is missing and continue with VPS verification when possible. Do not install or debug local DB/container tooling unless the user asks for it.
+
+Preferred local SSH setup for agents and deploy work:
+
+```sshconfig
+Host antirot
+    HostName antirot.org
+    User antirot
+    IdentityFile ~/.ssh/antirot_vps
+    IdentitiesOnly yes
+```
+
+The key was created with:
+
+```bash
+ssh-keygen -t ed25519 -C "antirot-vps" -f ~/.ssh/antirot_vps
+ssh-copy-id -i ~/.ssh/antirot_vps.pub antirot@antirot.org
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/config ~/.ssh/antirot_vps
+chmod 644 ~/.ssh/antirot_vps.pub
+```
+
+After setup, prefer simple commands like `ssh antirot`, `scp file antirot:/tmp/`, and `rsync -avz apps/backend/src/ antirot:/opt/antirot/apps/backend/src/`. If the key has a passphrase and repeated prompts get in the way, run `ssh-add ~/.ssh/antirot_vps`.
 
 ## Core Files
 

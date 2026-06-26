@@ -61,3 +61,12 @@
 - In frontend, iOS, and Android onboarding, enter the name in the popup and verify the coach continues the remaining onboarding through chat or voice.
 - In frontend, iOS, and Android voice chat, speak multiple VAD chunks quickly and verify transcriptions and coach sends process in capture order without dropped messages.
 - Run `npm run frontend:dev` with a localhost `DATABASE_URL` and Postgres stopped, then verify the launcher starts/creates `antirot-postgres` before Next.js serves the lab.
+- Open the frontend lab and verify it renders inside an iPhone-style frame with iOS status chrome, dynamic island, rounded screen, and scrollable in-phone content.
+- Enter a name during frontend onboarding and verify Gemini returns the stronger Antirot intro while backend Gemini thinking is set to minimal/off.
+- Press the frontend reset-conversation button and verify chat, onboarding name cache, runtime state, alarms, and memory tabs reset to the starter fixture.
+- During onboarding, provide sleep, day shape, work-hour target, and today's task in one voice message; verify the coach does not repeat the sleep-baseline reply or ask again for the already-provided task.
+- During onboarding tool updates, verify successful memory writes return to the LLM for the final coach reply instead of using deterministic backend copy.
+- During onboarding, mention a broad goal like finalizing the app and verify the coach treats it as direction, then asks for the smallest concrete next code piece instead of parroting it as the task.
+- After frontend reset/name onboarding, verify silent device timezone is not announced as timezone, profile setup, saved fields, or profile updates in the coach reply.
+- Open the frontend, iOS app, and Android app during daytime and nighttime and verify the Good night quick action only appears from 8 PM through 5 AM local device time.
+- Reset frontend onboarding, give goals/day/today details, press Start, then Done; verify the coach uses the bossy first/second-message loop, asks productive duration after Done, and never mentions hidden/system/memory terms.

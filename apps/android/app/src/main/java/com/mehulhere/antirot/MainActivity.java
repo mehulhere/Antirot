@@ -9,6 +9,8 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
@@ -22,6 +24,7 @@ import java.util.List;
 
 public class MainActivity extends android.app.Activity {
     private static final int PICK_ALARM_SOUND_REQUEST = 42;
+    private static final long QUICK_ACTION_REFRESH_MS = 60_000L;
 
     private SettingsStore settings;
     private TextView status;
@@ -42,6 +45,14 @@ public class MainActivity extends android.app.Activity {
     private boolean chatQueueProcessing = false;
     private boolean speechQueueProcessing = false;
     private GentleVoiceRecorder voiceRecorder;
+    private final Handler quickActionRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable quickActionRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            renderQuickActions();
+            quickActionRefreshHandler.postDelayed(this, QUICK_ACTION_REFRESH_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +63,19 @@ public class MainActivity extends android.app.Activity {
         setContentView(buildView());
         requestNotificationPermissionIfNeeded();
         refreshRuntimeState();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        quickActionRefreshHandler.removeCallbacks(quickActionRefreshRunnable);
+        quickActionRefreshHandler.post(quickActionRefreshRunnable);
+    }
+
+    @Override
+    protected void onPause() {
+        quickActionRefreshHandler.removeCallbacks(quickActionRefreshRunnable);
+        super.onPause();
     }
 
     private ScrollView buildView() {

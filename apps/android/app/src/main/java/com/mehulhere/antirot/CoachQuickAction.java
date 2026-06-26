@@ -1,11 +1,15 @@
 package com.mehulhere.antirot;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class CoachQuickAction {
+    private static final int NIGHT_ACTION_START_HOUR = 20;
+    private static final int NIGHT_ACTION_END_HOUR = 5;
+
     public final String id;
     public final String title;
     public final String message;
@@ -45,6 +49,9 @@ public class CoachQuickAction {
 
         List<CoachQuickAction> actions = new ArrayList<>();
         for (String id : ids) {
+            if ("good_night".equals(id) && !isNightActionWindow()) {
+                continue;
+            }
             CoachQuickAction action = byId.get(id);
             if (action != null) {
                 actions.add(action);
@@ -102,5 +109,10 @@ public class CoachQuickAction {
 
     private static void add(Map<String, CoachQuickAction> actions, CoachQuickAction action) {
         actions.put(action.id, action);
+    }
+
+    private static boolean isNightActionWindow() {
+        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        return hour >= NIGHT_ACTION_START_HOUR || hour < NIGHT_ACTION_END_HOUR;
     }
 }
