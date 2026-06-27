@@ -28,13 +28,13 @@ use crate::llm::{
 };
 use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
-    AlarmActionRequest, AlarmActionResponse, AlarmJob, AuthMeResponse, ChatRequest, ChatResponse,
-    CreateAlarmRequest, CreateAlarmResponse, DeliveryState, DeviceRegistrationRequest,
-    DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
-    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SessionRequest, SessionResponse,
-    SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechTranscriptionResponse,
-    SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
-    WorkspaceDevicesResponse,
+    AlarmActionRequest, AlarmActionResponse, AlarmJob, AuthMeResponse, ChatHistoryMessage,
+    ChatHistoryResponse, ChatRequest, ChatResponse, CreateAlarmRequest, CreateAlarmResponse,
+    DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
+    GoogleAuthResponse, HealthResponse, MemoryResponse, PairingClaimRequest, PairingClaimResponse,
+    SessionRequest, SessionResponse, SpeechSynthesisRequest, SpeechSynthesisResponse,
+    SpeechTranscriptionResponse, SubscriptionResponse, SubscriptionUpdateRequest,
+    UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key};
 
@@ -69,6 +69,7 @@ pub fn router() -> Router<AppState> {
         .route("/memory/{key}", get(get_memory).put(update_memory))
         .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
+        .route("/chat/history", get(chat_history))
         .route("/speech/transcribe", post(transcribe_speech))
         .route("/speech/synthesize", post(synthesize_speech))
         .route("/test/reset", post(test_reset))
@@ -99,6 +100,7 @@ pub fn router() -> Router<AppState> {
         .route("/v1/memory/{key}", get(get_memory).put(update_memory))
         .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
+        .route("/v1/chat/history", get(chat_history))
         .route("/v1/speech/transcribe", post(transcribe_speech))
         .route("/v1/speech/synthesize", post(synthesize_speech))
         .route("/v1/test/reset", post(test_reset))
