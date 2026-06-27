@@ -1,4 +1,10 @@
 {
+    "files": [],
+    "references": [
+        {
+            "path": "./apps/frontend"
+        }
+    ],
     "compilerOptions": {
         "target": "ES2022",
         "module": "NodeNext",
@@ -6,12 +12,8 @@
         "strict": true,
         "declaration": true,
         "outDir": "dist",
-        "rootDir": "src",
         "skipLibCheck": true,
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true
-    },
-    "include": [
-        "src/**/*.ts"
-    ]
+    }
 }
