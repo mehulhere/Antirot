@@ -44,6 +44,12 @@ sudo -n /usr/bin/journalctl -u antirot-backend.service -n 120 --no-pager
 
 Important: do not replace `/usr/bin/systemctl` with bare `systemctl` in deploy scripts or GitHub Actions. The sudoers rule may reject command forms that do not match exactly.
 
+For manual backend hot deploys on the VPS, non-interactive SSH usually does not have Cargo on `PATH`, and the systemd service runs the binary from `/opt/antirot/apps/backend/antirot-backend`. Use the full Cargo path and install to that service path:
+
+```bash
+ssh antirot 'cd /opt/antirot && /home/antirot/.cargo/bin/cargo build --manifest-path apps/backend/Cargo.toml --release && install -m 755 apps/backend/target/release/antirot-backend apps/backend/antirot-backend && sudo -n /usr/bin/systemctl restart antirot-backend.service'
+```
+
 If a local test fails with `Local Postgres is not listening` or `failed to get Postgres client`, report that local DB tooling is missing and continue with VPS verification when possible. Do not install or debug local DB/container tooling unless the user asks for it.
 
 Preferred local SSH setup for agents and deploy work:
@@ -141,8 +147,9 @@ Repeated LLM red flags to guard in code/tests:
 - Hidden reasoning leaks such as `Reasoning Summary`, `Analytical assessment`, or prose about what the assistant "must" do.
 - User-facing memory/update chatter such as `profile updated`, `timezone locked`, `personality updated`, `saved fields`, or `baseline parameters`.
 - Numbered onboarding forms. First onboarding should feel like Antirot talking, not a questionnaire.
-- Broad-goal parroting like "finalize the app" as an executable task. Suggest a concrete slice instead.
+- Broad-goal parroting like "finalize the app" as an executable task. Suggest a specific next task instead.
 - Explicit `Start a N minute session on X` must reliably start a session even if the LLM forgets the tool call.
+- Do not turn coach judgment into keyword search helpers. Avoidance/fake-prep behavior belongs in prompt guidance and LLM quality tests, not hardcoded phrase detectors like "vibe" or "clean my desk".
 
 When changing prompt behavior, run the relevant backend tests first, deploy to VPS, then run the pruned LLM suite. If a failure is from an obsolete scenario, delete or replace the test. If a failure exposes a real user-facing red flag, add a sanitizer or prompt rule plus a regression assertion.
 
@@ -155,8 +162,10 @@ Android:
 
 ```bash
 cd apps/android
-./gradlew assembleDebug
+gradle assembleDebug
 ```
+
+No Gradle wrapper is currently checked in, so use Android Studio or a locally installed `gradle` binary.
 
 ## Gotchas
 

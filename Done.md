@@ -70,3 +70,7 @@
 - After frontend reset/name onboarding, verify silent device timezone is not announced as timezone, profile setup, saved fields, or profile updates in the coach reply.
 - Open the frontend, iOS app, and Android app during daytime and nighttime and verify the Good night quick action only appears from 8 PM through 5 AM local device time.
 - Reset frontend onboarding, give goals/day/today details, press Start, then Done; verify the coach uses the bossy first/second-message loop, asks productive duration after Done, and never mentions hidden/system/memory terms.
+- Start a frontend work session that schedules repeated 5-minute alarms, then verify the frontend Pending alarms panel and top stat show only the next upcoming reminder per alarm family while the backend still keeps the full alarm sequence scheduled.
+- During onboarding, verify the second coach reply suggests one specific first task, asks for exact task details plus estimated minutes, and only then tells the user to press Start.
+- Open the web frontend and iOS app side by side, then verify onboarding name cache/reset, silent timezone onboarding, quick actions, pending alarm collapse, voice queue, and Plan/Home action copy match.
+- Speak in the web frontend, iOS app, and Android app, then verify the chat shows a playable voice message instead of raw transcription while the coach still receives the transcript.

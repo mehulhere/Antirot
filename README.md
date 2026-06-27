@@ -59,8 +59,10 @@ Android:
 
 ```bash
 cd apps/android
-./gradlew assembleDebug
+gradle assembleDebug
 ```
+
+No Gradle wrapper is currently checked in, so use Android Studio or a locally installed `gradle` binary.
 
 ## Frontend Tester
 
