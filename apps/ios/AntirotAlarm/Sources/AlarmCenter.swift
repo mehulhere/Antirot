@@ -12,6 +12,18 @@ final class AlarmCenter: ObservableObject {
 
     private var settings: SettingsStore?
 
+    var nextReminderAlarms: [AlarmJob] {
+        var nextByReminder: [String: AlarmJob] = [:]
+        for alarm in scheduledAlarms {
+            let key = reminderKey(for: alarm)
+            if let current = nextByReminder[key], current.fireAt <= alarm.fireAt {
+                continue
+            }
+            nextByReminder[key] = alarm
+        }
+        return nextByReminder.values.sorted { $0.fireAt < $1.fireAt }
+    }
+
     func configure(settings: SettingsStore) async {
         self.settings = settings
         await refreshAuthorizationStatus()
@@ -85,6 +97,10 @@ final class AlarmCenter: ObservableObject {
     }
 
     func schedule(_ alarm: AlarmJob) async throws {
+        if scheduledAlarms.contains(where: { $0.id == alarm.id }) {
+            return
+        }
+
         let soundChoice = alarmSoundChoice(for: alarm.severity)
         let soundName = soundChoice.name
         let scheduledWithAlarmKit = try await AlarmKitCenter.schedule(alarm, soundName: soundName)
@@ -156,6 +172,14 @@ final class AlarmCenter: ObservableObject {
         case .loud, .urgent:
             "antirot-loud.wav"
         }
+    }
+
+    private func reminderKey(for alarm: AlarmJob) -> String {
+        [
+            alarm.kind.rawValue,
+            alarm.title,
+            alarm.message
+        ].joined(separator: "|")
     }
 
     private func writeCurrentTaskSnapshot(for alarm: AlarmJob) -> Bool {

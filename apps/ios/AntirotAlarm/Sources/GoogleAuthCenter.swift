@@ -34,6 +34,7 @@ enum GoogleAuthCenter {
             apiToken: ""
         ).signInWithGoogle(request)
         settings.apiToken = response.deviceToken
+        settings.userId = response.userId
         settings.registered = true
         settings.statusMessage = response.message
         return response

@@ -44,10 +44,10 @@ struct PlanView: View {
             AntirotSectionHeader(title: "State Actions", icon: "switch.2")
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                planButton("Start Work", "play.fill", "I am ready to work. Start the next serious work block.")
-                planButton("Done", "checkmark", "Done. I finished the current work block. Log it and tell me the next move.")
-                planButton("Break", "pause.fill", "I need a proper break. Challenge me if I am making excuses.")
-                planButton("Sleep", "moon.fill", "Good night. Start sleep and distill today's memory.")
+                planButton("Start Work", "play.fill", "I am ready to work. Start the task we just picked.")
+                planButton("Done", "checkmark", "Done. I finished the current task. Ask me how much of it was actually productive before closing it.")
+                planButton("Break", "pause.fill", "I need a real break. Help me choose the minimum honest break.")
+                planButton("Sleep", "moon.fill", "Good night. Close today and prepare tomorrow.")
             }
         }
     }

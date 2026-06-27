@@ -18,13 +18,29 @@ final class CoachViewModel: ObservableObject {
     let recorder = VoiceRecorder()
 
     private var audioPlayer: AVAudioPlayer?
-    private var pendingChatMessages: [String] = []
+    private var pendingChatMessages: [QueuedChatMessage] = []
     private var chatQueueProcessing = false
     private var pendingVoiceSegments: [URL] = []
     private var voiceQueueProcessing = false
 
     var isRecording: Bool {
         recorder.isRecording
+    }
+
+    func resetConversation() {
+        pendingChatMessages.removeAll()
+        pendingVoiceSegments.removeAll()
+        chatQueueProcessing = false
+        voiceQueueProcessing = false
+        draft = ""
+        isSending = false
+        statusText = "Ready"
+        messages = [
+            CoachMessage(
+                role: .system,
+                text: "Conversation reset."
+            )
+        ]
     }
 
     func handleQuickAction(_ action: CoachQuickAction, client: APIClient) async {
@@ -67,10 +83,17 @@ final class CoachViewModel: ObservableObject {
         }
     }
 
-    func send(_ text: String, client: APIClient) async {
+    func send(_ text: String, visibleText: String? = nil, client: APIClient) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        pendingChatMessages.append(trimmed)
+        let visible = visibleText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visibleText: String?
+        if let visible {
+            visibleText = visible.isEmpty ? nil : visible
+        } else {
+            visibleText = trimmed
+        }
+        pendingChatMessages.append(QueuedChatMessage(text: trimmed, visibleText: visibleText))
         await processChatQueue(client: client)
     }
 
@@ -79,13 +102,15 @@ final class CoachViewModel: ObservableObject {
         chatQueueProcessing = true
 
         while !pendingChatMessages.isEmpty {
-            let trimmed = pendingChatMessages.removeFirst()
-            messages.append(CoachMessage(role: .user, text: trimmed))
+            let queued = pendingChatMessages.removeFirst()
+            if let visibleText = queued.visibleText {
+                messages.append(CoachMessage(role: .user, text: visibleText))
+            }
             isSending = true
             statusText = pendingChatMessages.isEmpty ? "Thinking" : "Thinking (\(pendingChatMessages.count) queued)"
 
             do {
-                let response = try await client.chat(message: trimmed)
+                let response = try await client.chat(message: queued.text)
                 messages.append(CoachMessage(role: .coach, text: response.reply))
                 statusText = "Ready"
                 await speak(response.reply, client: client)
@@ -118,8 +143,8 @@ final class CoachViewModel: ObservableObject {
 
             do {
                 let response = try await client.transcribeAudio(fileURL: url)
-                messages.append(CoachMessage(role: .system, text: "Transcribed voice: \(response.text)"))
-                await send(response.text, client: client)
+                messages.append(CoachMessage(role: .user, text: "Voice message", audioFileURL: url))
+                await send(response.text, visibleText: "", client: client)
             } catch {
                 statusText = "Voice failed"
                 messages.append(CoachMessage(
@@ -158,4 +183,9 @@ final class CoachViewModel: ObservableObject {
 
         isSpeaking = false
     }
+}
+
+private struct QueuedChatMessage {
+    var text: String
+    var visibleText: String?
 }

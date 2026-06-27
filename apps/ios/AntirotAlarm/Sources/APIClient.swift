@@ -20,6 +20,7 @@ struct APIClient {
 
     var baseURL: URL?
     var apiToken: String
+    var userId: String = "admin"
 
     func registerDevice(_ request: DeviceRegistrationRequest) async throws -> DeviceRegistrationResponse {
         try await send(
@@ -91,7 +92,7 @@ struct APIClient {
         let baseURL = effectiveBaseURL()
         var components = URLComponents(url: baseURL.appendingPathComponent("/v1/test/state"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "userId", value: "admin"),
+            URLQueryItem(name: "userId", value: userId),
             URLQueryItem(name: "deviceId", value: deviceId)
         ]
         guard let url = components?.url else { throw APIError.missingServerURL }

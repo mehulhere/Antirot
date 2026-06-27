@@ -16,6 +16,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(deviceId, forKey: Keys.deviceId) }
     }
 
+    @Published var userId: String {
+        didSet { defaults.set(userId, forKey: Keys.userId) }
+    }
+
     @Published var registered: Bool {
         didSet { defaults.set(registered, forKey: Keys.registered) }
     }
@@ -32,6 +36,14 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(pushToken, forKey: Keys.pushToken) }
     }
 
+    @Published var onboardingName: String {
+        didSet { defaults.set(onboardingName, forKey: Keys.onboardingName) }
+    }
+
+    @Published var onboardingNameSent: Bool {
+        didSet { defaults.set(onboardingNameSent, forKey: Keys.onboardingNameSent) }
+    }
+
     @Published var statusMessage: String = "Not registered"
 
     private let defaults: UserDefaults
@@ -42,10 +54,14 @@ final class SettingsStore: ObservableObject {
         self.serverURL = Self.normalizedServerURL(defaults.string(forKey: Keys.serverURL))
         self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
         self.deviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
+        self.userId = defaults.string(forKey: Keys.userId) ?? "admin"
         self.registered = defaults.bool(forKey: Keys.registered)
         self.alarmSoundName = defaults.string(forKey: Keys.alarmSoundName) ?? ""
         self.alarmSoundMode = defaults.string(forKey: Keys.alarmSoundMode) ?? AlarmSoundMode.automatic.rawValue
         self.pushToken = PushTokenStore.currentToken(defaults: defaults)
+        self.onboardingName = defaults.string(forKey: Keys.onboardingName) ?? ""
+        self.onboardingNameSent = defaults.bool(forKey: Keys.onboardingNameSent)
+            || !(defaults.string(forKey: Keys.onboardingName) ?? "").isEmpty
         self.pushTokenObserver = NotificationCenter.default.addObserver(
             forName: .antirotPushTokenDidChange,
             object: nil,
@@ -74,10 +90,17 @@ final class SettingsStore: ObservableObject {
         serverURL = Self.defaultServerURL
         apiToken = ""
         deviceId = UUID().uuidString
+        userId = "admin"
         PushTokenStore.clear(defaults: defaults)
         pushToken = ""
         registered = false
         statusMessage = "Not registered"
+        resetOnboardingNamePrompt()
+    }
+
+    func resetOnboardingNamePrompt() {
+        onboardingName = ""
+        onboardingNameSent = false
     }
 
     private static func normalizedServerURL(_ value: String?) -> String {
@@ -89,10 +112,13 @@ final class SettingsStore: ObservableObject {
         static let serverURL = "serverURL"
         static let apiToken = "apiToken"
         static let deviceId = "deviceId"
+        static let userId = "userId"
         static let registered = "registered"
         static let alarmSoundName = "alarmSoundName"
         static let alarmSoundMode = "alarmSoundMode"
         static let pushToken = "apnsDeviceToken"
+        static let onboardingName = "antirot:onboardingName"
+        static let onboardingNameSent = "antirot:onboardingNameSent"
     }
 }
 

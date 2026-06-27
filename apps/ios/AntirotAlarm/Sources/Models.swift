@@ -70,6 +70,7 @@ struct GoogleAuthRequest: Codable {
 
 struct GoogleAuthResponse: Codable {
     var ok: Bool
+    var userId: String
     var deviceId: String
     var deviceToken: String
     var email: String
@@ -147,6 +148,7 @@ struct CoachMessage: Identifiable, Equatable {
     var role: Role
     var text: String
     var createdAt: Date = Date()
+    var audioFileURL: URL?
 }
 
 struct CoachQuickAction: Identifiable, Equatable {
@@ -162,44 +164,37 @@ struct CoachQuickAction: Identifiable, Equatable {
     static let primary: [CoachQuickAction] = [
         CoachQuickAction(
             id: "start_working",
-            title: "Ready Work",
+            title: "I am ready to work",
             systemImage: "play.fill",
-            message: "I am ready to work. Start the next serious work block."
+            message: "I am ready to work. Start the task we just picked."
         ),
         CoachQuickAction(
             id: "done",
             title: "Done",
             systemImage: "checkmark",
-            message: "Done. I finished the current work block. Log it and tell me the next move."
+            message: "Done. I finished the current task. Ask me how much of it was actually productive before closing it."
         ),
         CoachQuickAction(
             id: "need_break",
-            title: "Real Break",
+            title: "I need a real break",
             systemImage: "pause.fill",
             message: "I need a real break. Help me choose the minimum honest break."
         ),
         CoachQuickAction(
-            id: "log_work",
-            title: "Log Work",
-            systemImage: "square.and.pencil",
-            message: "Log work: I worked on ",
-            fillsDraft: true
-        ),
-        CoachQuickAction(
             id: "good_night",
-            title: "Good Night",
+            title: "Good night",
             systemImage: "moon.fill",
             message: "Good night. Close today and prepare tomorrow."
         ),
         CoachQuickAction(
             id: "wake_up",
-            title: "Awake",
+            title: "I am awake",
             systemImage: "sun.max.fill",
-            message: "I am awake. Log it and tell me the first concrete move."
+            message: "I am awake. Log it and tell me the first specific move."
         ),
         CoachQuickAction(
             id: "movie_break",
-            title: "Movie Check",
+            title: "Movie break check",
             systemImage: "film.fill",
             message: "I want a 2 hour movie break because I deserve it. Please please."
         )
@@ -214,7 +209,7 @@ struct CoachQuickAction: Identifiable, Equatable {
         case "idle":
             ids = ["start_working", "need_break", "good_night", "movie_break"]
         case "working":
-            ids = ["done", "need_break", "log_work"]
+            ids = ["done", "need_break"]
         case "break":
             ids = ["start_working", "good_night"]
         case "sleeping":

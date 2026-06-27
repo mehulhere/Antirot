@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct HomeView: View {
@@ -7,11 +8,10 @@ struct HomeView: View {
     @FocusState private var draftFocused: Bool
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
-    @State private var namePromptSent = false
     @State private var quickActionRefreshDate = Date()
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
     }
 
     var body: some View {
@@ -55,6 +55,7 @@ struct HomeView: View {
             composer
         }
         .task {
+            onboardingName = settings.onboardingName
             await alarmCenter.pollPendingAlarms()
             await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
             presentNamePromptIfNeeded()
@@ -94,6 +95,23 @@ struct HomeView: View {
             }
 
             Spacer()
+
+            Button {
+                resetLocalConversation()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.antirotTextPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset conversation")
 
             StatusDot(color: settings.registered ? .antirotSuccess : .antirotAccentRed)
         }
@@ -175,8 +193,15 @@ struct HomeView: View {
     }
 
     private func presentNamePromptIfNeeded() {
-        guard !namePromptSent else { return }
+        guard !settings.onboardingNameSent else { return }
         showNamePrompt = coach.runtimeState == "onboarding" || coach.runtimeState == "unknown"
+    }
+
+    private func resetLocalConversation() {
+        settings.resetOnboardingNamePrompt()
+        onboardingName = ""
+        coach.resetConversation()
+        presentNamePromptIfNeeded()
     }
 
     private func sendNameOnboarding() async {
@@ -185,16 +210,22 @@ struct HomeView: View {
             showNamePrompt = true
             return
         }
-        namePromptSent = true
+        settings.onboardingName = name
+        settings.onboardingNameSent = true
         showNamePrompt = false
-        await coach.send(onboardingMessage(name: name), client: client)
+        await coach.send(onboardingMessage(name: name), visibleText: "", client: client)
         await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
     }
 
     private func onboardingMessage(name: String) -> String {
+        let timezone = TimeZone.current.identifier
         [
-            "Start onboarding with this user's name. Save it, then continue onboarding conversationally through chat or speech.",
-            "Name: \(name)"
+            "The user just shared their name during onboarding. Use it naturally, then continue with the Antirot first onboarding message.",
+            "Silent client context is available below for scheduling only.",
+            "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
+            "The first onboarding message asks for a gist of long-term goals, short-term goals, what the day looks like, and what the user plans to get done today.",
+            "Name: \(name)",
+            "Silent device timezone: \(timezone)"
         ].joined(separator: "\n")
     }
 
@@ -220,10 +251,11 @@ struct HomeView: View {
     }
 
     private var pendingAlarmStrip: some View {
+        let visibleAlarms = alarmCenter.nextReminderAlarms
         VStack(alignment: .leading, spacing: 12) {
             AntirotSectionHeader(title: "Pending Alarms", icon: "alarm")
 
-            if alarmCenter.scheduledAlarms.isEmpty {
+            if visibleAlarms.isEmpty {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle")
                         .foregroundStyle(.antirotSuccess)
@@ -234,7 +266,7 @@ struct HomeView: View {
                 }
                 .glassCard(cornerRadius: 16, padding: 14)
             } else {
-                ForEach(alarmCenter.scheduledAlarms.prefix(3)) { alarm in
+                ForEach(visibleAlarms) { alarm in
                     HStack(spacing: 10) {
                         StatusDot(color: alarm.severity.color, animated: false)
                         VStack(alignment: .leading, spacing: 3) {
@@ -403,6 +435,7 @@ private struct SiriCoachOrb: View {
 
 private struct CoachBubble: View {
     var message: CoachMessage
+    @State private var player: AVAudioPlayer?
 
     private var alignment: HorizontalAlignment {
         message.role == .user ? .trailing : .leading
@@ -424,10 +457,21 @@ private struct CoachBubble: View {
             if message.role == .user { Spacer(minLength: 48) }
 
             VStack(alignment: alignment, spacing: 5) {
-                Text(message.text)
-                    .font(.body)
-                    .foregroundStyle(.antirotTextPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let audioFileURL = message.audioFileURL {
+                    Button {
+                        playAudio(url: audioFileURL)
+                    } label: {
+                        Label("Voice message", systemImage: "play.circle.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.antirotTextPrimary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(message.text)
+                        .font(.body)
+                        .foregroundStyle(.antirotTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text(message.createdAt.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
@@ -443,6 +487,16 @@ private struct CoachBubble: View {
             )
 
             if message.role != .user { Spacer(minLength: 48) }
+        }
+    }
+
+    private func playAudio(url: URL) {
+        do {
+            player = try AVAudioPlayer(contentsOf: url)
+            player?.prepareToPlay()
+            player?.play()
+        } catch {
+            player = nil
         }
     }
 }

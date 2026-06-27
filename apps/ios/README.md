@@ -74,7 +74,7 @@ If the status says AlarmKit is unavailable, rebuild the IPA with an Xcode/iOS SD
 - Voice-first coach home screen with gentle VAD, 10-second minimum clips, 30-60-second preferred clips, and Smallest Pulse transcription through the backend.
 - Onboarding starts with a name popup; the coach collects the rest conversationally through chat or voice.
 - Runtime-state-aware quick actions that send normal chat messages instead of bypassing coach policy.
-- Done, Ready Work, Real Break, Log Work, Good Night, Awake, and Movie Check actions when the current state allows them.
+- Done, I am ready to work, I need a real break, Good night, I am awake, and Movie break check actions when the current state allows them.
 - Plan page for routine anchors, state actions, and daily review.
 - Inworld streaming text-to-speech playback through the backend when `INWORLD_TTS_VOICE_ID` is configured.
 - Register device with the managed backend.
