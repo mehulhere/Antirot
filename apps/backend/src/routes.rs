@@ -1281,6 +1281,39 @@ async fn chat_coach(
     Ok(Json(ChatResponse { ok: true, reply }))
 }
 
+async fn chat_history(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<ChatHistoryResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    let rows = client
+        .query(
+            "
+            SELECT id, role, content, created_at
+            FROM chat_messages
+            WHERE user_id = $1
+                AND role IN ('user', 'assistant')
+                AND content IS NOT NULL
+                AND length(trim(content)) > 0
+            ORDER BY created_at ASC
+            LIMIT 100
+            ",
+            &[&user_id],
+        )
+        .await?;
+    let messages = rows
+        .into_iter()
+        .map(|row| ChatHistoryMessage {
+            id: row.get("id"),
+            role: row.get("role"),
+            content: row.get("content"),
+            created_at: row.get("created_at"),
+        })
+        .collect();
+    Ok(Json(ChatHistoryResponse { ok: true, messages }))
+}
+
 async fn transcribe_speech(
     State(state): State<AppState>,
     headers: HeaderMap,
