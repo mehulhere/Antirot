@@ -9,6 +9,7 @@ pub struct Config {
     pub database_url: String,
     pub admin_token: String,
     pub device_token: String,
+    pub jwt_secret: String,
     pub google_allowed_client_ids: Vec<String>,
     pub apns: Option<ApnsConfig>,
     pub memory_embeddings: MemoryEmbeddingConfig,
@@ -57,6 +58,7 @@ impl Config {
             env::var("ANTIROT_ADMIN_TOKEN").context("ANTIROT_ADMIN_TOKEN is required")?;
         let device_token =
             env::var("ANTIROT_DEVICE_TOKEN").context("ANTIROT_DEVICE_TOKEN is required")?;
+        let jwt_secret = env::var("ANTIROT_JWT_SECRET").unwrap_or_else(|_| admin_token.clone());
         let google_allowed_client_ids = google_allowed_client_ids();
         let apns = apns_config();
         let memory_embeddings = memory_embedding_config();
@@ -67,6 +69,7 @@ impl Config {
             database_url,
             admin_token,
             device_token,
+            jwt_secret,
             google_allowed_client_ids,
             apns,
             memory_embeddings,

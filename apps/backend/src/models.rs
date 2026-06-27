@@ -39,11 +39,37 @@ pub struct GoogleAuthRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GoogleAuthResponse {
     pub ok: bool,
+    pub user_id: String,
     pub device_id: String,
     pub device_token: String,
     pub email: String,
     pub name: Option<String>,
     pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRequest {
+    pub device_id: Option<String>,
+    pub platform: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionResponse {
+    pub ok: bool,
+    pub user_id: String,
+    pub device_id: String,
+    pub device_token: Option<String>,
+    pub expires_in_days: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthMeResponse {
+    pub ok: bool,
+    pub user_id: String,
+    pub device_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

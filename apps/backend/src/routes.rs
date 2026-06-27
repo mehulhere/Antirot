@@ -1,23 +1,26 @@
 use std::time::Duration as StdDuration;
 
 use axum::extract::{Multipart, Path, Query, State};
+use axum::http::header::SET_COOKIE;
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use chrono::{DateTime, Duration, Utc};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::{
-    get_user_id_from_auth, require_admin_auth, require_device_auth, require_device_auth_for,
-    token_hash,
+    SESSION_DAYS, expired_session_cookie_header, get_user_id_from_auth, issue_session_jwt,
+    require_admin_auth, require_device_auth, require_device_auth_for, session_cookie_header,
+    session_from_headers, token_hash,
 };
 use crate::error::{AppError, AppResult};
 use crate::llm::{
@@ -25,15 +28,15 @@ use crate::llm::{
 };
 use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
-    AlarmActionRequest, AlarmActionResponse, AlarmJob, ChatRequest, ChatResponse,
+    AlarmActionRequest, AlarmActionResponse, AlarmJob, AuthMeResponse, ChatRequest, ChatResponse,
     CreateAlarmRequest, CreateAlarmResponse, DeliveryState, DeviceRegistrationRequest,
     DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
-    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SpeechSynthesisRequest,
-    SpeechSynthesisResponse, SpeechTranscriptionResponse, SubscriptionResponse,
-    SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
+    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SessionRequest, SessionResponse,
+    SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechTranscriptionResponse,
+    SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
+    WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key};
-use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +50,9 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(api_info))
         .route("/health", get(health))
+        .route("/auth/session", post(auth_session))
+        .route("/auth/me", get(auth_me))
+        .route("/auth/logout", post(auth_logout))
         .route("/auth/google", post(auth_google))
         .route("/pairing/claim", post(claim_pairing))
         .route("/devices/register", post(register_device))
@@ -71,6 +77,9 @@ pub fn router() -> Router<AppState> {
         .route("/test/context", get(test_context))
         .route("/v1", get(api_info))
         .route("/v1/health", get(health))
+        .route("/v1/auth/session", post(auth_session))
+        .route("/v1/auth/me", get(auth_me))
+        .route("/v1/auth/logout", post(auth_logout))
         .route("/v1/auth/google", post(auth_google))
         .route("/v1/pairing/claim", post(claim_pairing))
         .route("/v1/devices/register", post(register_device))
@@ -117,7 +126,7 @@ async fn health() -> Json<HealthResponse> {
 async fn auth_google(
     State(state): State<AppState>,
     Json(request): Json<GoogleAuthRequest>,
-) -> AppResult<Json<GoogleAuthResponse>> {
+) -> AppResult<impl IntoResponse> {
     validate_non_empty("idToken", &request.id_token)?;
     validate_non_empty("deviceId", &request.device_id)?;
     validate_non_empty("platform", &request.platform)?;
@@ -233,18 +242,168 @@ async fn auth_google(
 
     info!(
         device_id = %request.device_id,
+        user_id = %user_id,
         email = %profile.email,
         "registered Google-authenticated device"
     );
 
-    Ok(Json(GoogleAuthResponse {
+    let session_jwt = issue_session_jwt(&state.config, &user_id, &request.device_id)?;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        HeaderValue::from_str(&session_cookie_header(
+            &session_jwt,
+            SESSION_DAYS * 24 * 60 * 60,
+        ))?,
+    );
+
+    Ok((
+        headers,
+        Json(GoogleAuthResponse {
+            ok: true,
+            user_id,
+            device_id: request.device_id,
+            device_token,
+            email: profile.email,
+            name: profile.name,
+            message: "Signed in with Google".to_string(),
+        }),
+    ))
+}
+
+async fn auth_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<SessionRequest>,
+) -> AppResult<impl IntoResponse> {
+    if let Some(claims) = session_from_headers(&headers, &state.config) {
+        let session_jwt = issue_session_jwt(&state.config, &claims.sub, &claims.device_id)?;
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert(
+            SET_COOKIE,
+            HeaderValue::from_str(&session_cookie_header(
+                &session_jwt,
+                SESSION_DAYS * 24 * 60 * 60,
+            ))?,
+        );
+        return Ok((
+            response_headers,
+            Json(SessionResponse {
+                ok: true,
+                user_id: claims.sub,
+                device_id: claims.device_id,
+                device_token: None,
+                expires_in_days: SESSION_DAYS,
+            }),
+        ));
+    }
+
+    let client = state.pool.get().await?;
+    let user_id = Uuid::new_v4().to_string();
+    let device_id = request
+        .device_id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| format!("web-{}", Uuid::new_v4().simple()));
+    let platform = request
+        .platform
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "web".to_string());
+    let device_token = format!("antirot_{}", Uuid::new_v4().simple());
+    let api_token_hash = token_hash(&device_token);
+    let email = format!("{user_id}@anon.antirot.local");
+
+    client
+        .execute(
+            "
+            INSERT INTO users (id, email, display_name)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO NOTHING
+            ",
+            &[&user_id, &email, &"Anonymous User"],
+        )
+        .await?;
+
+    client
+        .execute(
+            "
+            INSERT INTO devices (
+                device_id,
+                user_id,
+                api_token_hash,
+                platform,
+                app_version,
+                notification_capability,
+                usage_capability
+            )
+            VALUES ($1, $2, $3, $4, 'web', 'browser', 'unknown')
+            ON CONFLICT (device_id) DO UPDATE SET
+                user_id = EXCLUDED.user_id,
+                api_token_hash = EXCLUDED.api_token_hash,
+                platform = EXCLUDED.platform,
+                updated_at = now()
+            ",
+            &[&device_id, &user_id, &api_token_hash, &platform],
+        )
+        .await?;
+
+    client
+        .execute(
+            "
+            INSERT INTO user_runtime_states (user_id, state, source_tool)
+            VALUES ($1, 'onboarding', 'auth_session')
+            ON CONFLICT (user_id) DO NOTHING
+            ",
+            &[&user_id],
+        )
+        .await?;
+
+    let session_jwt = issue_session_jwt(&state.config, &user_id, &device_id)?;
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
+        SET_COOKIE,
+        HeaderValue::from_str(&session_cookie_header(
+            &session_jwt,
+            SESSION_DAYS * 24 * 60 * 60,
+        ))?,
+    );
+
+    info!(
+        user_id = %user_id,
+        device_id = %device_id,
+        "created browser session"
+    );
+
+    Ok((
+        response_headers,
+        Json(SessionResponse {
+            ok: true,
+            user_id,
+            device_id,
+            device_token: Some(device_token),
+            expires_in_days: SESSION_DAYS,
+        }),
+    ))
+}
+
+async fn auth_me(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<AuthMeResponse>> {
+    let claims = session_from_headers(&headers, &state.config).ok_or(AppError::Unauthorized)?;
+    Ok(Json(AuthMeResponse {
         ok: true,
-        device_id: request.device_id,
-        device_token,
-        email: profile.email,
-        name: profile.name,
-        message: "Signed in with Google".to_string(),
+        user_id: claims.sub,
+        device_id: Some(claims.device_id),
     }))
+}
+
+async fn auth_logout() -> AppResult<impl IntoResponse> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        HeaderValue::from_str(&expired_session_cookie_header())?,
+    );
+    Ok((headers, Json(json!({ "ok": true }))))
 }
 
 async fn register_device(
