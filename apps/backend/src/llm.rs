@@ -352,6 +352,7 @@ pub async fn chat_with_coach(
     let max_loops = 5;
     let mut final_text = String::new();
     let mut start_session_called = false;
+    let mut start_session_reply_override: Option<String> = None;
 
     while loop_count < max_loops {
         loop_count += 1;
@@ -480,9 +481,14 @@ pub async fn chat_with_coach(
                     &tool_arguments,
                 )
                 .await;
+                let user_facing_reply =
+                    user_facing_tool_result(&call.function.name, &result_text, user_message);
+                if call.function.name == "start_session" && result_text.starts_with("Success:") {
+                    start_session_reply_override = Some(user_facing_reply.clone());
+                }
                 push_unique_user_facing_result(
                     &mut user_facing_results,
-                    user_facing_tool_result(&call.function.name, &result_text, user_message),
+                    user_facing_reply,
                 );
                 tool_results.push(format!("{}: {}", call.function.name, result_text));
 
@@ -557,6 +563,10 @@ pub async fn chat_with_coach(
         }
     }
 
+    if let Some(reply) = start_session_reply_override {
+        final_text = reply;
+    }
+
     if !start_session_called {
         if let Some((task_id, estimated_minutes)) = explicit_start_session_request(user_message) {
             let result_text = execute_tool_locally(
@@ -584,7 +594,6 @@ pub async fn chat_with_coach(
     final_text = sanitize_onboarding_repeat_reply(&final_text, user_message);
     final_text = sanitize_sleep_baseline_reply(&final_text, user_message);
     final_text = sanitize_bad_sleep_reply(&final_text, user_message);
-    final_text = sanitize_messy_excuse_reply(&final_text, user_message);
     final_text = sanitize_high_drift_break_reply(&final_text, user_message, &messages);
     final_text = sanitize_soft_personality_jailbreak_reply(&final_text, user_message);
     final_text = sanitize_internal_inspection_reply(&final_text, user_message);
@@ -604,12 +613,11 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     let sleep_baseline_context = mentions_sleep_baseline_context(&user_message_lower);
 
     match tool_name {
-        "patch_file" if sleep_baseline_context => "Got your day shape. Pick the smallest useful slice from today's plan, then press Start when you are ready to begin.".to_string(),
+        "patch_file" if sleep_baseline_context => "Got your day shape. Pick the smallest useful task from today's plan, then press Start when you are ready to begin.".to_string(),
         "patch_file" if onboarding_context => onboarding_setup_reply(),
         "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
         "start_session" if recovery_context => "Recovery pace: one low-friction work block is started. Work exactly 20 minutes, stop at the timer, then choose recovery or sleep if your body is still cooked.".to_string(),
-        "start_session" if mentions_messy_excuse_context(&user_message_lower) => "Work block started. Keep the environment as-is, ship one concrete piece, then report done or blocked.".to_string(),
         "start_session" => start_session_reply(user_message),
         "extend_session" => "Extension logged. Use it deliberately; the next check-in still counts.".to_string(),
         "end_session" => "Logged. One block is closed. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
@@ -669,14 +677,6 @@ fn mentions_relationship_context(user_message_lower: &str) -> bool {
         || user_message_lower.contains("partner")
 }
 
-fn mentions_messy_excuse_context(user_message_lower: &str) -> bool {
-    user_message_lower.contains("vibe is wrong")
-        || user_message_lower.contains("wrong vibe")
-        || user_message_lower.contains("reorganize")
-        || user_message_lower.contains("organize my desk")
-        || user_message_lower.contains("clean my desk")
-}
-
 fn mentions_onboarding_start(user_message_lower: &str) -> bool {
     user_message_lower.contains("new here")
         || user_message_lower.contains("start onboarding")
@@ -695,20 +695,8 @@ fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
 }
 
 fn onboarding_setup_reply() -> String {
-    "I’m Antirot. Smart, intense people still drift when the hour gets ugly, so give me the real picture: long-term goal, short-term goal, day shape, and today’s concrete plan.".to_string()
+    "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters. Give me the real picture: long-term goal, short-term goal, day shape, and today’s concrete plan.".to_string()
 }
-
-fn start_session_reply(user_message: &str) -> String {
-    let task = extract_task_after_on(user_message);
-    match task {
-        Some(t) => format!(
-            "Work block started. Focus only on {} and report done or blocked when the timer ends.",
-            t
-        ),
-        None => "Work block started. Focus only on the named task and report done or blocked when the timer ends.".to_string(),
-    }
-}
-
 
 fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
     let marker = "Break started for ";
@@ -718,6 +706,24 @@ fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
         .take_while(|ch| ch.is_ascii_digit())
         .collect();
     digits.parse().ok()
+}
+
+fn start_session_reply(user_message: &str) -> String {
+    let lower = user_message.to_ascii_lowercase();
+    let minutes = extract_first_integer(&lower).unwrap_or(0);
+    let task = extract_task_after_on(user_message)
+        .or_else(|| extract_task_after_will(user_message))
+        .or_else(|| extract_task_after_to(user_message))
+        .unwrap_or_else(|| "this task".to_string())
+        .trim()
+        .trim_matches(|ch: char| matches!(ch, '.' | '!' | '?' | '"' | '\''))
+        .to_string();
+
+    if minutes > 0 {
+        format!("Started: {}. {} minutes.", task, minutes)
+    } else {
+        format!("Started: {}.", task)
+    }
 }
 
 fn explicit_start_session_request(user_message: &str) -> Option<(String, i64)> {
@@ -770,6 +776,41 @@ fn extract_task_after_on(user_message: &str) -> Option<String> {
         None
     } else {
         Some(task.to_string())
+    }
+}
+
+fn extract_task_after_to(user_message: &str) -> Option<String> {
+    let lower = user_message.to_ascii_lowercase();
+    let marker = " to ";
+    let index = lower.rfind(marker)?;
+    let task = user_message[index + marker.len()..].trim();
+    if task.is_empty() {
+        None
+    } else {
+        Some(task.to_string())
+    }
+}
+
+fn extract_task_after_will(user_message: &str) -> Option<String> {
+    let lower = user_message.to_ascii_lowercase();
+    let marker = " will ";
+    let index = lower.find(marker)?;
+    let mut task = user_message[index + marker.len()..].trim().to_string();
+    let task_lower = task.to_ascii_lowercase();
+    for trailing_marker in [" and do that in ", " and do it in ", " in "] {
+        if let Some(cut_index) = task_lower.rfind(trailing_marker) {
+            let tail = &task_lower[cut_index + trailing_marker.len()..];
+            if tail.contains("min") || tail.contains("hour") {
+                task.truncate(cut_index);
+                break;
+            }
+        }
+    }
+
+    if task.trim().is_empty() {
+        None
+    } else {
+        Some(task)
     }
 }
 
@@ -1318,7 +1359,7 @@ fn sanitize_sleep_baseline_reply(reply: &str, user_message: &str) -> String {
         return reply.to_string();
     }
 
-    "Noted. Now pick the next concrete slice from today: a screen, bug, test, or 20-minute implementation pass. Press Start when ready.".to_string()
+    "Noted. Now pick the next specific task from today: a screen, bug, test, or 20-minute implementation pass. Press Start when ready.".to_string()
 }
 
 fn sanitize_bad_sleep_reply(reply: &str, user_message: &str) -> String {
@@ -1364,15 +1405,7 @@ fn sanitize_memory_update_announcement_reply(reply: &str, user_message: &str) ->
         return reply.to_string();
     }
 
-    "Noted. Now stop polishing settings and pick the next concrete work slice. What are you starting right now?".to_string()
-}
-
-fn sanitize_messy_excuse_reply(reply: &str, user_message: &str) -> String {
-    if !mentions_messy_excuse_context(&user_message.to_ascii_lowercase()) {
-        return reply.to_string();
-    }
-
-    "If this is fatigue, say it directly now. Otherwise do not rearrange the environment: start a 10-minute work block on the named task and report done or blocked when it ends.".to_string()
+    "Noted. Now stop polishing settings and pick the next real work task. What are you starting right now?".to_string()
 }
 
 fn sanitize_high_drift_break_reply(
@@ -2393,10 +2426,41 @@ mod tests {
         );
 
         assert!(reply.contains("I’m Antirot"), "{reply}");
+        assert!(reply.contains("I’ve coached plenty of people like you"), "{reply}");
         assert!(reply.contains("long-term goal"), "{reply}");
         assert!(reply.contains("short-term goal"), "{reply}");
         assert!(reply.contains("day shape"), "{reply}");
         assert!(reply.contains("today’s concrete plan"), "{reply}");
         assert!(!reply.contains("New standard is in"), "{reply}");
+    }
+
+    #[test]
+    fn start_session_reply_is_direct_for_auto_started_task() {
+        let reply = user_facing_tool_result(
+            "start_session",
+            "Success: Work session started.",
+            "I am vibe coder, so I will revamp the whole design with LLMs and do that in 30 mins",
+        );
+
+        assert_eq!(
+            reply,
+            "Started: revamp the whole design with LLMs. 30 minutes."
+        );
+        assert!(!reply.contains("fatigue"), "{reply}");
+        assert!(!reply.contains("rearrange"), "{reply}");
+    }
+
+    #[test]
+    fn start_session_reply_handles_explicit_session_command() {
+        let reply = user_facing_tool_result(
+            "start_session",
+            "Success: Work session started.",
+            "Start a 25 minute session on fixing the onboarding loop test.",
+        );
+
+        assert_eq!(
+            reply,
+            "Started: fixing the onboarding loop test. 25 minutes."
+        );
     }
 }

@@ -233,26 +233,10 @@ function assertNoStaleVacationCopy(reply) {
     );
 }
 
-function assertOnboardingQuality(reply) {
-    assert.doesNotMatch(
-        reply,
-        /\balready laid out\b|\bif you missed it\b|\bmissed it\b|\btimezone\b|\braw data\b|\b1\.\s|\b2\.\s|\b3\.\s|\b4\.\s/iu,
-        `onboarding reply sounded like stale repeated context: ${reply}`
-    );
-    assert.match(reply, /\bgoals?\b|\bobjective\b|\btarget\b|\btask\b|\bblocker\b|\bwork\b|\bday\b|\bbuild(?:ing)? toward\b|\bplanning\b|\bdone today\b/iu, `onboarding did not ask for useful next context: ${reply}`);
-    const askedCategories = [
-        /\bgoals?\b|\bobjective\b|\btarget\b|\bwork\b|\bbuild(?:ing)? toward\b/iu,
-        /\broutine\b|\bfixed daily\b|\bcommitments?\b/iu,
-        /\brhythm\b|\bsleep\b|\bwake\b/iu,
-        /\bblocker\b|\bstuck\b|\bdrift\b/iu,
-        /\bday\b|\bplanning\b|\bdone today\b/iu
-    ].filter((pattern) => pattern.test(reply)).length;
-    assert.ok(askedCategories <= 3, `onboarding asked for too much at once: ${reply}`);
-}
-
 function assertFirstOnboardingOpener(reply) {
     assert.match(reply, /I(?:'|’)m Antirot/iu, `first onboarding reply did not introduce Antirot: ${reply}`);
-    assert.match(reply, /smart|intense|plans|ambition|drift|claim matters/iu, `first onboarding reply lost requested coach tone: ${reply}`);
+    assert.match(reply, /coached plenty of people like you|smart, intense, full of plans|one bad hour|claim matters/iu, `first onboarding reply lost requested demotivating anchor: ${reply}`);
+    assert.doesNotMatch(reply, /execution actually matches your potential|biggest enemy is your own drifting attention|let'?s cut the delusion early/iu, `first onboarding reply used generic potential/execution wording instead of the anchor: ${reply}`);
     assert.match(reply, /long[- ]?term/iu, `first onboarding reply did not ask long-term goals: ${reply}`);
     assert.match(reply, /short[- ]?term/iu, `first onboarding reply did not ask short-term goals: ${reply}`);
     assert.match(reply, /day .*look|what .*day|typical day/iu, `first onboarding reply did not ask day shape: ${reply}`);
@@ -264,6 +248,8 @@ function assertSecondOnboardingLoopReply(reply) {
     assertProductionQuality(reply);
     assert.match(reply, /\blazy\b|\bsoft\b|\bgot\b|\bdetails\b|\bno more planning\b|\bship\b/iu, `second onboarding reply did not keep the sharper coach outline: ${reply}`);
     assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b/iu, `second onboarding reply did not suggest a first task: ${reply}`);
+    assert.match(reply, /\bexact\b|\bdetail(?:s)?\b|\bspecific\b|\bconcrete\b/iu, `second onboarding reply did not ask for exact task details: ${reply}`);
+    assert.match(reply, /\bminutes?\b|\bduration\b|\bhow long\b|\bestimat(?:e|ed)\b|\btime\b/iu, `second onboarding reply did not ask for a time estimate: ${reply}`);
     assert.match(reply, /\bpress Start\b|\bStart button\b|\bhit Start\b/iu, `second onboarding reply did not tell user to press Start: ${reply}`);
     assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
     assert.doesNotMatch(reply, /main blocker|what blocker|what is blocking/iu, `second onboarding reply asked a filler blocker question: ${reply}`);
@@ -660,7 +646,7 @@ async function main() {
             assert.doesNotMatch(reply, /protected work block/iu, `baseline sleep onboarding reply used product-speak: ${reply}`);
             assert.doesNotMatch(reply, /start today'?s first task:\s*finalize/iu, `baseline sleep onboarding reply parroted broad app goal as an executable task: ${reply}`);
             assert.doesNotMatch(reply, /(Sleep baseline saved\\.?\\s*){2,}/iu, `baseline sleep onboarding reply repeated deterministic copy: ${reply}`);
-            assert.match(reply, /\bnext (?:concrete )?(?:slice|step|task|move)\b|\bwhich\b.*\b(?:screen|bug|test|commit|slice)\b|\b20-minute\b/iu, `baseline sleep onboarding reply lacked a concrete next-action prompt: ${reply}`);
+            assert.match(reply, /\bnext (?:specific )?(?:step|task|move)\b|\bwhich\b.*\b(?:screen|bug|test|commit|task)\b|\b20-minute\b/iu, `baseline sleep onboarding reply lacked a specific next-action prompt: ${reply}`);
             const sleep = await getMemory(backend.baseUrl, onboardingFixture.deviceToken, "sleep");
             assert.match(sleep.content, /2\s*a\.?m\.?|02:00|two\s*a\.?m/isu);
             assert.match(sleep.content, /10\s*a\.?m\.?|10:00|ten\s*a\.?m/isu);
