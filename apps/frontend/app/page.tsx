@@ -50,6 +50,8 @@ type ChatMessage = {
     role: Role;
     text: string;
     at: string;
+    audioUrl?: string;
+    audioSeconds?: number;
 };
 
 const initialMessages: ChatMessage[] = [
@@ -184,7 +186,7 @@ const quickMessages: QuickMessage[] = [
     {
         id: "awake",
         label: "I am awake",
-        text: "I am awake. Log it and tell me the first concrete move."
+        text: "I am awake. Log it and tell me the first specific move."
     },
     {
         id: "movie-break",
@@ -420,6 +422,10 @@ export default function AntirotLabPage() {
         () => labActions.filter((action) => actionsByState[stateName].includes(action.id)),
         [labActions, stateName]
     );
+    const visiblePendingAlarms = useMemo(
+        () => collapsePendingAlarmsToNextReminder(pendingAlarms),
+        [pendingAlarms]
+    );
 
     useEffect(() => {
         void bootLab();
@@ -450,14 +456,15 @@ export default function AntirotLabPage() {
         }
     }, [connection, memoryKey]);
 
-    function pushMessage(role: Role, text: string) {
+    function pushMessage(role: Role, text: string, extras: Partial<Pick<ChatMessage, "audioUrl" | "audioSeconds">> = {}) {
         setMessages((current) => [
             ...current,
             {
                 id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
                 role,
                 text,
-                at: nowLabel()
+                at: nowLabel(),
+                ...extras
             }
         ].slice(-MAX_VISIBLE_MESSAGES));
     }
@@ -603,15 +610,17 @@ export default function AntirotLabPage() {
         }
     }
 
-    async function sendChat(text: string, visibleText = text) {
+    async function sendChat(text: string, visibleText?: string) {
         const trimmed = text.trim();
         if (!trimmed || busy) {
             return;
         }
-        const visible = visibleText.trim();
+        const visible = visibleText === undefined ? trimmed : visibleText.trim();
         setBusy(true);
         setDraft("");
-        pushMessage("user", visible || trimmed);
+        if (visible) {
+            pushMessage("user", visible);
+        }
         try {
             const reply = await backendJson<{ ok: boolean; reply: string }>("/v1/chat", {
                 method: "POST",
@@ -643,7 +652,7 @@ export default function AntirotLabPage() {
         window.localStorage.setItem(ONBOARDING_NAME_STORAGE_KEY, name);
         window.localStorage.setItem(ONBOARDING_NAME_SENT_STORAGE_KEY, "true");
         setNamePromptSent(true);
-        await sendChat(onboardingMessage(name), `My name is ${name}.`);
+        await sendChat(onboardingMessage(name), "");
     }
 
     async function runTool(action: LabAction) {
@@ -788,6 +797,10 @@ export default function AntirotLabPage() {
         const audio = concatFloat32(chunks);
         const wav = encodeWAV(audio, 1, VAD_SAMPLE_RATE, 1, 16);
         const blob = new Blob([wav], { type: "audio/wav" });
+        pushMessage("user", "Voice message", {
+            audioUrl: URL.createObjectURL(blob),
+            audioSeconds: seconds
+        });
         startSpeechTranscription({ blob, seconds, reason, sequence: nextSpeechSequenceRef.current });
         nextSpeechSequenceRef.current += 1;
     }
@@ -829,7 +842,6 @@ export default function AntirotLabPage() {
                 continue;
             }
             setDraft((current) => (current.trim() ? `${current.trim()} ${result.text}` : result.text));
-            pushMessage("system", `Transcribed voice: ${result.text}`);
         }
         updateSpeechStatus();
     }
@@ -969,8 +981,8 @@ export default function AntirotLabPage() {
                                     <strong>{stateSource}</strong>
                                 </div>
                                 <div className="state-card">
-                                    <span>Pending alarms</span>
-                                    <strong>{pendingAlarms.length}</strong>
+                                    <span>Next reminders</span>
+                                    <strong>{visiblePendingAlarms.length}</strong>
                                 </div>
                                 <div className="state-card">
                                     <span>Prompt size</span>
@@ -1007,7 +1019,14 @@ export default function AntirotLabPage() {
                                             >
                                                 ×
                                             </button>
-                                            <p>{message.text}</p>
+                                            {message.audioUrl ? (
+                                                <div className="voice-message">
+                                                    <audio controls src={message.audioUrl} />
+                                                    <span>{message.audioSeconds ? `${message.audioSeconds.toFixed(1)}s` : "voice"}</span>
+                                                </div>
+                                            ) : (
+                                                <p>{message.text}</p>
+                                            )}
                                             <span>{message.role === "coach" ? "Antirot" : message.role} / {message.at}</span>
                                         </div>
                                     ))}
@@ -1060,10 +1079,10 @@ export default function AntirotLabPage() {
                                 <article className="panel">
                                     <PanelHeader icon={<AlarmClock size={18} />} title="Pending alarms" />
                                     <div className="alarm-list">
-                                        {pendingAlarms.length === 0 ? (
+                                        {visiblePendingAlarms.length === 0 ? (
                                             <p className="empty">No pending alarms.</p>
                                         ) : (
-                                            pendingAlarms.map((alarm) => (
+                                            visiblePendingAlarms.map((alarm) => (
                                                 <div className="alarm-card" key={alarm.id}>
                                                     <div>
                                                         <strong>{alarm.title ?? alarm.kind}</strong>
@@ -1152,6 +1171,36 @@ function PanelHeader({ icon, title, action }: { icon: React.ReactNode; title: st
             {action}
         </div>
     );
+}
+
+function collapsePendingAlarmsToNextReminder(alarms: PendingAlarm[]) {
+    const nextByReminder = new Map<string, PendingAlarm>();
+    for (const alarm of alarms) {
+        const key = alarmReminderKey(alarm);
+        const current = nextByReminder.get(key);
+        if (!current || alarmFireTime(alarm) < alarmFireTime(current)) {
+            nextByReminder.set(key, alarm);
+        }
+    }
+
+    return Array.from(nextByReminder.values()).sort((a, b) => alarmFireTime(a) - alarmFireTime(b));
+}
+
+function alarmReminderKey(alarm: PendingAlarm) {
+    return [
+        alarm.kind,
+        alarm.title ?? "",
+        alarm.message ?? ""
+    ].join("|");
+}
+
+function alarmFireTime(alarm: PendingAlarm) {
+    const raw = alarm.fire_at ?? alarm.fireAt;
+    if (!raw) {
+        return Number.MAX_SAFE_INTEGER;
+    }
+    const value = new Date(raw).getTime();
+    return Number.isNaN(value) ? Number.MAX_SAFE_INTEGER : value;
 }
 
 function formatAlarmTime(alarm: PendingAlarm) {
