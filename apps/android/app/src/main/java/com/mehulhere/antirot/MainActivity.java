@@ -5,6 +5,7 @@ import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
@@ -40,7 +41,7 @@ public class MainActivity extends android.app.Activity {
     private String onboardingName = "";
     private String runtimeState = "unknown";
     private final StringBuilder coachLog = new StringBuilder();
-    private final ArrayDeque<String> chatQueue = new ArrayDeque<>();
+    private final ArrayDeque<QueuedChatMessage> chatQueue = new ArrayDeque<>();
     private final ArrayDeque<File> speechQueue = new ArrayDeque<>();
     private boolean chatQueueProcessing = false;
     private boolean speechQueueProcessing = false;
@@ -221,11 +222,16 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void sendCoachMessage(String message) {
+        sendCoachMessage(message, message);
+    }
+
+    private void sendCoachMessage(String message, String visibleMessage) {
         String trimmed = message == null ? "" : message.trim();
         if (trimmed.isEmpty()) {
             return;
         }
-        chatQueue.add(trimmed);
+        String visible = visibleMessage == null ? null : visibleMessage.trim();
+        chatQueue.add(new QueuedChatMessage(trimmed, visible == null || visible.isEmpty() ? null : visible));
         processChatQueue();
     }
 
@@ -234,8 +240,11 @@ public class MainActivity extends android.app.Activity {
             return;
         }
         chatQueueProcessing = true;
-        String message = chatQueue.poll();
-        appendCoach("you", message);
+        QueuedChatMessage queued = chatQueue.poll();
+        String message = queued.message;
+        if (queued.visibleMessage != null) {
+            appendCoach("you", queued.visibleMessage);
+        }
         status.setText(chatQueue.isEmpty() ? "Thinking" : "Thinking (" + chatQueue.size() + " queued)");
         new AntirotApiClient(this).chat(message, reply -> runOnUiThread(() -> {
             if (reply.startsWith("Failed:")) {
@@ -307,18 +316,20 @@ public class MainActivity extends android.app.Activity {
             if (trimmed.startsWith("Failed:")) {
                 status.setText(trimmed);
                 appendCoach("system", trimmed);
+                file.delete();
                 speechQueueProcessing = false;
                 processSpeechQueue();
                 return;
             }
             if (trimmed.isEmpty()) {
                 status.setText("No speech detected.");
+                file.delete();
                 speechQueueProcessing = false;
                 processSpeechQueue();
                 return;
             }
-            appendCoach("system", "Transcribed voice: " + trimmed);
-            sendCoachMessage(trimmed);
+            appendVoiceMessage(file);
+            sendCoachMessage(trimmed, null);
             speechQueueProcessing = false;
             processSpeechQueue();
         }));
@@ -367,7 +378,7 @@ public class MainActivity extends android.app.Activity {
                     }
                     onboardingName = name;
                     namePromptSent = true;
-                    sendCoachMessage(onboardingMessage(name));
+                    sendCoachMessage(onboardingMessage(name), null);
                 })
                 .show();
     }
@@ -375,6 +386,37 @@ public class MainActivity extends android.app.Activity {
     private String onboardingMessage(String name) {
         return "Start onboarding with this user's name. Save it, then continue onboarding conversationally through chat or speech.\n" +
                 "Name: " + name;
+    }
+
+    private void appendVoiceMessage(File file) {
+        appendCoach("you", "Voice message");
+        if (root == null) {
+            return;
+        }
+        Button playButton = button("Play voice message", () -> playVoiceMessage(file));
+        root.addView(playButton);
+    }
+
+    private void playVoiceMessage(File file) {
+        try {
+            MediaPlayer player = new MediaPlayer();
+            player.setDataSource(file.getAbsolutePath());
+            player.setOnCompletionListener(MediaPlayer::release);
+            player.prepare();
+            player.start();
+        } catch (Exception error) {
+            status.setText("Could not play voice message: " + error.getMessage());
+        }
+    }
+
+    private static final class QueuedChatMessage {
+        final String message;
+        final String visibleMessage;
+
+        QueuedChatMessage(String message, String visibleMessage) {
+            this.message = message;
+            this.visibleMessage = visibleMessage;
+        }
     }
 
     private void saveSettings() {
