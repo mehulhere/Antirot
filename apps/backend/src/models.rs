@@ -245,6 +245,22 @@ pub struct ChatResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ChatHistoryMessage {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatHistoryResponse {
+    pub ok: bool,
+    pub messages: Vec<ChatHistoryMessage>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SpeechTranscriptionResponse {
     pub ok: bool,
     pub text: String,
