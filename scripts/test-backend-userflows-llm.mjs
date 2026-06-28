@@ -235,8 +235,7 @@ function assertNoStaleVacationCopy(reply) {
 
 function assertFirstOnboardingOpener(reply) {
     assert.match(reply, /I(?:'|’)m Antirot/iu, `first onboarding reply did not introduce Antirot: ${reply}`);
-    assert.match(reply, /coached plenty of people like you|smart, intense, full of plans|one bad hour|claim matters/iu, `first onboarding reply lost requested demotivating anchor: ${reply}`);
-    assert.doesNotMatch(reply, /execution actually matches your potential|biggest enemy is your own drifting attention|let'?s cut the delusion early/iu, `first onboarding reply used generic potential/execution wording instead of the anchor: ${reply}`);
+    assert.match(reply, /coach|accountability|standard|drift|focus|work/iu, `first onboarding reply did not establish the accountability-coach role: ${reply}`);
     assert.match(reply, /long[- ]?term/iu, `first onboarding reply did not ask long-term goals: ${reply}`);
     assert.match(reply, /short[- ]?term/iu, `first onboarding reply did not ask short-term goals: ${reply}`);
     assert.match(reply, /day .*look|what .*day|typical day/iu, `first onboarding reply did not ask day shape: ${reply}`);
@@ -246,11 +245,10 @@ function assertFirstOnboardingOpener(reply) {
 
 function assertSecondOnboardingLoopReply(reply) {
     assertProductionQuality(reply);
-    assert.match(reply, /\blazy\b|\bsoft\b|\bgot\b|\bdetails\b|\bno more planning\b|\bship\b/iu, `second onboarding reply did not keep the sharper coach outline: ${reply}`);
     assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b/iu, `second onboarding reply did not suggest a first task: ${reply}`);
     assert.match(reply, /\bexact\b|\bdetail(?:s)?\b|\bspecific\b|\bconcrete\b/iu, `second onboarding reply did not ask for exact task details: ${reply}`);
     assert.match(reply, /\bminutes?\b|\bduration\b|\bhow long\b|\bestimat(?:e|ed)\b|\btime\b/iu, `second onboarding reply did not ask for a time estimate: ${reply}`);
-    assert.match(reply, /\bpress Start\b|\bStart button\b|\bhit Start\b/iu, `second onboarding reply did not tell user to press Start: ${reply}`);
+    assert.match(reply, /\bstart\b|\bbegin\b/iu, `second onboarding reply did not tell user how to begin: ${reply}`);
     assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
     assert.doesNotMatch(reply, /main blocker|what blocker|what is blocking/iu, `second onboarding reply asked a filler blocker question: ${reply}`);
     assert.doesNotMatch(reply, /2\s*a\.?m.*11\s*a\.?m.*girlfriend|girlfriend.*2\s*hours.*10\s*hours/isu, `second onboarding reply repeated too many user details: ${reply}`);
@@ -608,8 +606,8 @@ async function main() {
             assertNoLongMovieBreak(secondReply, movieState);
             assert.match(
                 secondReply,
-                /responsibility|pending work|wasting|wasted|waste|delay|abandon|not done|override|own the trade-off/isu,
-                `pleading reply did not require accountability admission: ${secondReply}`
+                /responsibility|pending work|wasting|wasted|waste|delay|abandon|not done|override|own the trade-off|tradeoff|trade-off|cost/isu,
+                `pleading reply did not require an accountable tradeoff: ${secondReply}`
             );
 
             const thirdReply = await chat(

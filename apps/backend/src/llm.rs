@@ -262,23 +262,7 @@ pub async fn chat_with_coach(
             }
         })
         .collect();
-    let runtime_state = current_runtime_state(&client, user_id).await?;
-    if should_filter_stale_vacation_history(runtime_state.as_deref(), user_message) {
-        messages.retain(|message| {
-            !message
-                .content
-                .as_deref()
-                .is_some_and(contains_vacation_context)
-        });
-    }
-    if should_filter_stale_recovery_history(user_message) {
-        messages.retain(|message| {
-            !message
-                .content
-                .as_deref()
-                .is_some_and(contains_recovery_context)
-        });
-    }
+    let _runtime_state = current_runtime_state(&client, user_id).await?;
 
     // 3. Assemble system prompt with current memory context.
     let tools = get_tool_definitions();
@@ -351,7 +335,6 @@ pub async fn chat_with_coach(
     let mut loop_count = 0;
     let max_loops = 5;
     let mut final_text = String::new();
-    let mut start_session_called = false;
     let mut start_session_reply_override: Option<String> = None;
 
     while loop_count < max_loops {
@@ -447,38 +430,14 @@ pub async fn chat_with_coach(
             }
 
             let mut tool_results = Vec::new();
-            let mut user_facing_results = Vec::new();
-            let mut blocked_tool_reply = false;
             for call in calls {
                 info!(tool = %call.function.name, "LLM requested tool execution");
-                if call.function.name == "start_session" {
-                    start_session_called = true;
-                }
-                let mut tool_arguments = call.function.arguments.clone();
-                if let Some(reply) = high_drift_break_guard_reply(
-                    &call.function.name,
-                    &tool_arguments,
-                    user_message,
-                    &messages,
-                ) {
-                    push_unique_user_facing_result(&mut user_facing_results, reply);
-                    blocked_tool_reply = true;
-                    continue;
-                }
-                if should_force_admitted_high_drift_break_duration(
-                    &call.function.name,
-                    &tool_arguments,
-                    user_message,
-                ) {
-                    tool_arguments = json!({ "duration_minutes": 120 }).to_string();
-                }
-
                 let result_text = execute_tool_locally(
                     pool,
                     config,
                     user_id,
                     &call.function.name,
-                    &tool_arguments,
+                    &call.function.arguments,
                 )
                 .await;
                 let user_facing_reply =
@@ -486,10 +445,6 @@ pub async fn chat_with_coach(
                 if call.function.name == "start_session" && result_text.starts_with("Success:") {
                     start_session_reply_override = Some(user_facing_reply.clone());
                 }
-                push_unique_user_facing_result(
-                    &mut user_facing_results,
-                    user_facing_reply,
-                );
                 tool_results.push(format!("{}: {}", call.function.name, result_text));
 
                 let tool_msg = LlmMessage {
@@ -521,26 +476,6 @@ pub async fn chat_with_coach(
                     .await?;
             }
 
-            if blocked_tool_reply {
-                final_text = if user_facing_results.is_empty() {
-                    content.unwrap_or_default()
-                } else {
-                    user_facing_results.join(" ")
-                };
-                if !final_text.trim().is_empty() {
-                    let final_msg_id = Uuid::new_v4().to_string();
-                    client
-                        .execute(
-                            "
-                            INSERT INTO chat_messages (id, user_id, role, content)
-                            VALUES ($1, $2, 'assistant', $3)
-                            ",
-                            &[&final_msg_id, &user_id, &Some(final_text.clone())],
-                        )
-                        .await?;
-                }
-                break;
-            }
         } else {
             if let Some(text) = content {
                 final_text = text;
@@ -549,55 +484,10 @@ pub async fn chat_with_coach(
         }
     }
 
-    if should_start_admitted_high_drift_break(user_message, &messages) {
-        let result_text = execute_tool_locally(
-            pool,
-            config,
-            user_id,
-            "start_break",
-            &json!({ "duration_minutes": 120 }).to_string(),
-        )
-        .await;
-        if result_text.starts_with("Success:") {
-            final_text = "Explicit override accepted. The 2-hour movie break is now on the record. When it ends, return and start one 10-minute work block on the pending tests.".to_string();
-        }
-    }
-
     if let Some(reply) = start_session_reply_override {
         final_text = reply;
     }
 
-    if !start_session_called {
-        if let Some((task_id, estimated_minutes)) = explicit_start_session_request(user_message) {
-            let result_text = execute_tool_locally(
-                pool,
-                config,
-                user_id,
-                "start_session",
-                &json!({
-                    "task_id": task_id,
-                    "estimated_minutes": estimated_minutes
-                })
-                .to_string(),
-            )
-            .await;
-            if result_text.starts_with("Success:") {
-                final_text = user_facing_tool_result("start_session", &result_text, user_message);
-            }
-        }
-    }
-
-    final_text = sanitize_stale_vacation_reply(&final_text, runtime_state.as_deref(), user_message);
-    final_text = sanitize_stale_recovery_reply(&final_text, user_message);
-    final_text = sanitize_reasoning_summary_reply(&final_text);
-    final_text = sanitize_tool_locked_reply(&final_text);
-    final_text = sanitize_onboarding_repeat_reply(&final_text, user_message);
-    final_text = sanitize_sleep_baseline_reply(&final_text, user_message);
-    final_text = sanitize_bad_sleep_reply(&final_text, user_message);
-    final_text = sanitize_high_drift_break_reply(&final_text, user_message, &messages);
-    final_text = sanitize_soft_personality_jailbreak_reply(&final_text, user_message);
-    final_text = sanitize_internal_inspection_reply(&final_text, user_message);
-    final_text = sanitize_memory_update_announcement_reply(&final_text, user_message);
     Ok(final_text)
 }
 
@@ -606,46 +496,22 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
         return format!("I hit a backend problem: {}", result_text);
     }
 
-    let user_message_lower = user_message.to_lowercase();
-    let recovery_context = mentions_recovery_context(&user_message_lower);
-    let relationship_context = mentions_relationship_context(&user_message_lower);
-    let onboarding_context = mentions_onboarding_start(&user_message_lower);
-    let sleep_baseline_context = mentions_sleep_baseline_context(&user_message_lower);
-
     match tool_name {
-        "patch_file" if sleep_baseline_context => "Got your day shape. Pick the smallest useful task from today's plan, then press Start when you are ready to begin.".to_string(),
-        "patch_file" if onboarding_context => onboarding_setup_reply(),
-        "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
-        "patch_file" if mentions_misc_task_capture_context(&user_message_lower) => "Captured for later. Do not context-switch now; return to the current session and finish the block.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("sleep.md") => "Sleep baseline noted. Pick the next specific task from today's plan, then start when ready.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("miscellaneous_todo.md") => "Captured for later. Do not context-switch now; return to the current session and finish the block.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
-        "start_session" if recovery_context => "Recovery pace: one low-friction work block is started. Work exactly 20 minutes, stop at the timer, then choose recovery or sleep if your body is still cooked.".to_string(),
         "start_session" => start_session_reply(user_message),
         "extend_session" => "Extension logged. Use it deliberately; the next check-in still counts.".to_string(),
         "end_session" => "Logged. One block is closed. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
-        "start_break" if recovery_context => {
-            let duration_minutes = extract_break_duration_minutes(result_text).unwrap_or(20);
-            format!(
-                "Recovery break approved for {} minutes. Keep it screen-free and low-stimulation; when it ends, choose one low-friction task or sleep if you are still cooked.",
-                duration_minutes
-            )
-        }
-        "start_break" if relationship_context => {
-            let duration_minutes = extract_break_duration_minutes(result_text).unwrap_or(45);
-            format!(
-                "Relationship block approved for {} minutes. Make it deliberate: say the real issue, protect the call, then return and start one 10-minute work block.",
-                duration_minutes
-            )
-        }
         "start_break" => {
             let duration_minutes = extract_break_duration_minutes(result_text).unwrap_or(15);
             format!(
-                "Break approved for {} minutes. No scrolling: stand up, water, breathe, then return and start one 10-minute work block.",
+                "Break approved for {} minutes. Make it deliberate, then return and choose the next concrete move.",
                 duration_minutes
             )
         }
         "start_sleep" => "Sleep starts now. Put the phone away, stop planning, and protect the full window; tomorrow report wake time and sleep quality from 1 to 5.".to_string(),
         "wake_up_alarm" => "Wake plan set. When it fires, check in instead of bargaining.".to_string(),
-        "log_wake" if recovery_context => "Bad sleep noted. Pick the easiest useful task already on your list, run exactly 20 minutes, then report done or blocked before adding pressure.".to_string(),
         "log_wake" => "You're awake. Name one concrete task, run a 20-minute block, then reassess before adding pressure.".to_string(),
         "start_vacation" => "Vacation approved. No work today. Before 8pm, write one re-entry line: first 20-minute task and the time you will start tomorrow.".to_string(),
         "end_vacation" => "Vacation mode is off. Re-entry is a ramp: check energy, pick one 20-minute block or update the plan, then move.".to_string(),
@@ -655,64 +521,10 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     }
 }
 
-fn push_unique_user_facing_result(results: &mut Vec<String>, reply: String) {
-    if reply.trim().is_empty() {
-        return;
-    }
-    if !results.iter().any(|existing| existing == &reply) {
-        results.push(reply);
-    }
-}
-
-fn mentions_recovery_context(user_message_lower: &str) -> bool {
-    user_message_lower.contains("recovery day")
-        || user_message_lower.contains("slept badly")
-        || user_message_lower.contains("bad sleep")
-        || user_message_lower.contains("feel cooked")
-        || user_message_lower.contains("fried")
-}
-
-fn mentions_relationship_context(user_message_lower: &str) -> bool {
-    user_message_lower.contains("girlfriend")
-        || user_message_lower.contains("relationship")
-        || user_message_lower.contains("partner")
-}
-
-fn mentions_misc_task_capture_context(user_message_lower: &str) -> bool {
-    (user_message_lower.contains("remembered")
-        || user_message_lower.contains("remember ")
-        || user_message_lower.contains("add ")
-        || user_message_lower.contains("capture ")
-        || user_message_lower.contains("note "))
-        && (user_message_lower.contains("later")
-            || user_message_lower.contains("for later")
-            || user_message_lower.contains("side task")
-            || user_message_lower.contains("misc")
-            || user_message_lower.contains("low priority")
-            || user_message_lower.contains("low-priority")
-            || user_message_lower.contains("errand")
-            || user_message_lower.contains("task list"))
-}
-
-fn mentions_onboarding_start(user_message_lower: &str) -> bool {
-    user_message_lower.contains("new here")
-        || user_message_lower.contains("start onboarding")
-        || user_message_lower.contains("onboarding me")
-        || user_message_lower.contains("during onboarding")
-        || user_message_lower.contains("shared their name")
-}
-
-fn mentions_sleep_baseline_context(user_message_lower: &str) -> bool {
-    (user_message_lower.contains("usual sleep")
-        || user_message_lower.contains("sleep schedule")
-        || user_message_lower.contains("sleep around")
-        || user_message_lower.contains("wake around")
-        || user_message_lower.contains("target sleep"))
-        && (user_message_lower.contains("sleep") || user_message_lower.contains("wake"))
-}
-
-fn onboarding_setup_reply() -> String {
-    "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters. Give me the real picture: long-term goal, short-term goal, day shape, and today’s concrete plan.".to_string()
+fn patched_file_from_result(result_text: &str) -> Option<&str> {
+    result_text
+        .strip_prefix("Success: File ")
+        .and_then(|rest| rest.strip_suffix(" patched successfully."))
 }
 
 fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
@@ -741,35 +553,6 @@ fn start_session_reply(user_message: &str) -> String {
     } else {
         format!("Started: {}.", task)
     }
-}
-
-fn explicit_start_session_request(user_message: &str) -> Option<(String, i64)> {
-    let lower = user_message.to_ascii_lowercase();
-    if lower.contains("start break")
-        || lower.contains("start sleep")
-        || lower.contains("start vacation")
-        || lower.contains("good night")
-    {
-        return None;
-    }
-    if !lower.contains("start") || !lower.contains("minute") {
-        return None;
-    }
-    if !lower.contains("session") && !lower.contains("work block") && !lower.contains("sprint") {
-        return None;
-    }
-
-    let estimated_minutes = extract_first_integer(&lower).unwrap_or(25).clamp(1, 240);
-    let task_id = extract_task_after_on(user_message)
-        .unwrap_or_else(|| "Current task".to_string())
-        .trim()
-        .trim_matches(|ch: char| matches!(ch, '.' | '!' | '?' | '"' | '\''))
-        .to_string();
-    if task_id.is_empty() {
-        return Some(("Current task".to_string(), estimated_minutes));
-    }
-
-    Some((task_id, estimated_minutes))
 }
 
 fn extract_first_integer(text: &str) -> Option<i64> {
@@ -858,108 +641,6 @@ fn gemini_minimal_thinking_extra_body(provider: &str, model: &str) -> Option<Val
             }
         }
     }))
-}
-
-fn high_drift_break_guard_reply(
-    tool_name: &str,
-    tool_arguments: &str,
-    user_message: &str,
-    messages: &[LlmMessage],
-) -> Option<String> {
-    if tool_name != "start_break" {
-        return None;
-    }
-
-    let args: Value = serde_json::from_str(tool_arguments).ok()?;
-    let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(0);
-    if duration_minutes < 60 || !contains_high_drift_break_request(user_message) {
-        return None;
-    }
-
-    if contains_high_drift_responsibility_admission(user_message) {
-        return None;
-    }
-
-    let attempts = high_drift_break_attempt_count(messages);
-    if attempts >= 2 {
-        Some(
-            "Still no 2-hour movie timer. If you insist after this much pleading, type this responsibility line in your own words: I take responsibility for wasting this time; I have not done the pending work; I have worked for X hours today; the pending work is Y; I am still choosing the movie. Then I can log it as an explicit override."
-                .to_string(),
-        )
-    } else {
-        Some(
-            "No 2-hour movie break. That is entertainment drift, not recovery. Take a 10-minute screen-free reset if you need it, or start a 15-minute work block now."
-                .to_string(),
-        )
-    }
-}
-
-fn should_force_admitted_high_drift_break_duration(
-    tool_name: &str,
-    tool_arguments: &str,
-    user_message: &str,
-) -> bool {
-    if tool_name != "start_break" || !contains_high_drift_break_request(user_message) {
-        return false;
-    }
-    if !contains_high_drift_responsibility_admission(user_message) {
-        return false;
-    }
-    let Ok(args) = serde_json::from_str::<Value>(tool_arguments) else {
-        return false;
-    };
-    args["duration_minutes"].as_i64().unwrap_or(0) < 120
-}
-
-fn should_start_admitted_high_drift_break(user_message: &str, messages: &[LlmMessage]) -> bool {
-    contains_high_drift_break_request(user_message)
-        && contains_high_drift_responsibility_admission(user_message)
-        && high_drift_break_attempt_count(messages) >= 3
-}
-
-fn high_drift_break_attempt_count(messages: &[LlmMessage]) -> usize {
-    messages
-        .iter()
-        .filter(|message| message.role == "user")
-        .filter_map(|message| message.content.as_deref())
-        .filter(|content| contains_high_drift_break_request(content))
-        .count()
-}
-
-fn contains_high_drift_break_request(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    let long_break = lower.contains("2 hour")
-        || lower.contains("2-hour")
-        || lower.contains("two hour")
-        || lower.contains("two-hour")
-        || lower.contains("120 minute")
-        || lower.contains("120-minute");
-    let drift_media = lower.contains("movie")
-        || lower.contains("netflix")
-        || lower.contains("youtube")
-        || lower.contains("scroll")
-        || lower.contains("anime")
-        || lower.contains("show");
-    let pleading = lower.contains("please please") || lower.matches("please").count() >= 2;
-
-    (long_break && drift_media) || (pleading && drift_media)
-}
-
-fn contains_high_drift_responsibility_admission(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    let owns_responsibility = lower.contains("take responsibility")
-        || lower.contains("my responsibility")
-        || lower.contains("i accept responsibility");
-    let admits_work_gap = lower.contains("not done")
-        || lower.contains("haven't done")
-        || lower.contains("have not done");
-    let names_pending = lower.contains("pending work") || lower.contains("pending task");
-    let chooses_movie = lower.contains("still choosing")
-        || lower.contains("still choose")
-        || lower.contains("wasting my time")
-        || lower.contains("waste this time");
-
-    owns_responsibility && admits_work_gap && names_pending && chooses_movie
 }
 
 async fn build_prompt_for_user(
@@ -1188,311 +869,6 @@ async fn current_runtime_state(
         )
         .await?
         .map(|row| row.get("state")))
-}
-
-fn should_filter_stale_vacation_history(runtime_state: Option<&str>, user_message: &str) -> bool {
-    runtime_state != Some("vacation") && !user_message_allows_vacation_context(user_message)
-}
-
-fn should_filter_stale_recovery_history(user_message: &str) -> bool {
-    !contains_recovery_context(user_message)
-}
-
-fn contains_vacation_context(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    lower.contains("vacation")
-        || lower.contains("travel")
-        || lower.contains("travelling")
-        || lower.contains("traveling")
-        || lower.contains("family trip")
-        || lower.contains("family travel")
-}
-
-fn contains_recovery_context(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    lower.contains("recovery day")
-        || lower.contains("bad sleep")
-        || lower.contains("slept badly")
-        || lower.contains("cooked")
-        || lower.contains("fried")
-}
-
-fn sanitize_stale_vacation_reply(
-    reply: &str,
-    _runtime_state: Option<&str>,
-    user_message: &str,
-) -> String {
-    if user_message_allows_vacation_context(user_message) || !contains_vacation_context(reply) {
-        return reply.to_string();
-    }
-
-    let mut cleaned = String::new();
-    let mut sentence = String::new();
-    for ch in reply.chars() {
-        sentence.push(ch);
-        if matches!(ch, '.' | '!' | '?' | '\n') {
-            if !contains_vacation_context(&sentence) {
-                cleaned.push_str(&sentence);
-            }
-            sentence.clear();
-        }
-    }
-    if !sentence.is_empty() && !contains_vacation_context(&sentence) {
-        cleaned.push_str(&sentence);
-    }
-
-    let cleaned = cleaned.trim().to_string();
-    if cleaned.is_empty() {
-        "Focus on the next concrete move: work, a real break, sleep, or a routine block. Choose deliberately.".to_string()
-    } else {
-        cleaned
-    }
-}
-
-fn sanitize_stale_recovery_reply(reply: &str, user_message: &str) -> String {
-    if contains_recovery_context(user_message) || !contains_recovery_context(reply) {
-        return reply.to_string();
-    }
-
-    let mut cleaned = String::new();
-    let mut sentence = String::new();
-    for ch in reply.chars() {
-        sentence.push(ch);
-        if matches!(ch, '.' | '!' | '?' | '\n') {
-            if !contains_recovery_context(&sentence) {
-                cleaned.push_str(&sentence);
-            }
-            sentence.clear();
-        }
-    }
-    if !sentence.is_empty() && !contains_recovery_context(&sentence) {
-        cleaned.push_str(&sentence);
-    }
-
-    let cleaned = cleaned.trim().to_string();
-    if cleaned.is_empty() {
-        "Focus on the latest decision: choose the protected block, name the duration, then return to one concrete work block.".to_string()
-    } else {
-        cleaned
-    }
-}
-
-fn sanitize_onboarding_repeat_reply(reply: &str, user_message: &str) -> String {
-    let user_lower = user_message.to_ascii_lowercase();
-    let reply_lower = reply.to_ascii_lowercase();
-    let starts_onboarding = mentions_onboarding_start(&user_lower);
-    let bad_opener = reply_lower.contains("repeated the prompt")
-        || reply_lower.contains("stop stalling")
-        || reply_lower.contains("if you missed it")
-        || reply_lower.contains("timezone")
-        || reply_lower.contains("raw data")
-        || reply_lower.contains("tell me:\n1.")
-        || reply_lower.contains("1. what")
-        || reply_lower.contains("2. what")
-        || reply_lower.contains("3. what")
-        || reply_lower.contains("daily routine")
-        || reply_lower.contains("target sleep")
-        || reply_lower.contains("wake times")
-        || reply_lower.contains("exact prompt")
-        || reply_lower.contains("copy-past")
-        || reply_lower.contains("repeat myself")
-        || reply_lower.contains("third time");
-
-    if !starts_onboarding || !bad_opener {
-        return reply.to_string();
-    }
-
-    onboarding_setup_reply()
-}
-
-fn sanitize_tool_locked_reply(reply: &str) -> String {
-    let reply_lower = reply.to_ascii_lowercase();
-    if !reply_lower.contains("tools are locked") && !reply_lower.contains("tool is locked") {
-        return reply.to_string();
-    }
-
-    reply
-        .replace("The tools are locked. ", "")
-        .replace("The tool is locked. ", "")
-        .replace("Tools are locked. ", "")
-        .replace("Tool is locked. ", "")
-}
-
-fn sanitize_reasoning_summary_reply(reply: &str) -> String {
-    let reply_lower = reply.to_ascii_lowercase();
-    if !reply_lower.contains("reasoning summary")
-        && !reply_lower.contains("analytical assessment")
-        && !reply_lower.contains("assessment of the user's request")
-    {
-        return reply.to_string();
-    }
-
-    if let Some(separator_index) = reply.find("***") {
-        return reply[separator_index + 3..].trim().to_string();
-    }
-
-    let mut lines = Vec::new();
-    let mut skipping = false;
-    for line in reply.lines() {
-        let line_lower = line.to_ascii_lowercase();
-        if line_lower.contains("reasoning summary") {
-            skipping = true;
-            continue;
-        }
-        if skipping && line.trim().is_empty() {
-            skipping = false;
-            continue;
-        }
-        if !skipping {
-            lines.push(line);
-        }
-    }
-
-    let cleaned = lines.join("\n").trim().to_string();
-    if cleaned.is_empty() {
-        "No. That is drift wearing a fake recovery badge. Take a 10-minute screen-free reset, or say plainly that you are choosing the low-value break.".to_string()
-    } else {
-        cleaned
-    }
-}
-
-fn sanitize_sleep_baseline_reply(reply: &str, user_message: &str) -> String {
-    if !mentions_sleep_baseline_context(&user_message.to_ascii_lowercase()) {
-        return reply.to_string();
-    }
-
-    let reply_lower = reply.to_ascii_lowercase();
-    let bad_sleep_baseline_reply = reply_lower.contains("baseline parameters")
-        || reply_lower.contains("baseline is updated")
-        || reply_lower.contains("baseline updated")
-        || reply_lower.contains("locked your")
-        || reply_lower.contains("sleep is locked")
-        || reply_lower.contains("sleep's locked")
-        || reply_lower.contains("locked in")
-        || reply_lower.contains("target into")
-        || reply_lower.contains("saved");
-
-    if !bad_sleep_baseline_reply {
-        return reply.to_string();
-    }
-
-    "Noted. Now pick the next specific task from today: a screen, bug, test, or 20-minute implementation pass. Press Start when ready.".to_string()
-}
-
-fn sanitize_bad_sleep_reply(reply: &str, user_message: &str) -> String {
-    let user_lower = user_message.to_ascii_lowercase();
-    let bad_sleep_context = user_lower.contains("bad sleep")
-        || user_lower.contains("sleep quality")
-        || user_lower.contains("quality was 1")
-        || user_lower.contains("1 out of 5");
-
-    if !bad_sleep_context || reply.chars().count() <= 700 {
-        return reply.to_string();
-    }
-
-    "Bad sleep lowers the ceiling, not the standard. Today is short, dumb, structured work: pick one brain-dead 15-minute task, then take a screen-free movement break. What is the task?".to_string()
-}
-
-fn sanitize_memory_update_announcement_reply(reply: &str, user_message: &str) -> String {
-    let user_lower = user_message.to_ascii_lowercase();
-    let reply_lower = reply.to_ascii_lowercase();
-    let is_memory_edit = user_lower.contains(".md")
-        || user_lower.contains("user_profile")
-        || user_lower.contains("personality")
-        || user_lower.contains("timezone");
-    let announced_hidden_update = reply_lower.contains("profile updated")
-        || reply_lower.contains("profile is updated")
-        || reply_lower.contains("profile has been updated")
-        || reply_lower.contains("profile and timezone are updated")
-        || reply_lower.contains("timezone is updated")
-        || reply_lower.contains("timezone updated")
-        || reply_lower.contains("timezone is locked")
-        || reply_lower.contains("timezone locked")
-        || reply_lower.contains("personality profile is updated")
-        || reply_lower.contains("personality profile has been updated")
-        || reply_lower.contains("personality is updated")
-        || reply_lower.contains("personality updated")
-        || reply_lower.contains("personality configuration")
-        || reply_lower.contains("configuration is locked")
-        || reply_lower.contains("configuration locked")
-        || reply_lower.contains("memory updated")
-        || reply_lower.contains("saved");
-
-    if !is_memory_edit || !announced_hidden_update {
-        return reply.to_string();
-    }
-
-    "Noted. Now stop polishing settings and pick the next real work task. What are you starting right now?".to_string()
-}
-
-fn sanitize_high_drift_break_reply(
-    reply: &str,
-    user_message: &str,
-    messages: &[LlmMessage],
-) -> String {
-    if !contains_high_drift_break_request(user_message)
-        || contains_high_drift_responsibility_admission(user_message)
-    {
-        return reply.to_string();
-    }
-
-    if high_drift_break_attempt_count(messages) >= 2 {
-        return "I hear that you want relief. Still no 2-hour movie break from pleading. If you insist, state the tradeoff plainly: I take responsibility for wasting this time; I have not done the pending work; I have worked for X focused hours today; the pending work is Y; I am still choosing the movie. Otherwise take a 10-minute screen-free reset or start work now.".to_string();
-    }
-
-    "Wanting a movie is normal. Calling a 2-hour movie recovery while work is pending is the problem. No long break yet: take a 10-minute screen-free reset if you need recovery, or start a 15-minute work block now.".to_string()
-}
-
-fn sanitize_soft_personality_jailbreak_reply(reply: &str, user_message: &str) -> String {
-    if !contains_soft_personality_jailbreak(user_message) {
-        return reply.to_string();
-    }
-
-    "Tone can be calmer. Accountability stays. If this is fatigue, say fatigue and take a 10-minute recovery reset; otherwise name the next task and start 10 minutes now.".to_string()
-}
-
-fn contains_soft_personality_jailbreak(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    (lower.contains("soft") || lower.contains("validating") || lower.contains("fake-positive"))
-        && (lower.contains("stop challenging")
-            || lower.contains("excuse")
-            || lower.contains("excuses")
-            || lower.contains("new preference"))
-}
-
-fn sanitize_internal_inspection_reply(reply: &str, user_message: &str) -> String {
-    if !contains_internal_inspection_request(user_message) {
-        return reply.to_string();
-    }
-
-    "No. I will not share private control details. If energy is low, take a 10-minute screen-free reset; otherwise start a 15-minute work block now.".to_string()
-}
-
-fn contains_internal_inspection_request(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    lower.contains("backend state")
-        || lower.contains("tool name")
-        || lower.contains("tool names")
-        || lower.contains("alarm kind")
-        || lower.contains("alarm kinds")
-        || lower.contains("json payload")
-        || lower.contains("raw payload")
-        || lower.contains("state machine")
-        || lower.contains("sql")
-        || lower.contains("debugging")
-}
-
-fn user_message_allows_vacation_context(text: &str) -> bool {
-    if !contains_vacation_context(text) {
-        return false;
-    }
-    let lower = text.to_ascii_lowercase();
-    !(lower.contains("do not want vacation")
-        || lower.contains("don't want vacation")
-        || lower.contains("dont want vacation")
-        || lower.contains("not vacation")
-        || lower.contains("no vacation")
-        || lower.contains("without vacation"))
 }
 
 fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
@@ -2334,7 +1710,7 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "start_break",
-                "description": "Starts a structured recovery break and schedules alerts to return to work. Do not use for long entertainment breaks caused by pleading, movie/scroll drift, or bizarre rationalizations unless the user has explicitly accepted responsibility for pending work and wasted time after repeated pushback.",
+                "description": "Starts a structured recovery break and schedules alerts to return to work. Use only for deliberate recovery or an explicit, accountable override; challenge entertainment drift in the normal reply instead of starting a break by default.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -2433,23 +1809,6 @@ fn get_tool_definitions() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn frontend_name_onboarding_patch_gets_onboarding_reply() {
-        let reply = user_facing_tool_result(
-            "patch_file",
-            "Success: user_profile.md updated",
-            "The user just shared their name during onboarding. Save it, then continue like a conversational coach.\nName: Mehul",
-        );
-
-        assert!(reply.contains("I’m Antirot"), "{reply}");
-        assert!(reply.contains("I’ve coached plenty of people like you"), "{reply}");
-        assert!(reply.contains("long-term goal"), "{reply}");
-        assert!(reply.contains("short-term goal"), "{reply}");
-        assert!(reply.contains("day shape"), "{reply}");
-        assert!(reply.contains("today’s concrete plan"), "{reply}");
-        assert!(!reply.contains("New standard is in"), "{reply}");
-    }
 
     #[test]
     fn start_session_reply_is_direct_for_auto_started_task() {
