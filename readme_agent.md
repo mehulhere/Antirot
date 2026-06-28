@@ -131,7 +131,7 @@ Use tokens from `/etc/antirot/backend.env` on the VPS. Do not commit real token 
 
 Before running long LLM suites, prune stale cases first. Do not keep old tests just because they once passed. Current user-facing behavior is the source of truth, especially for onboarding and coach-loop flows.
 
-Prefer the VPS for LLM/userflow verification:
+LLM/userflow cases are optional diagnostic aids, not mandatory gates. Prefer the VPS when you intentionally run them:
 
 ```bash
 ANTIROT_ADMIN_TOKEN="$(ssh antirot 'set -a; . /etc/antirot/backend.env; set +a; printf %s "$ANTIROT_ADMIN_TOKEN"')" \
@@ -148,10 +148,9 @@ Repeated LLM red flags to guard in code/tests:
 - User-facing memory/update chatter such as `profile updated`, `timezone locked`, `personality updated`, `saved fields`, or `baseline parameters`.
 - Numbered onboarding forms. First onboarding should feel like Antirot talking, not a questionnaire.
 - Broad-goal parroting like "finalize the app" as an executable task. Suggest a specific next task instead.
-- Explicit `Start a N minute session on X` must reliably start a session even if the LLM forgets the tool call.
 - Do not turn coach judgment into keyword search helpers. Avoidance/fake-prep behavior belongs in prompt guidance and LLM quality tests, not hardcoded phrase detectors like "vibe" or "clean my desk".
 
-When changing prompt behavior, run the relevant backend tests first, deploy to VPS, then run the pruned LLM suite. If a failure is from an obsolete scenario, delete or replace the test. If a failure exposes a real user-facing red flag, add a sanitizer or prompt rule plus a regression assertion.
+When changing prompt behavior, run deterministic backend/prompt checks first. Run the pruned LLM suite only when it is useful for the risk being changed, and treat failures as evidence to review manually rather than automatic proof that the product is wrong. Never overfit the prompt or backend code to satisfy a single scripted LLM testcase. If a case is stale or too narrow, make it optional, broaden it to product intent, or delete it. If a failure exposes a real user-facing red flag, prefer a clear LLM instruction or product rule over brittle phrase detectors, reply sanitizers, or hardcoded `.contains()` mechanics.
 
 iOS:
 

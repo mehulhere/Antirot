@@ -17,7 +17,7 @@
         "frontend:build": "node scripts/run-frontend-lab.mjs build",
         "test:prompt-snapshots": "cargo test --manifest-path apps/backend/Cargo.toml prompt::tests:: -- --nocapture",
         "test:backend-userflows": "node scripts/test-backend-userflows-no-llm.mjs",
-        "test:backend-userflows-llm": "ANTIROT_RUN_LLM_USERFLOW_TESTS=1 node scripts/test-backend-userflows-llm.mjs",
+        "test:backend-userflows-llm": "node scripts/test-backend-userflows-llm.mjs",
         "test:misc-task-capture-llm": "node scripts/test-misc-task-capture-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
         "check:env": "node scripts/check-env.mjs",
