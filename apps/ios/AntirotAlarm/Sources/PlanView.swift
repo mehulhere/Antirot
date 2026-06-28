@@ -60,7 +60,7 @@ struct PlanView: View {
                 HStack(spacing: 12) {
                     Image(systemName: item.2)
                         .font(.headline)
-                        .foregroundStyle(.antirotAccentOrange)
+                        .foregroundStyle(.antirotGold)
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -74,7 +74,7 @@ struct PlanView: View {
 
                     Spacer()
                 }
-                .glassCard(cornerRadius: 16, padding: 14)
+                .layeredCard(cornerRadius: 16, padding: 14)
             }
         }
     }
@@ -97,13 +97,13 @@ struct PlanView: View {
             }
             .buttonStyle(.plain)
             .disabled(isReviewing)
-            .glassCard(cornerRadius: 16, padding: 16)
+            .layeredCard(cornerRadius: 16, padding: 16)
 
             if !reviewText.isEmpty {
                 Text(reviewText)
                     .font(.subheadline)
                     .foregroundStyle(.antirotTextSecondary)
-                    .glassCard(cornerRadius: 16, padding: 16)
+                    .layeredCard(cornerRadius: 16, padding: 16)
             }
         }
     }
@@ -123,7 +123,7 @@ struct PlanView: View {
             .frame(maxWidth: .infinity, minHeight: 72)
         }
         .buttonStyle(.plain)
-        .glassCard(cornerRadius: 16, padding: 12)
+        .layeredCard(cornerRadius: 16, padding: 12)
     }
 
     private func requestDailyReview() async {

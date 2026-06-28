@@ -66,7 +66,7 @@ struct AlarmsView: View {
                     title: "Normal Test",
                     subtitle: "Standard wake alarm",
                     icon: "alarm",
-                    accentColor: .antirotAccentOrange,
+                    accentColor: .antirotGold,
                     severity: .normal
                 )
 
@@ -74,7 +74,7 @@ struct AlarmsView: View {
                     title: "Loud Test",
                     subtitle: "Emergency escalation",
                     icon: "alarm",
-                    accentColor: .antirotAccentRed,
+                    accentColor: .antirotDanger,
                     severity: .loud
                 )
             }
@@ -112,7 +112,7 @@ struct AlarmsView: View {
             .buttonStyle(AntirotGhostButtonStyle())
         }
         .frame(maxWidth: .infinity)
-        .glassCard(cornerRadius: 14, padding: 16)
+        .layeredCard(cornerRadius: 14, padding: 16)
         .overlay(alignment: .top) {
             RoundedRectangle(cornerRadius: 14)
                 .fill(accentColor)
@@ -139,7 +139,7 @@ struct AlarmsView: View {
                     .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.antirotBgSecondary)
+                            .fill(Color.antirotBgSurface)
                     )
                 }
 
@@ -147,7 +147,7 @@ struct AlarmsView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "music.note")
                         .font(.caption)
-                        .foregroundStyle(.antirotAccentOrange)
+                        .foregroundStyle(.antirotGold)
                     Text(soundSelectionLabel)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.antirotTextPrimary)
@@ -178,7 +178,7 @@ struct AlarmsView: View {
                     .buttonStyle(AntirotGhostButtonStyle())
                 }
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -200,7 +200,7 @@ struct AlarmsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .glassCard()
+                .layeredCard()
             } else {
                 VStack(spacing: 10) {
                     ForEach(alarmCenter.scheduledAlarms) { alarm in
@@ -249,7 +249,7 @@ struct AlarmsView: View {
                     .lineLimit(2)
             }
         }
-        .glassCard(cornerRadius: 14, padding: 14)
+        .layeredCard(cornerRadius: 14, padding: 14)
     }
 
     // MARK: - Computed Properties

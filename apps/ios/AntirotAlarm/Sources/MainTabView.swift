@@ -13,10 +13,10 @@ struct MainTabView: View {
 
         var icon: String {
             switch self {
-            case .home: return "waveform"
-            case .plan: return "calendar.badge.clock"
-            case .alarms: return "alarm.fill"
-            case .settings: return "gearshape.fill"
+            case .home: return "bolt.fill"
+            case .plan: return "list.bullet.clipboard"
+            case .alarms: return "bell.and.waves.left.and.right"
+            case .settings: return "slider.horizontal.3"
             }
         }
 
@@ -64,15 +64,10 @@ struct MainTabView: View {
         .padding(.bottom, 4)
         .background(
             Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.8)
-                .overlay(
-                    Rectangle()
-                        .fill(Color.antirotBgSecondary.opacity(0.6))
-                )
+                .fill(Color.antirotBgElevated)
                 .overlay(alignment: .top) {
                     Rectangle()
-                        .fill(Color.antirotBorder)
+                        .fill(Color.antirotBorderStrong)
                         .frame(height: 0.5)
                 }
                 .ignoresSafeArea(.container, edges: .bottom)
@@ -81,7 +76,7 @@ struct MainTabView: View {
 
     private func tabButton(for tab: Tab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
                 selectedTab = tab
             }
         } label: {
@@ -93,14 +88,17 @@ struct MainTabView: View {
                 Text(tab.label)
                     .font(.caption2)
                     .fontWeight(selectedTab == tab ? .semibold : .regular)
-
-                // Active indicator
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(selectedTab == tab ? Color.antirotAccentRed : .clear)
-                    .frame(width: 20, height: 3)
             }
-            .foregroundStyle(selectedTab == tab ? .antirotAccentRed : .antirotTextMuted)
+            .foregroundStyle(selectedTab == tab ? .antirotAccent : .antirotTextMuted)
             .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background {
+                if selectedTab == tab {
+                    Capsule()
+                        .fill(Color.antirotGlowPrimary)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

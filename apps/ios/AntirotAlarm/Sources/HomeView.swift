@@ -16,7 +16,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            SiriCoachBackground()
+            MeshBackground()
 
             VStack(spacing: 0) {
                 header
@@ -26,11 +26,9 @@ struct HomeView: View {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 18) {
-                            SiriCoachOrb(
-                                isListening: coach.isRecording,
-                                isThinking: coach.isSending,
-                                isSpeaking: coach.isSpeaking,
-                                statusText: coach.statusText
+                            FocusDial(
+                                isRecording: coach.isRecording,
+                                isThinking: coach.isSending
                             )
                             .padding(.top, 14)
 
@@ -79,14 +77,23 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image("favicon")
-                .resizable()
-                .frame(width: 36, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .accessibilityHidden(true)
+            // Violet monogram
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.antirotGlowPrimary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Color.antirotBorderStrong, lineWidth: 1)
+                    )
+                Text("A")
+                    .font(.headline.bold())
+                    .foregroundStyle(.antirotAccent)
+            }
+            .frame(width: 36, height: 36)
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Antirot Coach")
+                Text("Coach")
                     .font(.headline.bold())
                     .foregroundStyle(.antirotTextPrimary)
                 Text(settings.registered ? "Backend connected" : "Offline")
@@ -103,17 +110,17 @@ struct HomeView: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.antirotTextPrimary)
                     .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.08))
+                    .background(Color.antirotBgElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                            .strokeBorder(Color.antirotBorder, lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Reset conversation")
 
-            StatusDot(color: settings.registered ? .antirotSuccess : .antirotAccentRed)
+            StatusDot(color: settings.registered ? .antirotCyan : .antirotDanger)
         }
     }
 
@@ -123,7 +130,7 @@ struct HomeView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "target")
-                    .foregroundStyle(.antirotAccentOrange)
+                    .foregroundStyle(.antirotAccent)
                 Text(snapshot.mode.uppercased())
                     .font(.caption2.weight(.bold))
                     .tracking(1)
@@ -132,7 +139,7 @@ struct HomeView: View {
                 if let dueAt = snapshot.dueAt {
                     Text(dueAt, style: .relative)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.antirotAccentAmber)
+                        .foregroundStyle(.antirotGold)
                 }
             }
 
@@ -146,7 +153,13 @@ struct HomeView: View {
                 .foregroundStyle(.antirotTextSecondary)
                 .lineLimit(2)
         }
-        .glassCard(cornerRadius: 18, padding: 16)
+        .layeredCard(cornerRadius: 14, padding: 16)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color.antirotAccent)
+                .frame(width: 3)
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
+        }
     }
 
     private var quickActions: some View {
@@ -171,11 +184,11 @@ struct HomeView: View {
                         .foregroundStyle(.antirotTextPrimary)
                         .padding(.horizontal, 13)
                         .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.antirotGlowPrimary)
                         .clipShape(Capsule())
                         .overlay(
                             Capsule()
-                                .strokeBorder(Color.white.opacity(0.09), lineWidth: 1)
+                                .strokeBorder(Color.antirotBorderStrong, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -245,7 +258,7 @@ struct HomeView: View {
                         .foregroundStyle(.antirotTextMuted)
                     Spacer()
                 }
-                .glassCard(cornerRadius: 14, padding: 14)
+                .layeredCard(cornerRadius: 14, padding: 14)
             }
         }
     }
@@ -264,7 +277,7 @@ struct HomeView: View {
                         .foregroundStyle(.antirotTextSecondary)
                     Spacer()
                 }
-                .glassCard(cornerRadius: 16, padding: 14)
+                .layeredCard(cornerRadius: 14, padding: 14)
             } else {
                 ForEach(visibleAlarms) { alarm in
                     HStack(spacing: 10) {
@@ -279,7 +292,7 @@ struct HomeView: View {
                         }
                         Spacer()
                     }
-                    .glassCard(cornerRadius: 16, padding: 14)
+                    .layeredCard(cornerRadius: 14, padding: 14)
                 }
             }
         }
@@ -297,15 +310,19 @@ struct HomeView: View {
                     Image(systemName: coach.isRecording ? "stop.fill" : "mic.fill")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.white)
-                        .frame(width: 54, height: 54)
+                        .frame(width: 50, height: 50)
                         .background(
                             Circle()
-                                .fill(coach.isRecording ? Color.antirotAccentRed : Color.antirotAccentOrange)
+                                .fill(
+                                    coach.isRecording
+                                        ? Color.antirotDanger
+                                        : Color.antirotAccent
+                                )
                         )
                         .shadow(
-                            color: (coach.isRecording ? Color.antirotAccentRed : Color.antirotAccentOrange).opacity(0.45),
-                            radius: 18,
-                            y: 8
+                            color: (coach.isRecording ? Color.antirotDanger : Color.antirotAccent).opacity(0.4),
+                            radius: 16,
+                            y: 6
                         )
                 }
                 .buttonStyle(.plain)
@@ -318,11 +335,14 @@ struct HomeView: View {
                     .foregroundStyle(.antirotTextPrimary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.08))
+                    .background(Color.antirotBgElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .overlay(
                         RoundedRectangle(cornerRadius: 18)
-                            .strokeBorder(Color.white.opacity(draftFocused ? 0.22 : 0.08), lineWidth: 1)
+                            .strokeBorder(
+                                draftFocused ? Color.antirotBorderStrong : Color.antirotBorder,
+                                lineWidth: 1
+                            )
                     )
 
                 Button {
@@ -333,9 +353,19 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(
+                            coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? .white
+                                : Color.antirotBgElevated
+                        )
                         .frame(width: 42, height: 42)
-                        .background(Circle().fill(Color.antirotAccentRed))
+                        .background(
+                            Circle().fill(
+                                coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? Color.antirotAccent
+                                    : Color.antirotGold
+                            )
+                        )
                 }
                 .buttonStyle(.plain)
                 .disabled(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || coach.isSending)
@@ -351,85 +381,16 @@ struct HomeView: View {
         .padding(.bottom, 12)
         .background(
             Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Color.antirotBg.opacity(0.72))
+                .fill(Color.antirotBgElevated)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color.antirotBorderStrong)
+                        .frame(height: 0.5)
+                }
                 .ignoresSafeArea(.container, edges: .bottom)
         )
         .padding(.bottom, 72)
         .frame(maxHeight: .infinity, alignment: .bottom)
-    }
-}
-
-private struct SiriCoachOrb: View {
-    var isListening: Bool
-    var isThinking: Bool
-    var isSpeaking: Bool
-    var statusText: String
-
-    @State private var phase = false
-
-    var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                ForEach(0..<3) { index in
-                    Circle()
-                        .stroke(
-                            AngularGradient(
-                                colors: [
-                                    .antirotAccentRed,
-                                    .antirotAccentOrange,
-                                    .blue.opacity(0.85),
-                                    .purple.opacity(0.8),
-                                    .antirotAccentRed
-                                ],
-                                center: .center
-                            ),
-                            lineWidth: CGFloat(8 - index * 2)
-                        )
-                        .blur(radius: CGFloat(index * 4))
-                        .opacity(0.65 - Double(index) * 0.12)
-                        .scaleEffect(phase ? 1.0 + CGFloat(index) * 0.12 : 0.88 + CGFloat(index) * 0.08)
-                        .rotationEffect(.degrees(phase ? 360 : 0))
-                }
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color.white.opacity(0.38),
-                                Color.antirotAccentOrange.opacity(0.22),
-                                Color.antirotAccentRed.opacity(0.12),
-                                Color.clear
-                            ],
-                            center: .topLeading,
-                            startRadius: 8,
-                            endRadius: 82
-                        )
-                    )
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-                    )
-                    .shadow(color: .antirotAccentRed.opacity(0.32), radius: 28)
-
-                Image(systemName: isListening ? "waveform" : "sparkles")
-                    .font(.system(size: 32, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .symbolEffect(.variableColor, isActive: isListening || isThinking || isSpeaking)
-            }
-            .frame(width: 156, height: 156)
-            .onAppear {
-                withAnimation(.linear(duration: 7).repeatForever(autoreverses: false)) {
-                    phase = true
-                }
-            }
-
-            Text(statusText)
-                .font(.caption.weight(.semibold))
-                .tracking(1.2)
-                .foregroundStyle(.antirotTextMuted)
-                .textCase(.uppercase)
-        }
     }
 }
 
@@ -444,11 +405,42 @@ private struct CoachBubble: View {
     private var fill: Color {
         switch message.role {
         case .user:
-            return .antirotAccentRed.opacity(0.86)
+            return .antirotAccent.opacity(0.20)
         case .coach:
-            return .white.opacity(0.08)
+            return .antirotBgElevated
         case .system:
-            return .antirotAccentAmber.opacity(0.18)
+            return .antirotGold.opacity(0.12)
+        }
+    }
+
+    private var borderColor: Color {
+        switch message.role {
+        case .user:
+            return .antirotBorderStrong
+        case .coach:
+            return .antirotBorder
+        case .system:
+            return .antirotGold.opacity(0.18)
+        }
+    }
+
+    private var bubbleShape: UnevenRoundedRectangle {
+        switch message.role {
+        case .user:
+            return UnevenRoundedRectangle(
+                topLeadingRadius: 14, bottomLeadingRadius: 14,
+                bottomTrailingRadius: 4, topTrailingRadius: 14
+            )
+        case .coach:
+            return UnevenRoundedRectangle(
+                topLeadingRadius: 14, bottomLeadingRadius: 4,
+                bottomTrailingRadius: 14, topTrailingRadius: 14
+            )
+        case .system:
+            return UnevenRoundedRectangle(
+                topLeadingRadius: 14, bottomLeadingRadius: 14,
+                bottomTrailingRadius: 14, topTrailingRadius: 14
+            )
         }
     }
 
@@ -475,15 +467,15 @@ private struct CoachBubble: View {
 
                 Text(message.createdAt.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(.antirotTextMuted)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(fill)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .clipShape(bubbleShape)
             .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                bubbleShape
+                    .strokeBorder(borderColor, lineWidth: 1)
             )
 
             if message.role != .user { Spacer(minLength: 48) }

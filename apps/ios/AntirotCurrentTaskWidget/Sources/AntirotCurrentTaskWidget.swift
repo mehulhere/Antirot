@@ -36,11 +36,11 @@ struct CurrentTaskWidgetView: View {
     private var modeColor: Color {
         switch entry.snapshot.mode.lowercased() {
         case "working", "routine":
-            return Color(red: 0.918, green: 0.345, blue: 0.047) // orange
+            return Color(red: 0.545, green: 0.361, blue: 0.965) // violet
         case "idle":
-            return Color(red: 0.443, green: 0.443, blue: 0.478) // muted
+            return Color(red: 0.361, green: 0.329, blue: 0.471) // dim muted
         default:
-            return Color(red: 0.863, green: 0.149, blue: 0.149) // red
+            return Color(red: 0.961, green: 0.718, blue: 0.192) // gold
         }
     }
 
@@ -86,7 +86,7 @@ struct CurrentTaskWidgetView: View {
             }
         }
         .containerBackground(for: .widget) {
-            Color(red: 0.039, green: 0.039, blue: 0.043)
+            Color(red: 0.031, green: 0.027, blue: 0.043)
                 .overlay(
                     LinearGradient(
                         colors: [modeColor.opacity(0.08), .clear],

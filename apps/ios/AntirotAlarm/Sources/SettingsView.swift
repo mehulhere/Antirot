@@ -80,7 +80,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(AntirotDestructiveButtonStyle())
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -107,7 +107,7 @@ struct SettingsView: View {
                 label: "AlarmKit",
                 value: alarmCenter.alarmKitStatus,
                 statusColor: alarmCenter.alarmKitStatus.contains("authorized")
-                    ? .antirotSuccess : .antirotAccentRed
+                    ? .antirotSuccess : .antirotDanger
             ) {
                 Task { await alarmCenter.requestAlarmKitPermission() }
             }
@@ -159,7 +159,7 @@ struct SettingsView: View {
             Button("Request", action: action)
                 .buttonStyle(AntirotGhostButtonStyle())
         }
-        .glassCard(padding: 14)
+        .layeredCard(padding: 14)
     }
 
     // MARK: - Widget
@@ -192,7 +192,7 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     StatusDot(
                         color: SharedTaskStore.canAccessAppGroup()
-                            ? .antirotSuccess : .antirotAccentRed,
+                            ? .antirotSuccess : .antirotDanger,
                         animated: false
                     )
                     Text("App group:")
@@ -202,12 +202,12 @@ struct SettingsView: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(
                             SharedTaskStore.canAccessAppGroup()
-                                ? .antirotSuccess : .antirotAccentRed
+                                ? .antirotSuccess : .antirotDanger
                         )
                     Spacer()
                 }
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -244,7 +244,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(AntirotGhostButtonStyle())
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -274,13 +274,13 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
                             .font(.caption)
-                            .foregroundStyle(.antirotAccentOrange)
+                            .foregroundStyle(.antirotGold)
                         Text("Show developer tools")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.antirotTextPrimary)
                     }
                 }
-                .tint(.antirotAccentRed)
+                .tint(.antirotDanger)
 
                 if showDeveloperSettings {
                     Divider()
@@ -299,7 +299,7 @@ struct SettingsView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.antirotTextPrimary)
                                 .padding(12)
-                                .background(Color.antirotBgSecondary)
+                                .background(Color.antirotBgSurface)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
@@ -326,7 +326,7 @@ struct SettingsView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.antirotTextPrimary)
                                 .padding(12)
-                                .background(Color.antirotBgSecondary)
+                                .background(Color.antirotBgSurface)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
@@ -349,7 +349,7 @@ struct SettingsView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -365,13 +365,13 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "terminal")
                             .font(.caption)
-                            .foregroundStyle(.antirotAccentOrange)
+                            .foregroundStyle(.antirotGold)
                         Text("See Console")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.antirotTextPrimary)
                     }
                 }
-                .tint(.antirotAccentRed)
+                .tint(.antirotDanger)
 
                 if showConsole {
                     Divider()
@@ -422,7 +422,7 @@ struct SettingsView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .glassCard()
+            .layeredCard()
         }
     }
 
@@ -434,14 +434,14 @@ struct SettingsView: View {
             HStack(spacing: 10) {
                 Image(systemName: "info.circle")
                     .font(.subheadline)
-                    .foregroundStyle(.antirotAccentOrange)
+                    .foregroundStyle(.antirotGold)
                 Text(alarmCenter.lastMessage)
                     .font(.caption)
                     .foregroundStyle(.antirotTextSecondary)
                     .lineLimit(3)
                 Spacer()
             }
-            .glassCard(cornerRadius: 12, padding: 14)
+            .layeredCard(cornerRadius: 12, padding: 14)
         }
     }
 
@@ -452,9 +452,9 @@ struct SettingsView: View {
         case .authorized:
             return .antirotSuccess
         case .provisional:
-            return .antirotAccentAmber
+            return .antirotWarning
         default:
-            return .antirotAccentRed
+            return .antirotDanger
         }
     }
 
@@ -462,9 +462,9 @@ struct SettingsView: View {
         if screenTimeMessage.contains("authorized") {
             return .antirotSuccess
         } else if screenTimeMessage == "Not requested" {
-            return .antirotAccentAmber
+            return .antirotWarning
         } else {
-            return .antirotAccentRed
+            return .antirotDanger
         }
     }
 
