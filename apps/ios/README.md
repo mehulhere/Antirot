@@ -16,7 +16,7 @@ open Antirot.xcodeproj
 In Xcode:
 
 1. Set your Apple team.
-2. Change the bundle identifier from `com.mehulhere.Antirot` if needed.
+2. Confirm the bundle identifier is `com.mehulhere.antirot`; Google OAuth iOS clients are case-sensitive.
 3. Run on a real device for notification and Screen Time behavior.
 
 ## Build An IPA Without A Mac

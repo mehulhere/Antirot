@@ -88,6 +88,17 @@ targets:
           NSExtension:
             NSExtensionPointIdentifier: com.apple.deviceactivityui.report-extension
             NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DeviceActivityReportExtension
+  AntirotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - AntirotAlarmTests/Sources
+    dependencies:
+      - target: Antirot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mehulhere.antirot.tests
+        INFOPLIST_FILE: AntirotAlarmTests/Info.plist
   AntirotCurrentTaskWidget:
     type: app-extension
     platform: iOS

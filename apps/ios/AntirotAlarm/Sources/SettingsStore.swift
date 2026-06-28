@@ -105,15 +105,26 @@ final class SettingsStore: ObservableObject {
         onboardingNameSent = false
     }
 
-    private static func normalizedServerURL(_ value: String?) -> String {
+    static func normalizedServerURL(_ value: String?) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty, let url = URL(string: trimmed), let host = url.host()?.lowercased() else {
+        guard
+            !trimmed.isEmpty,
+            var components = URLComponents(string: trimmed),
+            let scheme = components.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            let host = components.host?.lowercased()
+        else {
             return defaultServerURL
         }
         if ["localhost", "127.0.0.1", "0.0.0.0", "::1"].contains(host) {
             return defaultServerURL
         }
-        return trimmed
+        components.scheme = scheme
+        components.host = host
+        components.path = ""
+        components.query = nil
+        components.fragment = nil
+        return components.url?.absoluteString ?? defaultServerURL
     }
 
     private enum Keys {
