@@ -22,6 +22,7 @@ struct HomeView: View {
                 header
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
+                    .frame(maxWidth: .infinity)
 
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -39,6 +40,7 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.bottom, 210)
+                        .frame(maxWidth: .infinity)
                     }
                     .onChange(of: coach.messages.count) { _, _ in
                         if let last = coach.messages.last?.id {
@@ -48,10 +50,13 @@ struct HomeView: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             composer
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             onboardingName = settings.onboardingName
             await alarmCenter.pollPendingAlarms()
@@ -153,6 +158,7 @@ struct HomeView: View {
                 .foregroundStyle(.antirotTextSecondary)
                 .lineLimit(2)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .layeredCard(cornerRadius: 14, padding: 16)
         .overlay(alignment: .leading) {
             Rectangle()
@@ -296,6 +302,7 @@ struct HomeView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var composer: some View {
@@ -344,6 +351,7 @@ struct HomeView: View {
                                 lineWidth: 1
                             )
                     )
+                    .frame(maxWidth: .infinity)
 
                 Button {
                     Task {
@@ -371,6 +379,7 @@ struct HomeView: View {
                 .disabled(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || coach.isSending)
                 .opacity(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
             }
+            .frame(maxWidth: .infinity)
 
             Text(coach.isRecording ? "Listening: 10s minimum, gentle silence cutoff." : "Voice is preferred. Typing is the fallback.")
                 .font(.caption2)
@@ -390,7 +399,7 @@ struct HomeView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
         )
         .padding(.bottom, 72)
-        .frame(maxHeight: .infinity, alignment: .bottom)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 }
 
@@ -477,9 +486,11 @@ private struct CoachBubble: View {
                 bubbleShape
                     .strokeBorder(borderColor, lineWidth: 1)
             )
+            .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
 
             if message.role != .user { Spacer(minLength: 48) }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func playAudio(url: URL) {
