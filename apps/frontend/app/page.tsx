@@ -946,7 +946,19 @@ export default function AntirotLabPage() {
                         <section className="hero-grid">
                             <article className="voice-orb-panel">
                                 <div className="orb-wrap" aria-hidden="true">
-                                    <div className={recording ? "siri-orb recording" : "siri-orb"} />
+                                    <svg viewBox="0 0 160 160" className={`focus-dial${recording ? " recording" : ""}`}>
+                                        <defs>
+                                            <radialGradient id="dialCenterGradient" cx="50%" cy="50%" r="50%">
+                                                <stop offset="0%" stopColor="#6d28d9" stopOpacity="0.3" />
+                                                <stop offset="100%" stopColor="#08070b" stopOpacity="1" />
+                                            </radialGradient>
+                                        </defs>
+                                        <circle className="dial-ring-outer" cx="80" cy="80" r="72" />
+                                        <circle className="dial-ring-mid" cx="80" cy="80" r="56" />
+                                        <circle className="dial-ring-inner" cx="80" cy="80" r="40" />
+                                        <circle className="dial-center" cx="80" cy="80" r="24" />
+                                        <text x="80" y="80" textAnchor="middle" dominantBaseline="central" fill="#a78bfa" fontSize="16" fontWeight="700">{recording ? "◉" : "⚡"}</text>
+                                    </svg>
                                 </div>
                                 <div>
                                     <p className="eyebrow">Voice-first test surface</p>
@@ -958,7 +970,7 @@ export default function AntirotLabPage() {
                                         {recording ? <Square size={18} /> : <Mic size={18} />}
                                         {recording ? "Stop" : "Speak"}
                                     </button>
-                                    <button className="secondary-button" type="button" disabled={!latestCoachText} onClick={() => void speakText(latestCoachText)}>
+                                    <button className="ghost-button" type="button" disabled={!latestCoachText} onClick={() => void speakText(latestCoachText)}>
                                         <Volume2 size={18} />
                                         Speak reply
                                     </button>
@@ -972,21 +984,21 @@ export default function AntirotLabPage() {
 
                             <article className="state-panel">
                                 <PanelHeader icon={<Gauge size={18} />} title="Runtime truth" />
-                                <div className="state-card">
-                                    <span>Current state</span>
-                                    <strong>{stateName}</strong>
+                                <div className="metric-tile">
+                                    <span className="metric-label">Current state</span>
+                                    <span className="metric-value">{stateName}</span>
                                 </div>
-                                <div className="state-card">
-                                    <span>Source</span>
-                                    <strong>{stateSource}</strong>
+                                <div className="metric-tile">
+                                    <span className="metric-label">Source</span>
+                                    <span className="metric-value">{stateSource}</span>
                                 </div>
-                                <div className="state-card">
-                                    <span>Next reminders</span>
-                                    <strong>{visiblePendingAlarms.length}</strong>
+                                <div className="metric-tile">
+                                    <span className="metric-label">Next reminders</span>
+                                    <span className="metric-value">{visiblePendingAlarms.length}</span>
                                 </div>
-                                <div className="state-card">
-                                    <span>Prompt size</span>
-                                    <strong>{diagnostics?.report.systemPromptChars ?? "-"}</strong>
+                                <div className="metric-tile">
+                                    <span className="metric-label">Prompt size</span>
+                                    <span className="metric-value">{diagnostics?.report.systemPromptChars ?? "-"}</span>
                                 </div>
                             </article>
                         </section>
@@ -1053,7 +1065,7 @@ export default function AntirotLabPage() {
                                         onChange={(event) => setDraft(event.target.value)}
                                         placeholder="Speak or type the user's next message"
                                     />
-                                    <button type="submit" disabled={busy || !draft.trim()}>
+                                    <button className={`composer-send${draft.trim() ? " has-text" : ""}`} type="submit" disabled={busy || !draft.trim()}>
                                         {busy ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
                                         Send
                                     </button>
@@ -1165,7 +1177,7 @@ function PanelHeader({ icon, title, action }: { icon: React.ReactNode; title: st
     return (
         <div className="panel-header">
             <div>
-                {icon}
+                <span className="panel-icon">{icon}</span>
                 <h2>{title}</h2>
             </div>
             {action}

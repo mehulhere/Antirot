@@ -1,20 +1,30 @@
 :root {
     color-scheme: dark;
-    --bg: #050507;
-    --bg-panel: rgba(18, 18, 24, 0.84);
-    --bg-panel-solid: #111117;
-    --line: rgba(255, 255, 255, 0.1);
-    --line-strong: rgba(255, 255, 255, 0.18);
-    --text: #f5f7fb;
-    --muted: #a7adba;
-    --faint: #6f7686;
-    --red: #ef4444;
-    --blue: #38bdf8;
-    --green: #22c55e;
-    --amber: #f59e0b;
-    --violet: #a78bfa;
-    --radius: 8px;
-    --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+    --bg: #08070b;
+    --bg-surface: #12111a;
+    --bg-elevated: #1a1826;
+    --bg-overlay: rgba(12, 10, 20, 0.85);
+    --accent: #8b5cf6;
+    --accent-bright: #a78bfa;
+    --accent-dim: #6d28d9;
+    --accent-secondary: #f5b731;
+    --accent-tertiary: #06b6d4;
+    --danger: #ef4444;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --text: #f0eef6;
+    --text-secondary: #9e96b8;
+    --text-muted: #5c5478;
+    --border: rgba(255, 255, 255, 0.05);
+    --border-strong: rgba(139, 92, 246, 0.20);
+    --glow-primary: rgba(139, 92, 246, 0.12);
+    --glow-gold: rgba(245, 183, 49, 0.10);
+    --glow-cyan: rgba(6, 182, 212, 0.08);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --shadow: 0 24px 80px rgba(8, 7, 11, 0.5);
 }
 
 * {
@@ -29,11 +39,11 @@ body {
 body {
     margin: 0;
     background:
-        radial-gradient(circle at 18% 12%, rgba(56, 189, 248, 0.16), transparent 26rem),
-        radial-gradient(circle at 86% 4%, rgba(239, 68, 68, 0.14), transparent 24rem),
-        linear-gradient(145deg, #050507 0%, #0a0d12 48%, #060607 100%);
+        radial-gradient(circle at 20% 15%, rgba(139, 92, 246, 0.14), transparent 26rem),
+        radial-gradient(circle at 80% 8%, rgba(79, 70, 229, 0.10), transparent 24rem),
+        linear-gradient(145deg, #08070b 0%, #0e0d16 48%, #08070b 100%);
     color: var(--text);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: var(--font-body), 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,
@@ -51,6 +61,8 @@ button:disabled {
     opacity: 0.48;
 }
 
+/* ---- Stage & iPhone Frame ---- */
+
 .phone-stage {
     min-height: 100vh;
     display: grid;
@@ -64,14 +76,14 @@ button:disabled {
     height: min(932px, calc(100vh - 32px));
     min-height: 720px;
     padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.24);
+    border: 1px solid rgba(139, 92, 246, 0.15);
     border-radius: 58px;
     background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.04) 18%, rgba(255, 255, 255, 0.1) 72%, rgba(255, 255, 255, 0.28)),
-        #0b0b0e;
+        linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(79, 70, 229, 0.04) 18%, rgba(99, 86, 180, 0.06) 72%, rgba(139, 92, 246, 0.10)),
+        #0a0918;
     box-shadow:
-        0 34px 90px rgba(0, 0, 0, 0.62),
-        inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+        0 34px 90px rgba(8, 7, 11, 0.62),
+        inset 0 0 0 2px rgba(139, 92, 246, 0.06),
         inset 0 0 0 7px rgba(0, 0, 0, 0.62);
 }
 
@@ -80,7 +92,7 @@ button:disabled {
     position: absolute;
     inset: 7px;
     border-radius: 51px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.08);
     pointer-events: none;
 }
 
@@ -88,7 +100,7 @@ button:disabled {
     position: absolute;
     width: 4px;
     border-radius: 999px;
-    background: linear-gradient(#5f6470, #17191d);
+    background: linear-gradient(#4c3d80, #160f2e);
     opacity: 0.9;
 }
 
@@ -117,10 +129,12 @@ button:disabled {
     overflow: hidden;
     border-radius: 46px;
     background:
-        radial-gradient(circle at 50% -8%, rgba(56, 189, 248, 0.22), transparent 15rem),
-        linear-gradient(180deg, rgba(19, 22, 29, 0.98), rgba(6, 7, 10, 0.98));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        radial-gradient(circle at 50% -8%, rgba(139, 92, 246, 0.16), transparent 15rem),
+        linear-gradient(180deg, rgba(14, 13, 22, 0.98), rgba(8, 7, 11, 0.98));
+    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.06);
 }
+
+/* ---- Dynamic Island ---- */
 
 .dynamic-island {
     position: absolute;
@@ -131,9 +145,9 @@ button:disabled {
     height: 36px;
     transform: translateX(-50%);
     border-radius: 999px;
-    background: #050507;
+    background: #08070b;
     box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        inset 0 0 0 1px rgba(139, 92, 246, 0.10),
         0 6px 16px rgba(0, 0, 0, 0.34);
 }
 
@@ -145,8 +159,10 @@ button:disabled {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #426a86, #11151d 64%);
+    background: radial-gradient(circle at 40% 35%, #5b4a9e, #0e0a1d 64%);
 }
+
+/* ---- iOS Status Bar ---- */
 
 .ios-statusbar {
     position: absolute;
@@ -154,12 +170,12 @@ button:disabled {
     left: 0;
     right: 0;
     z-index: 2;
-    height: 58px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 31px 0;
-    color: rgba(255, 255, 255, 0.92);
+    padding: 12px 31px 0;
+    color: rgba(240, 238, 246, 0.92);
     font-size: 0.8rem;
     font-weight: 800;
     pointer-events: none;
@@ -208,18 +224,22 @@ button:disabled {
     background: currentColor;
 }
 
+/* ---- Lab Shell ---- */
+
 .lab-shell {
     width: 100%;
     height: 100%;
     overflow: auto;
     margin: 0 auto;
-    padding: 70px 14px 24px;
+    padding: 64px 14px 24px;
     scrollbar-width: none;
 }
 
 .lab-shell::-webkit-scrollbar {
     display: none;
 }
+
+/* ---- Grid Layouts ---- */
 
 .topbar,
 .hero-grid,
@@ -235,12 +255,16 @@ button:disabled {
     margin-bottom: 12px;
 }
 
+/* ---- Typography ---- */
+
 .eyebrow {
     margin: 0 0 8px;
-    color: var(--blue);
+    color: var(--accent);
+    font-family: var(--font-heading), 'Space Grotesk', sans-serif;
     font-size: 0.75rem;
     font-weight: 800;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 h1,
@@ -251,25 +275,31 @@ p {
 
 h1 {
     margin-bottom: 0;
+    font-family: var(--font-heading), 'Space Grotesk', sans-serif;
     font-size: 2.1rem;
+    font-weight: 800;
     line-height: 0.98;
-    letter-spacing: 0;
+    letter-spacing: -0.01em;
 }
 
 h2 {
     margin-bottom: 8px;
+    font-family: var(--font-heading), 'Space Grotesk', sans-serif;
+    font-weight: 700;
 }
 
 .muted,
 .hint,
 .empty {
-    color: var(--muted);
+    color: var(--text-secondary);
 }
 
 .hint {
     margin: 0;
     font-size: 0.84rem;
 }
+
+/* ---- Status Row & Controls ---- */
 
 .status-row,
 .voice-controls,
@@ -286,10 +316,10 @@ h2 {
     gap: 8px;
     min-height: 30px;
     padding: 0 10px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--border);
     border-radius: 999px;
-    color: var(--muted);
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary);
+    background: transparent;
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -299,33 +329,37 @@ h2 {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--faint);
+    background: var(--text-muted);
 }
 
 .status-pill.ok span {
-    background: var(--green);
+    background: var(--success);
 }
 
 .status-pill.loading span {
-    background: var(--amber);
+    background: var(--warning);
 }
 
 .status-pill.fail span {
-    background: var(--red);
+    background: var(--danger);
 }
+
+/* ---- Button System ---- */
 
 .icon-button,
 .primary-button,
-.secondary-button,
+.ghost-button,
+.gold-button,
+.danger-button,
 .composer button,
 .action-grid button,
 .quick-grid button,
 .tabs button,
 .alarm-buttons button {
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-radius: 10px;
     color: var(--text);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.04);
     min-height: 38px;
     transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
@@ -335,7 +369,9 @@ h2 {
 }
 
 .primary-button,
-.secondary-button,
+.ghost-button,
+.gold-button,
+.danger-button,
 .composer button,
 .action-grid button {
     display: inline-flex;
@@ -343,29 +379,50 @@ h2 {
     justify-content: center;
     gap: 8px;
     padding: 0 14px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .primary-button,
-.composer button {
-    border-color: rgba(239, 68, 68, 0.72);
-    background: var(--red);
+.composer button.composer-send {
+    border-color: rgba(139, 92, 246, 0.50);
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    color: #fff;
 }
 
-.secondary-button {
-    background: rgba(255, 255, 255, 0.08);
+.ghost-button {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.gold-button {
+    border-color: rgba(245, 183, 49, 0.40);
+    background: linear-gradient(135deg, var(--accent-secondary), #d4960a);
+    color: #1a1826;
+    font-weight: 800;
+}
+
+.danger-button {
+    border-color: rgba(239, 68, 68, 0.30);
+    background: rgba(239, 68, 68, 0.10);
+    color: var(--danger);
 }
 
 button:hover:not(:disabled) {
     transform: translateY(-1px);
-    border-color: var(--line-strong);
-    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--border-strong);
+    background: rgba(139, 92, 246, 0.10);
 }
 
-.primary-button:hover:not(:disabled),
-.composer button:hover:not(:disabled) {
-    background: #f87171;
+.primary-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent-bright), var(--accent));
 }
+
+.gold-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fbc54a, var(--accent-secondary));
+}
+
+/* ---- Panels (Solid Surfaces, No blur) ---- */
 
 .hero-grid {
     grid-template-columns: 1fr;
@@ -376,12 +433,29 @@ button:hover:not(:disabled) {
 .state-panel,
 .chat-panel,
 .panel {
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-elevated);
     box-shadow: var(--shadow);
-    backdrop-filter: blur(18px);
+    position: relative;
 }
+
+.voice-orb-panel::before,
+.state-panel::before,
+.chat-panel::before,
+.panel::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 40%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    pointer-events: none;
+}
+
+/* ---- Voice Orb Panel / Focus Dial ---- */
 
 .voice-orb-panel {
     display: grid;
@@ -397,44 +471,99 @@ button:hover:not(:disabled) {
     min-height: 90px;
 }
 
-.siri-orb {
+.focus-dial {
     width: 76px;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background:
-        radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.92), transparent 0 8%, transparent 16%),
-        conic-gradient(from 20deg, #38bdf8, #a78bfa, #ef4444, #f59e0b, #22c55e, #38bdf8);
-    filter: saturate(1.28);
-    box-shadow:
-        0 0 38px rgba(56, 189, 248, 0.32),
-        0 0 88px rgba(239, 68, 68, 0.18);
-    animation: breathe 4s ease-in-out infinite;
+    height: 76px;
 }
 
-.siri-orb.recording {
-    animation: pulse 1.1s ease-in-out infinite;
+.dial-ring-outer {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-dasharray: 180 272;
+    stroke-linecap: round;
+    transform-origin: 80px 80px;
+    animation: dial-spin-outer 8s linear infinite;
 }
 
-@keyframes breathe {
-    0%,
-    100% {
-        transform: scale(0.96) rotate(0deg);
-    }
-    50% {
-        transform: scale(1.04) rotate(10deg);
-    }
+.dial-ring-mid {
+    fill: none;
+    stroke: var(--accent-secondary);
+    stroke-width: 2;
+    stroke-dasharray: 140 212;
+    stroke-linecap: round;
+    transform-origin: 80px 80px;
+    animation: dial-spin-mid 6s linear infinite reverse;
 }
 
-@keyframes pulse {
-    0%,
-    100% {
-        transform: scale(0.92);
-        box-shadow: 0 0 42px rgba(239, 68, 68, 0.5);
-    }
-    50% {
-        transform: scale(1.1);
-        box-shadow: 0 0 78px rgba(56, 189, 248, 0.54);
-    }
+.dial-ring-inner {
+    fill: none;
+    stroke: var(--accent-tertiary);
+    stroke-width: 1.5;
+    stroke-dasharray: 100 152;
+    stroke-linecap: round;
+    transform-origin: 80px 80px;
+    animation: dial-spin-inner 4s linear infinite;
+}
+
+.dial-center {
+    fill: url(#dialCenterGradient);
+    stroke: rgba(139, 92, 246, 0.20);
+    stroke-width: 1;
+}
+
+/* Focus Dial idle state */
+@keyframes dial-spin-outer {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes dial-spin-mid {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes dial-spin-inner {
+    to { transform: rotate(360deg); }
+}
+
+/* Recording state - pulsing rings */
+.focus-dial.recording .dial-ring-outer {
+    animation: dial-spin-outer 3s linear infinite, dial-pulse-outer 1.2s ease-in-out infinite;
+}
+
+.focus-dial.recording .dial-ring-mid {
+    animation: dial-spin-mid 2.5s linear infinite reverse, dial-pulse-mid 1.0s ease-in-out infinite;
+}
+
+.focus-dial.recording .dial-ring-inner {
+    animation: dial-spin-inner 2s linear infinite, dial-pulse-inner 0.8s ease-in-out infinite;
+}
+
+@keyframes dial-pulse-outer {
+    0%, 100% { stroke-width: 2.5; opacity: 1; }
+    50% { stroke-width: 4; opacity: 0.8; }
+}
+
+@keyframes dial-pulse-mid {
+    0%, 100% { stroke-width: 2; opacity: 1; }
+    50% { stroke-width: 3.5; opacity: 0.7; }
+}
+
+@keyframes dial-pulse-inner {
+    0%, 100% { stroke-width: 1.5; opacity: 1; }
+    50% { stroke-width: 3; opacity: 0.7; }
+}
+
+/* Thinking state - faster spin */
+.focus-dial.thinking .dial-ring-outer {
+    animation: dial-spin-outer 2s linear infinite;
+}
+
+.focus-dial.thinking .dial-ring-mid {
+    animation: dial-spin-mid 1.5s linear infinite reverse;
+}
+
+.focus-dial.thinking .dial-ring-inner {
+    animation: dial-spin-inner 1s linear infinite;
 }
 
 .voice-controls,
@@ -447,8 +576,10 @@ button:hover:not(:disabled) {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--muted);
+    color: var(--text-secondary);
 }
+
+/* ---- State Panel / Metric Tiles ---- */
 
 .state-panel {
     display: grid;
@@ -461,27 +592,46 @@ button:hover:not(:disabled) {
     grid-column: 1 / -1;
 }
 
-.state-card {
-    min-height: 76px;
+.metric-tile {
+    min-height: 68px;
     padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.state-card span {
-    display: block;
-    margin-bottom: 10px;
-    color: var(--muted);
-    font-size: 0.78rem;
-    font-weight: 800;
+.metric-tile .metric-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
-.state-card strong {
-    font-size: 1.05rem;
+.metric-tile .metric-label::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+.metric-tile .metric-value {
+    font-family: var(--font-mono), 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
     overflow-wrap: anywhere;
 }
+
+/* ---- Main Grid ---- */
 
 .main-grid {
     grid-template-columns: 1fr;
@@ -492,6 +642,8 @@ button:hover:not(:disabled) {
     display: grid;
     gap: 16px;
 }
+
+/* ---- Chat Panel ---- */
 
 .chat-panel {
     min-height: 540px;
@@ -507,7 +659,7 @@ button:hover:not(:disabled) {
 
 .panel-header {
     padding: 14px 16px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -520,10 +672,24 @@ button:hover:not(:disabled) {
     gap: 10px;
 }
 
+.panel-header .panel-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--glow-primary);
+    color: var(--accent-bright);
+}
+
 .panel-header h2 {
     margin: 0;
-    font-size: 1rem;
+    font-family: var(--font-heading), 'Space Grotesk', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .panel-action {
@@ -531,6 +697,8 @@ button:hover:not(:disabled) {
     height: 36px;
     flex: 0 0 36px;
 }
+
+/* ---- Chat Messages ---- */
 
 .chat-log {
     min-height: 230px;
@@ -546,64 +714,31 @@ button:hover:not(:disabled) {
     position: relative;
     max-width: 92%;
     padding: 11px 12px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.03);
 }
 
-.name-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: grid;
-    place-items: center;
-    padding: 20px;
-    background: rgba(0, 0, 0, 0.62);
-    backdrop-filter: blur(10px);
+.message.user {
+    align-self: flex-end;
+    border-color: rgba(139, 92, 246, 0.30);
+    background: rgba(139, 92, 246, 0.10);
+    border-radius: 14px 14px 4px 14px;
 }
 
-.name-modal {
-    width: min(360px, 100%);
-    overflow: hidden;
-    border: 1px solid var(--line-strong);
-    border-radius: 18px;
-    background: var(--bg-panel-solid);
-    box-shadow: var(--shadow);
+.message.coach {
+    align-self: flex-start;
+    border-color: var(--border);
+    background: var(--bg-elevated);
+    border-radius: 14px 14px 14px 4px;
 }
 
-.name-modal-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 126px;
-    gap: 10px;
-    padding: 18px;
-}
-
-.name-modal input {
-    width: 100%;
-    min-height: 44px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--text);
-    background: rgba(255, 255, 255, 0.06);
-    padding: 0 14px;
-    outline: none;
-}
-
-.name-modal input:focus {
-    border-color: rgba(56, 189, 248, 0.6);
-}
-
-.name-modal button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 44px;
-    border: 1px solid rgba(239, 68, 68, 0.72);
-    border-radius: var(--radius);
-    color: var(--text);
-    background: var(--red);
-    font-weight: 800;
+.message.system {
+    max-width: 100%;
+    align-self: stretch;
+    border-color: rgba(245, 183, 49, 0.18);
+    background: rgba(245, 183, 49, 0.06);
+    border-radius: var(--radius-lg);
 }
 
 .message-close {
@@ -612,16 +747,16 @@ button:hover:not(:disabled) {
     right: 8px;
     width: 26px;
     height: 26px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--border);
     border-radius: 50%;
-    color: var(--muted);
+    color: var(--text-muted);
     background: rgba(0, 0, 0, 0.24);
     line-height: 1;
 }
 
 .message-close:hover:not(:disabled) {
     color: var(--text);
-    background: rgba(239, 68, 68, 0.28);
+    background: rgba(139, 92, 246, 0.20);
 }
 
 .message p {
@@ -644,62 +779,61 @@ button:hover:not(:disabled) {
     width: 100%;
     min-width: 150px;
     height: 34px;
-    accent-color: #38bdf8;
+    accent-color: var(--accent);
 }
 
 .message .voice-message span {
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 0.78rem;
     text-transform: none;
 }
 
 .message span {
-    color: var(--faint);
+    color: var(--text-muted);
     font-size: 0.74rem;
     text-transform: uppercase;
 }
 
-.message.user {
-    align-self: flex-end;
-    border-color: rgba(56, 189, 248, 0.4);
-    background: rgba(56, 189, 248, 0.12);
-}
-
-.message.coach {
-    align-self: flex-start;
-    border-color: rgba(239, 68, 68, 0.38);
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.message.system {
-    max-width: 100%;
-    align-self: stretch;
-    border-color: rgba(245, 158, 11, 0.25);
-    background: rgba(245, 158, 11, 0.08);
-}
+/* ---- Quick Messages: Horizontal Scroll Pills ---- */
 
 .quick-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
     align-items: center;
-    justify-content: stretch;
     gap: 8px;
     padding: 0 14px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.quick-grid::-webkit-scrollbar {
+    display: none;
 }
 
 .quick-grid button {
-    min-height: 46px;
-    padding: 8px 12px;
-    color: var(--muted);
-    white-space: normal;
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-size: 0.82rem;
+    font-weight: 600;
 }
+
+.quick-grid button:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--glow-primary);
+}
+
+/* ---- Composer ---- */
 
 .composer {
     display: grid;
     grid-template-columns: 52px minmax(0, 1fr) 52px;
     gap: 8px;
     padding: 14px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--border);
 }
 
 .composer button {
@@ -723,24 +857,55 @@ button:hover:not(:disabled) {
 }
 
 .composer .composer-speak {
-    border-color: rgba(56, 189, 248, 0.52);
-    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(139, 92, 246, 0.40);
+    background: rgba(139, 92, 246, 0.14);
+    border-radius: 50%;
+    color: var(--accent-bright);
+}
+
+.composer .composer-speak:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.25);
+}
+
+.composer .composer-send {
+    border-color: rgba(139, 92, 246, 0.40);
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border-radius: 10px;
+    color: #fff;
+}
+
+.composer .composer-send.has-text {
+    border-color: rgba(245, 183, 49, 0.40);
+    background: linear-gradient(135deg, var(--accent-secondary), #d4960a);
+    color: #1a1826;
+}
+
+.composer .composer-send:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent-bright), var(--accent));
+}
+
+.composer .composer-send.has-text:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fbc54a, var(--accent-secondary));
 }
 
 .composer input {
     width: 100%;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-radius: 10px;
     color: var(--text);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.04);
     min-height: 44px;
     padding: 0 12px;
     outline: none;
+    transition: border-color 0.2s ease;
 }
 
 .composer input:focus {
-    border-color: rgba(56, 189, 248, 0.6);
+    border-color: rgba(139, 92, 246, 0.50);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.08);
 }
+
+/* ---- Action Grid ---- */
 
 .action-grid {
     display: grid;
@@ -753,6 +918,8 @@ button:hover:not(:disabled) {
     justify-content: flex-start;
 }
 
+/* ---- Alarm Cards ---- */
+
 .alarm-list {
     padding: 16px;
     display: grid;
@@ -761,9 +928,24 @@ button:hover:not(:disabled) {
 
 .alarm-card {
     padding: 14px;
-    border: 1px solid rgba(239, 68, 68, 0.28);
-    border-radius: var(--radius);
-    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.18);
+    border-radius: var(--radius-sm);
+    background: rgba(139, 92, 246, 0.06);
+}
+
+.alarm-card.severity-critical {
+    border-color: rgba(239, 68, 68, 0.28);
+    background: rgba(239, 68, 68, 0.06);
+}
+
+.alarm-card.severity-warning {
+    border-color: rgba(251, 191, 36, 0.25);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.alarm-card.severity-info {
+    border-color: rgba(6, 182, 212, 0.25);
+    background: rgba(6, 182, 212, 0.06);
 }
 
 .alarm-card div:first-child {
@@ -773,13 +955,13 @@ button:hover:not(:disabled) {
 }
 
 .alarm-card span {
-    color: var(--muted);
+    color: var(--text-secondary);
     font-size: 0.78rem;
 }
 
 .alarm-card p {
     margin: 10px 0;
-    color: var(--muted);
+    color: var(--text-secondary);
 }
 
 .alarm-buttons button {
@@ -787,29 +969,56 @@ button:hover:not(:disabled) {
     padding: 0 10px;
 }
 
+/* ---- Lower Grid ---- */
+
 .lower-grid {
     grid-template-columns: 1fr;
     margin-top: 16px;
 }
 
+/* ---- Tabs: Underline Style ---- */
+
 .tabs {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 16px 16px 0;
+    gap: 0;
+    flex-wrap: nowrap;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .tabs button {
-    min-height: 34px;
-    padding: 0 10px;
-    color: var(--muted);
+    min-height: 38px;
+    padding: 0 12px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .tabs button.active {
-    color: var(--text);
-    border-color: rgba(56, 189, 248, 0.52);
-    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent-bright);
+    border-bottom-color: var(--accent);
+    background: rgba(139, 92, 246, 0.08);
 }
+
+.tabs button:hover:not(:disabled):not(.active) {
+    color: var(--text-secondary);
+    background: rgba(139, 92, 246, 0.04);
+    transform: none;
+}
+
+/* ---- Memory Panel ---- */
 
 .memory-panel pre {
     margin: 16px;
@@ -817,12 +1026,16 @@ button:hover:not(:disabled) {
     max-height: 360px;
     overflow: auto;
     padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: rgba(0, 0, 0, 0.28);
-    color: #d8dee9;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--accent-bright);
+    font-family: var(--font-mono), 'IBM Plex Mono', monospace;
+    font-size: 0.84rem;
     white-space: pre-wrap;
 }
+
+/* ---- Diagnostics Panel ---- */
 
 .diagnostics-panel dl {
     display: grid;
@@ -833,24 +1046,97 @@ button:hover:not(:disabled) {
 }
 
 .diagnostics-panel dt {
-    color: var(--muted);
-    font-weight: 800;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
 .diagnostics-panel dd {
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
+    color: var(--text-secondary);
+    font-family: var(--font-mono), 'IBM Plex Mono', monospace;
+    font-size: 0.88rem;
 }
+
+/* ---- Error Box ---- */
 
 .error-box {
     margin: 0 16px 16px;
     padding: 12px;
-    border: 1px solid rgba(239, 68, 68, 0.38);
-    border-radius: var(--radius);
-    background: rgba(239, 68, 68, 0.1);
-    color: #fecaca;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--radius-sm);
+    background: rgba(239, 68, 68, 0.08);
+    color: #fca5a5;
 }
+
+/* ---- Name Prompt Modal ---- */
+
+.name-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(10px);
+}
+
+.name-modal {
+    width: min(360px, 100%);
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow);
+}
+
+.name-modal-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 126px;
+    gap: 10px;
+    padding: 18px;
+}
+
+.name-modal input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 0 14px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.name-modal input:focus {
+    border-color: rgba(139, 92, 246, 0.50);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.10);
+}
+
+.name-modal button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 1px solid rgba(245, 183, 49, 0.40);
+    border-radius: 10px;
+    color: #1a1826;
+    background: linear-gradient(135deg, var(--accent-secondary), #d4960a);
+    font-weight: 800;
+}
+
+.name-modal button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fbc54a, var(--accent-secondary));
+}
+
+/* ---- Utility ---- */
 
 .spin {
     animation: spin 1s linear infinite;
@@ -861,6 +1147,8 @@ button:hover:not(:disabled) {
         transform: rotate(360deg);
     }
 }
+
+/* ---- Responsive ---- */
 
 @media (max-width: 1080px) {
     .voice-orb-panel {
@@ -879,7 +1167,7 @@ button:hover:not(:disabled) {
 @media (max-width: 700px) {
     .phone-stage {
         padding: 0;
-        background: #050507;
+        background: var(--bg);
     }
 
     .iphone-frame {
@@ -906,7 +1194,7 @@ button:hover:not(:disabled) {
     }
 
     .lab-shell {
-        padding: 66px 12px 22px;
+        padding: 60px 12px 22px;
     }
 
     .status-row,
@@ -916,10 +1204,6 @@ button:hover:not(:disabled) {
         grid-template-columns: 1fr;
     }
 
-    .quick-grid {
-        display: grid;
-    }
-
     .message {
         max-width: 100%;
     }
@@ -927,4 +1211,156 @@ button:hover:not(:disabled) {
     .chat-panel {
         min-height: 620px;
     }
+}
+
+/* ---- Focus Dial (SVG) ---- */
+
+.focus-dial {
+    width: 80px;
+    height: 80px;
+}
+
+.focus-dial .dial-ring-outer {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 260 90;
+    transform-origin: center;
+    animation: dial-spin 10s linear infinite;
+    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.35));
+}
+
+.focus-dial .dial-ring-mid {
+    fill: none;
+    stroke: var(--accent-secondary);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-dasharray: 180 100;
+    transform-origin: center;
+    animation: dial-spin 14s linear infinite reverse;
+    filter: drop-shadow(0 0 6px rgba(245, 183, 49, 0.2));
+}
+
+.focus-dial .dial-ring-inner {
+    fill: none;
+    stroke: var(--accent-tertiary);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-dasharray: 120 80;
+    transform-origin: center;
+    animation: dial-spin 8s linear infinite;
+    filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.25));
+}
+
+.focus-dial .dial-center {
+    fill: var(--bg-elevated);
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 1;
+    filter: drop-shadow(0 0 18px rgba(139, 92, 246, 0.15));
+}
+
+.focus-dial.recording .dial-ring-outer {
+    stroke-width: 3.5;
+    animation-duration: 3s;
+}
+
+.focus-dial.recording .dial-ring-mid {
+    stroke-width: 2.5;
+    animation-duration: 2.5s;
+}
+
+.focus-dial.recording .dial-ring-inner {
+    stroke-width: 2;
+    animation-duration: 2s;
+}
+
+.focus-dial.recording {
+    animation: dial-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes dial-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+@keyframes dial-pulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.06); }
+}
+
+/* ---- Metric Tiles ---- */
+
+.metric-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.metric-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.metric-value {
+    font-size: 1rem;
+    font-weight: 800;
+    font-family: var(--font-heading);
+    color: var(--text);
+}
+
+/* ---- Panel Icon ---- */
+
+.panel-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--glow-primary);
+    border-radius: 8px;
+    color: var(--accent-bright);
+    flex-shrink: 0;
+}
+
+/* ---- Ghost Button ---- */
+
+.ghost-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ghost-button:hover:not(:disabled) {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.10);
+    transform: translateY(-1px);
+}
+
+.ghost-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ghost-button svg {
+    flex-shrink: 0;
 }
