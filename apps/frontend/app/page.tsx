@@ -949,7 +949,7 @@ export default function AntirotLabPage() {
                                     <svg viewBox="0 0 160 160" className={`focus-dial${recording ? " recording" : ""}`}>
                                         <defs>
                                             <radialGradient id="dialCenterGradient" cx="50%" cy="50%" r="50%">
-                                                <stop offset="0%" stopColor="#6d28d9" stopOpacity="0.3" />
+                                                <stop offset="0%" stopColor="#e11d48" stopOpacity="0.3" />
                                                 <stop offset="100%" stopColor="#08070b" stopOpacity="1" />
                                             </radialGradient>
                                         </defs>
@@ -957,7 +957,7 @@ export default function AntirotLabPage() {
                                         <circle className="dial-ring-mid" cx="80" cy="80" r="56" />
                                         <circle className="dial-ring-inner" cx="80" cy="80" r="40" />
                                         <circle className="dial-center" cx="80" cy="80" r="24" />
-                                        <text x="80" y="80" textAnchor="middle" dominantBaseline="central" fill="#a78bfa" fontSize="16" fontWeight="700">{recording ? "◉" : "⚡"}</text>
+                                        <text x="80" y="80" textAnchor="middle" dominantBaseline="central" fill="#fb7185" fontSize="16" fontWeight="700">{recording ? "◉" : "⚡"}</text>
                                     </svg>
                                 </div>
                                 <div>

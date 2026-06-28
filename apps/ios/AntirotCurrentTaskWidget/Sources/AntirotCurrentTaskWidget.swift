@@ -36,7 +36,7 @@ struct CurrentTaskWidgetView: View {
     private var modeColor: Color {
         switch entry.snapshot.mode.lowercased() {
         case "working", "routine":
-            return Color(red: 0.545, green: 0.361, blue: 0.965) // violet
+            return Color(red: 0.957, green: 0.247, blue: 0.369) // red
         case "idle":
             return Color(red: 0.361, green: 0.329, blue: 0.471) // dim muted
         default:

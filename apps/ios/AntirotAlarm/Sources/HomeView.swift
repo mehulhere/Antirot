@@ -77,7 +77,7 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            // Violet monogram
+            // Red monogram
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.antirotGlowPrimary)

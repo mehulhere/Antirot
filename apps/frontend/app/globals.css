@@ -4,9 +4,9 @@
     --bg-surface: #12111a;
     --bg-elevated: #1a1826;
     --bg-overlay: rgba(12, 10, 20, 0.85);
-    --accent: #8b5cf6;
-    --accent-bright: #a78bfa;
-    --accent-dim: #6d28d9;
+    --accent: #f43f5e;
+    --accent-bright: #fb7185;
+    --accent-dim: #e11d48;
     --accent-secondary: #f5b731;
     --accent-tertiary: #06b6d4;
     --danger: #ef4444;
@@ -16,8 +16,8 @@
     --text-secondary: #9e96b8;
     --text-muted: #5c5478;
     --border: rgba(255, 255, 255, 0.05);
-    --border-strong: rgba(139, 92, 246, 0.20);
-    --glow-primary: rgba(139, 92, 246, 0.12);
+    --border-strong: rgba(244, 63, 94, 0.20);
+    --glow-primary: rgba(244, 63, 94, 0.12);
     --glow-gold: rgba(245, 183, 49, 0.10);
     --glow-cyan: rgba(6, 182, 212, 0.08);
     --radius-sm: 8px;
@@ -39,7 +39,7 @@ body {
 body {
     margin: 0;
     background:
-        radial-gradient(circle at 20% 15%, rgba(139, 92, 246, 0.14), transparent 26rem),
+        radial-gradient(circle at 20% 15%, rgba(244, 63, 94, 0.14), transparent 26rem),
         radial-gradient(circle at 80% 8%, rgba(79, 70, 229, 0.10), transparent 24rem),
         linear-gradient(145deg, #08070b 0%, #0e0d16 48%, #08070b 100%);
     color: var(--text);
@@ -76,14 +76,14 @@ button:disabled {
     height: min(932px, calc(100vh - 32px));
     min-height: 720px;
     padding: 12px;
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(244, 63, 94, 0.15);
     border-radius: 58px;
     background:
-        linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(79, 70, 229, 0.04) 18%, rgba(99, 86, 180, 0.06) 72%, rgba(139, 92, 246, 0.10)),
+        linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(79, 70, 229, 0.04) 18%, rgba(99, 86, 180, 0.06) 72%, rgba(244, 63, 94, 0.10)),
         #0a0918;
     box-shadow:
         0 34px 90px rgba(8, 7, 11, 0.62),
-        inset 0 0 0 2px rgba(139, 92, 246, 0.06),
+        inset 0 0 0 2px rgba(244, 63, 94, 0.06),
         inset 0 0 0 7px rgba(0, 0, 0, 0.62);
 }
 
@@ -92,7 +92,7 @@ button:disabled {
     position: absolute;
     inset: 7px;
     border-radius: 51px;
-    border: 1px solid rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(244, 63, 94, 0.08);
     pointer-events: none;
 }
 
@@ -129,9 +129,9 @@ button:disabled {
     overflow: hidden;
     border-radius: 46px;
     background:
-        radial-gradient(circle at 50% -8%, rgba(139, 92, 246, 0.16), transparent 15rem),
+        radial-gradient(circle at 50% -8%, rgba(244, 63, 94, 0.16), transparent 15rem),
         linear-gradient(180deg, rgba(14, 13, 22, 0.98), rgba(8, 7, 11, 0.98));
-    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.06);
 }
 
 /* ---- Dynamic Island ---- */
@@ -147,7 +147,7 @@ button:disabled {
     border-radius: 999px;
     background: #08070b;
     box-shadow:
-        inset 0 0 0 1px rgba(139, 92, 246, 0.10),
+        inset 0 0 0 1px rgba(244, 63, 94, 0.10),
         0 6px 16px rgba(0, 0, 0, 0.34);
 }
 
@@ -384,7 +384,7 @@ h2 {
 
 .primary-button,
 .composer button.composer-send {
-    border-color: rgba(139, 92, 246, 0.50);
+    border-color: rgba(244, 63, 94, 0.50);
     background: linear-gradient(135deg, var(--accent), var(--accent-dim));
     color: #fff;
 }
@@ -411,7 +411,7 @@ h2 {
 button:hover:not(:disabled) {
     transform: translateY(-1px);
     border-color: var(--border-strong);
-    background: rgba(139, 92, 246, 0.10);
+    background: rgba(244, 63, 94, 0.10);
 }
 
 .primary-button:hover:not(:disabled) {
@@ -508,7 +508,7 @@ button:hover:not(:disabled) {
 
 .dial-center {
     fill: url(#dialCenterGradient);
-    stroke: rgba(139, 92, 246, 0.20);
+    stroke: rgba(244, 63, 94, 0.20);
     stroke-width: 1;
 }
 
@@ -721,8 +721,8 @@ button:hover:not(:disabled) {
 
 .message.user {
     align-self: flex-end;
-    border-color: rgba(139, 92, 246, 0.30);
-    background: rgba(139, 92, 246, 0.10);
+    border-color: rgba(244, 63, 94, 0.30);
+    background: rgba(244, 63, 94, 0.10);
     border-radius: 14px 14px 4px 14px;
 }
 
@@ -756,7 +756,7 @@ button:hover:not(:disabled) {
 
 .message-close:hover:not(:disabled) {
     color: var(--text);
-    background: rgba(139, 92, 246, 0.20);
+    background: rgba(244, 63, 94, 0.20);
 }
 
 .message p {
@@ -857,18 +857,18 @@ button:hover:not(:disabled) {
 }
 
 .composer .composer-speak {
-    border-color: rgba(139, 92, 246, 0.40);
-    background: rgba(139, 92, 246, 0.14);
+    border-color: rgba(244, 63, 94, 0.40);
+    background: rgba(244, 63, 94, 0.14);
     border-radius: 50%;
     color: var(--accent-bright);
 }
 
 .composer .composer-speak:hover:not(:disabled) {
-    background: rgba(139, 92, 246, 0.25);
+    background: rgba(244, 63, 94, 0.25);
 }
 
 .composer .composer-send {
-    border-color: rgba(139, 92, 246, 0.40);
+    border-color: rgba(244, 63, 94, 0.40);
     background: linear-gradient(135deg, var(--accent), var(--accent-dim));
     border-radius: 10px;
     color: #fff;
@@ -901,8 +901,8 @@ button:hover:not(:disabled) {
 }
 
 .composer input:focus {
-    border-color: rgba(139, 92, 246, 0.50);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.08);
+    border-color: rgba(244, 63, 94, 0.50);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.08);
 }
 
 /* ---- Action Grid ---- */
@@ -928,9 +928,9 @@ button:hover:not(:disabled) {
 
 .alarm-card {
     padding: 14px;
-    border: 1px solid rgba(139, 92, 246, 0.18);
+    border: 1px solid rgba(244, 63, 94, 0.18);
     border-radius: var(--radius-sm);
-    background: rgba(139, 92, 246, 0.06);
+    background: rgba(244, 63, 94, 0.06);
 }
 
 .alarm-card.severity-critical {
@@ -1009,12 +1009,12 @@ button:hover:not(:disabled) {
 .tabs button.active {
     color: var(--accent-bright);
     border-bottom-color: var(--accent);
-    background: rgba(139, 92, 246, 0.08);
+    background: rgba(244, 63, 94, 0.08);
 }
 
 .tabs button:hover:not(:disabled):not(.active) {
     color: var(--text-secondary);
-    background: rgba(139, 92, 246, 0.04);
+    background: rgba(244, 63, 94, 0.04);
     transform: none;
 }
 
@@ -1115,8 +1115,8 @@ button:hover:not(:disabled) {
 }
 
 .name-modal input:focus {
-    border-color: rgba(139, 92, 246, 0.50);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.10);
+    border-color: rgba(244, 63, 94, 0.50);
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.10);
 }
 
 .name-modal button {
@@ -1228,7 +1228,7 @@ button:hover:not(:disabled) {
     stroke-dasharray: 260 90;
     transform-origin: center;
     animation: dial-spin 10s linear infinite;
-    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.35));
+    filter: drop-shadow(0 0 10px rgba(244, 63, 94, 0.35));
 }
 
 .focus-dial .dial-ring-mid {
@@ -1257,7 +1257,7 @@ button:hover:not(:disabled) {
     fill: var(--bg-elevated);
     stroke: rgba(255, 255, 255, 0.08);
     stroke-width: 1;
-    filter: drop-shadow(0 0 18px rgba(139, 92, 246, 0.15));
+    filter: drop-shadow(0 0 18px rgba(244, 63, 94, 0.15));
 }
 
 .focus-dial.recording .dial-ring-outer {

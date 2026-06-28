@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Brand Colors (Violet / Gold / Cyan)
+// MARK: - Brand Colors (Red / Gold / Cyan)
 
 extension Color {
     // Backgrounds
@@ -10,9 +10,9 @@ extension Color {
     static let antirotBgOverlay = Color(red: 0.047, green: 0.039, blue: 0.078).opacity(0.85) // rgba(12,10,20,0.85)
 
     // Accents
-    static let antirotAccent = Color(red: 0.545, green: 0.361, blue: 0.965)         // #8b5cf6
-    static let antirotAccentBright = Color(red: 0.655, green: 0.545, blue: 0.980)   // #a78bfa
-    static let antirotAccentDim = Color(red: 0.427, green: 0.157, blue: 0.851)      // #6d28d9
+    static let antirotAccent = Color(red: 0.957, green: 0.247, blue: 0.369)         // #f43f5e
+    static let antirotAccentBright = Color(red: 0.984, green: 0.443, blue: 0.522)   // #fb7185
+    static let antirotAccentDim = Color(red: 0.882, green: 0.114, blue: 0.282)      // #e11d48
     static let antirotGold = Color(red: 0.961, green: 0.718, blue: 0.192)           // #f5b731
     static let antirotCyan = Color(red: 0.024, green: 0.714, blue: 0.831)           // #06b6d4
 
@@ -28,10 +28,10 @@ extension Color {
 
     // Borders
     static let antirotBorder = Color.white.opacity(0.05)
-    static let antirotBorderStrong = Color(red: 0.545, green: 0.361, blue: 0.965).opacity(0.20)
+    static let antirotBorderStrong = Color(red: 0.957, green: 0.247, blue: 0.369).opacity(0.20)
 
     // Glows
-    static let antirotGlowPrimary = Color(red: 0.545, green: 0.361, blue: 0.965).opacity(0.12)
+    static let antirotGlowPrimary = Color(red: 0.957, green: 0.247, blue: 0.369).opacity(0.12)
     static let antirotGlowGold = Color(red: 0.961, green: 0.718, blue: 0.192).opacity(0.10)
     static let antirotGlowCyan = Color(red: 0.024, green: 0.714, blue: 0.831).opacity(0.08)
 }
@@ -284,7 +284,7 @@ struct AntirotSectionHeader: View {
     }
 }
 
-// MARK: - Accent Button Style (Violet)
+// MARK: - Accent Button Style (Red)
 
 struct AntirotAccentButtonStyle: ButtonStyle {
     var fullWidth: Bool = false
@@ -382,7 +382,7 @@ struct FocusDial: View {
 
     var body: some View {
         ZStack {
-            // Outer ring - violet
+            // Outer ring - red
             Circle()
                 .stroke(
                     Color.antirotAccent,

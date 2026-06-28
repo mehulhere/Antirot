@@ -14,9 +14,9 @@
     --bg-overlay:      rgba(12, 10, 20, 0.85);
 
     /* Accents */
-    --accent:          #8b5cf6;
-    --accent-bright:   #a78bfa;
-    --accent-dim:      #6d28d9;
+    --accent:          #f43f5e;
+    --accent-bright:   #fb7185;
+    --accent-dim:      #e11d48;
     --accent-secondary:#f5b731;
     --accent-tertiary: #06b6d4;
 
@@ -32,10 +32,10 @@
 
     /* Borders */
     --border:          rgba(255,255,255,0.05);
-    --border-strong:   rgba(139,92,246,0.20);
+    --border-strong:   rgba(244,63,94,0.20);
 
     /* Glows */
-    --glow-primary:    rgba(139,92,246,0.12);
+    --glow-primary:    rgba(244,63,94,0.12);
     --glow-gold:       rgba(245,183,49,0.10);
     --glow-cyan:       rgba(6,182,212,0.08);
 
@@ -47,7 +47,7 @@
 
     /* Shadows */
     --shadow:          0 24px 80px rgba(8,7,11,0.5);
-    --shadow-accent:   0 8px 40px rgba(139,92,246,0.18);
+    --shadow-accent:   0 8px 40px rgba(244,63,94,0.18);
 
     /* Typography */
     --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
@@ -80,7 +80,7 @@ img { max-width: 100%; display: block; }
 button, input, textarea { font-family: inherit; font-size: inherit; }
 
 ::selection {
-    background: rgba(139,92,246,0.30);
+    background: rgba(244,63,94,0.30);
     color: var(--text);
 }
 
@@ -111,7 +111,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     height: 50vw;
     top: -12%;
     left: -8%;
-    background: radial-gradient(circle, rgba(139,92,246,0.16) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(244,63,94,0.16) 0%, transparent 70%);
     animation: meshDrift1 14s ease-in-out infinite alternate;
 }
 .ambient-bg::after {
@@ -372,7 +372,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, rgba(139,92,246,0.3), transparent 60%);
+    background: linear-gradient(90deg, rgba(244,63,94,0.3), transparent 60%);
 }
 .btn-download:hover {
     border-color: var(--border-strong);
@@ -540,7 +540,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     stroke-dasharray: 340 120;
     animation: dialSpin 10s linear infinite;
     transform-origin: center;
-    filter: drop-shadow(0 0 12px rgba(139,92,246,0.3));
+    filter: drop-shadow(0 0 12px rgba(244,63,94,0.3));
 }
 .dial-ring-mid {
     stroke: var(--accent-secondary);
@@ -562,7 +562,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     fill: var(--bg-elevated);
     stroke: rgba(255,255,255,0.08);
     stroke-width: 1;
-    filter: drop-shadow(0 0 24px rgba(139,92,246,0.15));
+    filter: drop-shadow(0 0 24px rgba(244,63,94,0.15));
 }
 .dial-icon {
     font-family: var(--font-heading);
@@ -769,14 +769,14 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, rgba(139,92,246,0.4), transparent 50%);
+    background: linear-gradient(90deg, rgba(244,63,94,0.4), transparent 50%);
     opacity: 0;
     transition: opacity 0.3s ease;
 }
 .feature-card:hover {
     transform: translateY(-4px);
     border-color: var(--border-strong);
-    box-shadow: 0 16px 48px rgba(139,92,246,0.08);
+    box-shadow: 0 16px 48px rgba(244,63,94,0.08);
 }
 .feature-card:hover::before { opacity: 1; }
 
@@ -840,7 +840,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     content: '';
     display: block;
     height: 1px;
-    background: linear-gradient(90deg, rgba(139,92,246,0.3), rgba(6,182,212,0.2), transparent);
+    background: linear-gradient(90deg, rgba(244,63,94,0.3), rgba(6,182,212,0.2), transparent);
 }
 .chat-header {
     display: flex;
@@ -904,7 +904,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     color: var(--accent-bright);
 }
 .msg.user .msg-avatar {
-    background: rgba(139,92,246,0.2);
+    background: rgba(244,63,94,0.2);
     color: var(--accent-bright);
 }
 
@@ -921,8 +921,8 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     color: var(--text);
 }
 .msg.user .msg-bubble {
-    background: rgba(139,92,246,0.12);
-    border: 1px solid rgba(139,92,246,0.15);
+    background: rgba(244,63,94,0.12);
+    border: 1px solid rgba(244,63,94,0.15);
     border-radius: 14px 14px 4px 14px;
     color: var(--text);
 }
@@ -949,7 +949,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, rgba(139,92,246,0.3), transparent 60%);
+    background: linear-gradient(90deg, rgba(244,63,94,0.3), transparent 60%);
 }
 .step-card:hover {
     transform: translateY(-4px);
@@ -980,7 +980,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
 .cta-section { padding: 80px 0 100px; }
 
 .cta-card {
-    background: linear-gradient(145deg, rgba(139,92,246,0.08), rgba(79,70,229,0.04), var(--bg-elevated));
+    background: linear-gradient(145deg, rgba(244,63,94,0.08), rgba(79,70,229,0.04), var(--bg-elevated));
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-xl);
     padding: 64px 48px;
@@ -1263,7 +1263,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
     height: 8px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 8px rgba(139,92,246,0.5);
+    box-shadow: 0 0 8px rgba(244,63,94,0.5);
 }
 .auth-card-label {
     font-size: 0.7rem;
@@ -1309,7 +1309,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; }
 }
 .auth-provider-btn.enabled:hover {
     border-color: var(--border-strong);
-    background: rgba(139,92,246,0.06);
+    background: rgba(244,63,94,0.06);
 }
 
 .auth-provider-icon {
