@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in to Antirot</title>
     <meta name="description" content="Sign in or connect the Antirot mobile app to the Antirot backend.">
+    <meta name="theme-color" content="#08070b">
     <meta property="og:title" content="Sign in to Antirot">
     <meta property="og:description" content="Connect the Antirot app to your coach, alarms, and backend account.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://antirot.org/login.html">
     <meta name="twitter:card" content="summary">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" href="favicon.ico?v=2" type="image/x-icon">
     <link rel="icon" href="favicon.ico?v=2" type="image/x-icon">
@@ -18,11 +21,11 @@
     <div class="ambient-bg"></div>
     <div class="grid-overlay"></div>
 
-    <main class="page-wrapper auth-page">
+    <main class="page-wrapper">
         <nav class="nav" id="nav">
             <div class="container nav-inner">
                 <a href="index.html" class="nav-brand">
-                    <span class="dot"></span>
+                    <img src="assets/favicon.png" alt="Antirot" class="nav-logo">
                     Antirot
                 </a>
                 <ul class="nav-links">
@@ -35,54 +38,38 @@
         </nav>
 
         <section class="auth-shell">
-            <div class="container auth-grid">
+            <div class="auth-layout">
                 <div class="auth-copy">
                     <p class="section-label">App Login</p>
-                    <h1 class="auth-title">Connect your phone to the coach.</h1>
-                    <p class="auth-subtitle">
-                        This is the login handoff page for the iOS and Android apps.
-                        Google and Apple account login will land here, then return a
-                        device token to the app.
-                    </p>
-                    <div class="auth-notes">
-                        <div>
-                            <strong>Current MVP</strong>
-                            <span>Use the backend device token from your VPS developer settings.</span>
-                        </div>
-                        <div>
-                            <strong>Next auth step</strong>
-                            <span>Google and Apple sign-in will issue per-device tokens automatically.</span>
-                        </div>
-                    </div>
+                    <h1 class="section-title">Connect your phone<br>to the coach.</h1>
+                    <p class="section-subtitle">This is the login handoff page for the iOS and Android apps. Google and Apple account login will land here, then return a device token to the app.</p>
                 </div>
 
                 <section class="auth-card" aria-labelledby="auth-heading">
                     <div class="auth-card-header">
-                        <span class="auth-status-dot"></span>
-                        <span>Antirot account</span>
+                        <span class="auth-card-dot"></span>
+                        <span class="auth-card-label">Antirot account</span>
                     </div>
-                    <h2 id="auth-heading">Sign in or connect manually</h2>
-                    <p>
+                    <h2 id="auth-heading" class="auth-heading">Sign in or connect manually</h2>
+                    <p class="auth-desc">
                         OAuth is not enabled on this server yet. For now, use the
                         device token flow. No fake buttons pretending to work.
                     </p>
 
-                    <div class="auth-actions">
-                        <button class="auth-provider" type="button" disabled>
-                            <span class="provider-mark">G</span>
-                            Continue with Google
-                            <span class="provider-state">Soon</span>
-                        </button>
-                        <button class="auth-provider" type="button" disabled>
-                            <span class="provider-mark">A</span>
-                            Continue with Apple
-                            <span class="provider-state">Soon</span>
-                        </button>
+                    <div class="auth-providers">
+                        <div class="auth-provider-btn" aria-disabled="true">
+                            <span class="auth-provider-icon">G</span>
+                            <span class="auth-provider-name">Continue with Google</span>
+                            <span class="auth-provider-state">Planned</span>
+                        </div>
+                        <div class="auth-provider-btn" aria-disabled="true">
+                            <span class="auth-provider-icon">A</span>
+                            <span class="auth-provider-name">Continue with Apple</span>
+                            <span class="auth-provider-state">Planned</span>
+                        </div>
                     </div>
 
-                    <div class="auth-divider">
-                        <span>Current test setup</span>
-                    </div>
+                    <div class="auth-divider">Current test setup</div>
 
                     <ol class="auth-steps">
                         <li>Open the Antirot app.</li>
@@ -91,10 +78,21 @@
                         <li>Tap Register device.</li>
                     </ol>
 
-                    <a class="btn-primary auth-primary" href="index.html#downloads">
+                    <a class="btn-primary" href="index.html" style="width:100%; justify-content:center;">
                         Back to app downloads
                     </a>
                 </section>
+
+                <div class="auth-notes">
+                    <div class="auth-note">
+                        <strong>Current MVP</strong>
+                        <span>Use the backend device token from your VPS developer settings.</span>
+                    </div>
+                    <div class="auth-note">
+                        <strong>Next auth step</strong>
+                        <span>Google and Apple sign-in will issue per-device tokens automatically.</span>
+                    </div>
+                </div>
             </div>
         </section>
     </main>

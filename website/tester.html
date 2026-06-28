@@ -10,12 +10,12 @@
     <style>
         /* Extra styles for the tester dashboard layout */
         :root {
-            --accent-green: #10b981;
-            --accent-green-dim: #064e3b;
-            --glow-green: rgba(16, 185, 129, 0.15);
-            --accent-blue: #3b82f6;
-            --accent-blue-dim: #1e3a8a;
-            --glow-blue: rgba(59, 130, 246, 0.15);
+            --accent-green: #34d399;
+            --accent-green-dim: #065f46;
+            --glow-green: rgba(52, 211, 153, 0.15);
+            --accent-blue: #06b6d4;
+            --accent-blue-dim: #164e63;
+            --glow-blue: rgba(6, 182, 212, 0.15);
         }
 
         .tester-layout {
@@ -36,10 +36,9 @@
         }
 
         .pane {
-            background: var(--bg-card);
+            background: #1a1826;
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-lg);
-            backdrop-filter: blur(12px);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -47,7 +46,7 @@
         }
 
         .pane:hover {
-            border-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(139, 92, 246, 0.15);
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
         }
 
@@ -57,7 +56,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(255, 255, 255, 0.01);
+            background: rgba(139, 92, 246, 0.04);
         }
 
         .pane-title {
@@ -124,9 +123,9 @@
 
         .form-input:focus {
             outline: none;
-            border-color: var(--accent-red);
+            border-color: rgba(139, 92, 246, 0.6);
             background: rgba(255, 255, 255, 0.06);
-            box-shadow: 0 0 10px rgba(220, 38, 38, 0.15);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.15);
         }
 
         .form-select {
@@ -154,7 +153,7 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-            background: rgba(0, 0, 0, 0.2);
+            background: #12111a;
         }
 
         .chat-input-area {
@@ -185,12 +184,12 @@
 
         .chat-input:focus {
             outline: none;
-            border-color: var(--accent-red);
+            border-color: rgba(139, 92, 246, 0.6);
             background: rgba(255, 255, 255, 0.06);
         }
 
         .btn-send {
-            background: var(--accent-red);
+            background: #8b5cf6;
             border: none;
             border-radius: var(--radius-md);
             color: #fff;
@@ -201,8 +200,8 @@
         }
 
         .btn-send:hover:not(:disabled) {
-            background: #f87171;
-            box-shadow: 0 0 15px rgba(220, 38, 38, 0.4);
+            background: #a78bfa;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
             transform: translateY(-1px);
         }
 
@@ -243,9 +242,9 @@
         }
 
         .action-chip.danger:hover {
-            background: rgba(220, 38, 38, 0.15);
-            color: #f87171;
-            border-color: rgba(220, 38, 38, 0.4);
+            background: rgba(245, 183, 49, 0.15);
+            color: #f5b731;
+            border-color: rgba(245, 183, 49, 0.4);
         }
 
         .action-chip.success:hover {
@@ -255,9 +254,9 @@
         }
 
         .action-chip.info:hover {
-            background: rgba(59, 130, 246, 0.15);
-            color: #60a5fa;
-            border-color: rgba(59, 130, 246, 0.4);
+            background: rgba(6, 182, 212, 0.15);
+            color: #06b6d4;
+            border-color: rgba(6, 182, 212, 0.4);
         }
 
         .chat-bubble-wrap {
@@ -296,10 +295,10 @@
         }
 
         .chat-bubble-wrap.coach .chat-bubble {
-            background: rgba(220, 38, 38, 0.05);
-            border: 1px solid rgba(220, 38, 38, 0.15);
+            background: rgba(139, 92, 246, 0.06);
+            border: 1px solid rgba(139, 92, 246, 0.15);
             border-bottom-left-radius: 2px;
-            color: #fca5a5;
+            color: #a78bfa;
         }
 
         .chat-meta {
@@ -337,13 +336,13 @@
         }
 
         .alarm-card.loud {
-            border-left: 4px solid var(--accent-red);
-            background: rgba(220, 38, 38, 0.01);
+            border-left: 4px solid #f5b731;
+            background: rgba(245, 183, 49, 0.01);
         }
 
         .alarm-card.normal {
-            border-left: 4px solid var(--accent-blue);
-            background: rgba(59, 130, 246, 0.01);
+            border-left: 4px solid #06b6d4;
+            background: rgba(6, 182, 212, 0.01);
         }
 
         .alarm-card-header {
@@ -362,15 +361,15 @@
         }
 
         .alarm-card.loud .alarm-badge {
-            background: rgba(220, 38, 38, 0.1);
-            color: #f87171;
-            border: 1px solid rgba(220, 38, 38, 0.2);
+            background: rgba(245, 183, 49, 0.1);
+            color: #f5b731;
+            border: 1px solid rgba(245, 183, 49, 0.2);
         }
 
         .alarm-card.normal .alarm-badge {
-            background: rgba(59, 130, 246, 0.1);
-            color: #60a5fa;
-            border: 1px solid rgba(59, 130, 246, 0.2);
+            background: rgba(6, 182, 212, 0.1);
+            color: #06b6d4;
+            border: 1px solid rgba(6, 182, 212, 0.2);
         }
 
         .alarm-time {
@@ -418,17 +417,17 @@
         }
 
         .alarm-card.loud .btn-alarm-action.primary:hover {
-            background: var(--accent-red);
+            background: #f5b731;
             color: #fff;
-            border-color: var(--accent-red);
-            box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+            border-color: #f5b731;
+            box-shadow: 0 0 10px rgba(245, 183, 49, 0.3);
         }
 
         .alarm-card.normal .btn-alarm-action.primary:hover {
-            background: var(--accent-blue);
+            background: #06b6d4;
             color: #fff;
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+            border-color: #06b6d4;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
         }
 
         /* Memories Panel */
@@ -462,13 +461,13 @@
 
         .memory-tab.active {
             color: #fff;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-subtle);
+            background: rgba(139, 92, 246, 0.08);
+            border: 1px solid rgba(139, 92, 246, 0.20);
         }
 
         .memory-viewer {
             flex: 1;
-            background: rgba(0, 0, 0, 0.3);
+            background: #12111a;
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-md);
             padding: 14px;
@@ -505,8 +504,8 @@
         }
 
         .status-dot.active {
-            background-color: var(--accent-red);
-            box-shadow: 0 0 8px var(--accent-red);
+            background-color: #8b5cf6;
+            box-shadow: 0 0 8px #8b5cf6;
             animation: pulse 1.5s infinite;
         }
 
@@ -528,7 +527,7 @@
     <div class="page-wrapper" style="padding: 0 24px;">
         
         <!-- Navigation -->
-        <nav class="nav" id="nav" style="background: rgba(10, 10, 11, 0.85); border-bottom: 1px solid var(--border-subtle);">
+        <nav class="nav" id="nav" style="background: rgba(8, 7, 11, 0.92); border-bottom: 1px solid var(--border-subtle);">
             <div class="container nav-inner">
                 <a href="index.html" class="nav-brand">
                     <img src="assets/favicon.png" alt="Antirot" class="nav-logo">
@@ -928,7 +927,7 @@
                     const taskName = match ? match[1] : "Active Session";
                     
                     statusVal.textContent = "WORKING";
-                    statusVal.style.color = "var(--accent-red)";
+                    statusVal.style.color = "#8b5cf6";
                     taskVal.textContent = taskName;
                 } else {
                     // Check if last event was a break

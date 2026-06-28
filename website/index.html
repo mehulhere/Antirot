@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antirot — The Coach That Won't Let You Rot</title>
     <meta name="description" content="Antirot is an AI-powered behavioral operating system for people with ADHD-like attention drift. A strict coach that makes you do actual work.">
+    <meta name="theme-color" content="#08070b">
     <meta property="og:title" content="Antirot — The Coach That Won't Let You Rot">
     <meta property="og:description" content="A strict AI coach for ADHD brains. No fake praise. No gentle nudges. Real accountability that works.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://antirot.org">
     <meta name="twitter:card" content="summary_large_image">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" href="favicon.ico?v=2" type="image/x-icon">
     <link rel="icon" href="favicon.ico?v=2" type="image/x-icon">
@@ -28,11 +31,11 @@
                     <img src="assets/favicon.png" alt="Antirot" class="nav-logo">
                     Antirot
                 </a>
-                <ul class="nav-links">
+                <ul class="nav-links" id="nav-links">
                     <li><a href="#features">Features</a></li>
                     <li><a href="#demo">Demo</a></li>
                     <li><a href="#how">How It Works</a></li>
-                    <li><a href="tester.html" style="color: var(--accent-red); font-weight: 700;">Simulator</a></li>
+                    <li><a href="tester.html" class="active">Simulator</a></li>
                     <li><a href="login.html">Sign In</a></li>
                     <li><a href="https://github.com/mehulhere/Antirot" target="_blank" rel="noopener">GitHub</a></li>
                 </ul>
@@ -40,6 +43,9 @@
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     Star on GitHub
                 </a>
+                <button class="nav-hamburger" id="nav-toggle" aria-label="Toggle navigation">
+                    <span></span>
+                </button>
             </div>
         </nav>
 
@@ -72,7 +78,7 @@
                     </div>
                     <div class="hero-downloads-wrapper">
                         <p class="hero-download-label">Download the Client App</p>
-                        <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-start;" class="hero-downloads-container">
+                        <div class="hero-downloads-container">
                             <a href="releases/antirot.apk" class="btn-download" download>
                                 <div class="btn-download-icon-wrap">
                                     <svg class="btn-download-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -105,55 +111,61 @@
                     </div>
                 </div>
                 <div class="hero-visual">
-                    <div class="coach-image-wrapper">
-                        <img src="assets/coach.png" alt="Antirot Coach — stern, arms crossed, whistle around neck" loading="eager">
-                        <div class="coach-quote q1">
-                            <span class="quote-accent">"</span>That's not a goal. Try again.<span class="quote-accent">"</span>
-                        </div>
-                        <div class="coach-quote q2">
-                            <span class="quote-accent">"</span>You've been idle for 47 min.<span class="quote-accent">"</span>
-                        </div>
-                        <div class="coach-quote q3">
-                            <span class="quote-accent">"</span>YouTube? Really?<span class="quote-accent">"</span>
+                    <div class="focus-dial-hero">
+                        <svg viewBox="0 0 340 340" fill="none">
+                            <!-- Ambient glow ring -->
+                            <circle class="dial-ring dial-glow" cx="170" cy="170" r="155"/>
+                            <!-- Outer ring — violet -->
+                            <circle class="dial-ring dial-ring-outer" cx="170" cy="170" r="140"/>
+                            <!-- Mid ring — gold -->
+                            <circle class="dial-ring dial-ring-mid" cx="170" cy="170" r="108"/>
+                            <!-- Inner ring — cyan -->
+                            <circle class="dial-ring dial-ring-inner" cx="170" cy="170" r="78"/>
+                            <!-- Center -->
+                            <circle class="dial-center" cx="170" cy="170" r="52"/>
+                            <text class="dial-icon" x="170" y="170">⚡</text>
+                        </svg>
+                        <div class="dial-labels">
+                            <span class="dial-label">Focus</span>
+                            <span class="dial-label">Adapt</span>
+                            <span class="dial-label">Track</span>
+                            <span class="dial-label">Coach</span>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Ticker / Social Proof -->
-        <section class="ticker-section">
-            <p class="ticker-label">Built for brains that drift</p>
-            <div class="ticker-track">
-                <span class="ticker-item">ADHD Focus</span>
-                <span class="ticker-item">Hyperfocus Loops</span>
-                <span class="ticker-item">Attention Drift</span>
-                <span class="ticker-item">Executive Function</span>
-                <span class="ticker-item">Challenge-Based Motivation</span>
-                <span class="ticker-item">Strict Accountability</span>
-                <span class="ticker-item">Sleep Debt Tracking</span>
-                <span class="ticker-item">Behavioral Memory</span>
-                <span class="ticker-item">ADHD Focus</span>
-                <span class="ticker-item">Hyperfocus Loops</span>
-                <span class="ticker-item">Attention Drift</span>
-                <span class="ticker-item">Executive Function</span>
-                <span class="ticker-item">Challenge-Based Motivation</span>
-                <span class="ticker-item">Strict Accountability</span>
-                <span class="ticker-item">Sleep Debt Tracking</span>
-                <span class="ticker-item">Behavioral Memory</span>
+        <!-- Stat Strip -->
+        <section class="stat-strip">
+            <div class="container stat-strip-inner">
+                <div class="stat-item animate-on-scroll">
+                    <span class="stat-value" id="stat-users">0</span>
+                    <span class="stat-label">Rotters Challenged</span>
+                </div>
+                <div class="stat-item animate-on-scroll">
+                    <span class="stat-value" data-target="2400">0</span>
+                    <span class="stat-label">Sessions Tracked</span>
+                </div>
+                <div class="stat-item animate-on-scroll">
+                    <span class="stat-value" data-target="890">0</span>
+                    <span class="stat-label">Hours Focused</span>
+                </div>
             </div>
         </section>
 
-        <!-- Coach Quote -->
-        <section class="coach-says animate-on-scroll">
-            <div class="container coach-says-inner">
-                <p class="big-quote">
-                    The problem isn't <span class="highlight">intelligence</span>.
-                    It's attention drift, activation friction, and inconsistent
-                    executive regulation. You don't need another app.
-                    You need a <span class="highlight">coach who won't let you rot</span>.
-                </p>
-                <p class="coach-attribution">&mdash; The Antirot Philosophy</p>
+        <!-- Philosophy -->
+        <section class="philosophy animate-on-scroll">
+            <div class="container">
+                <div class="philosophy-card">
+                    <p class="philosophy-quote">
+                        The problem isn't <span class="highlight">intelligence</span>.
+                        It's attention drift, activation friction, and inconsistent
+                        executive regulation. You don't need another app.
+                        You need a <span class="highlight">coach who won't let you rot</span>.
+                    </p>
+                    <p class="philosophy-attribution">&mdash; The Antirot Philosophy</p>
+                </div>
             </div>
         </section>
 
@@ -168,8 +180,10 @@
                 <div class="features-grid">
                     <div class="feature-card animate-on-scroll">
                         <div class="feature-icon">&#x1F3AF;</div>
-                        <h3 class="feature-title">Session Tracking</h3>
-                        <p class="feature-desc">Start work blocks with a target. End them with honest output reports. Productive minutes vs wasted minutes. No lies.</p>
+                        <div>
+                            <h3 class="feature-title">Session Tracking</h3>
+                            <p class="feature-desc">Start work blocks with a target. End them with honest output reports. Productive minutes vs wasted minutes. No lies.</p>
+                        </div>
                     </div>
                     <div class="feature-card animate-on-scroll">
                         <div class="feature-icon">&#x1F6A8;</div>
@@ -204,9 +218,9 @@
         <section class="chat-demo" id="demo">
             <div class="container chat-grid">
                 <div class="animate-on-scroll">
-                    <p class="section-label">Live Coaching</p>
+                    <p class="section-label" style="justify-content:flex-start;">Live Coaching</p>
                     <h2 class="section-title" style="text-align:left; margin-bottom: 16px;">This is what<br>accountability<br>looks like</h2>
-                    <p class="section-subtitle" style="margin:0; margin-bottom:24px;">No fluffy affirmations. No "you're doing great!" when you've been on YouTube for 2 hours. Just honest, direct coaching through Telegram or any chat interface.</p>
+                    <p class="section-subtitle" style="margin:0 0 24px; text-align:left;">No fluffy affirmations. No "you're doing great!" when you've been on YouTube for 2 hours. Just honest, direct coaching.</p>
                     <a href="https://github.com/mehulhere/Antirot" target="_blank" rel="noopener" class="btn-secondary">
                         Read the docs &rarr;
                     </a>
@@ -310,7 +324,7 @@
 
     </div>
 
-    <!-- Scroll Animation Script -->
+    <!-- Scripts -->
     <script>
         // Intersection Observer for scroll animations
         const observerOptions = {
@@ -331,33 +345,28 @@
             observer.observe(el);
         });
 
-        // Visitor Counter API (VPS Self-Hosted)
-        function animateVisitorCount(counterEl, targetCount) {
-            const finalCount = Math.max(0, Number(targetCount) || 0);
-            const durationMs = Math.min(1600, Math.max(700, 650 + finalCount * 35));
+        // Animated count-up utility
+        function animateCount(el, target, durationMs) {
             const startTime = performance.now();
-
-            counterEl.textContent = '0';
+            el.textContent = '0';
 
             function tick(now) {
                 const progress = Math.min((now - startTime) / durationMs, 1);
                 const eased = 1 - Math.pow(1 - progress, 4);
-                const currentCount = Math.floor(eased * finalCount);
-                counterEl.textContent = currentCount.toLocaleString();
-
+                el.textContent = Math.floor(eased * target).toLocaleString();
                 if (progress < 1) {
                     requestAnimationFrame(tick);
-                    return;
+                } else {
+                    el.textContent = target.toLocaleString();
                 }
-
-                counterEl.textContent = finalCount.toLocaleString();
             }
-
             requestAnimationFrame(tick);
         }
 
+        // Visitor Counter API (VPS Self-Hosted)
         async function initVisitorCounter() {
             const counterEl = document.getElementById('visitor-count');
+            const statUsersEl = document.getElementById('stat-users');
             if (!counterEl) return;
             counterEl.textContent = '0';
             try {
@@ -368,7 +377,6 @@
                     apiOrigin = 'http://127.0.0.1:8787';
                 }
 
-                // Check if visitor has already been counted in this browser
                 const hasVisited = localStorage.getItem('antirot_visited');
                 let url = `${apiOrigin}/v1/visits`;
                 if (hasVisited) {
@@ -378,31 +386,55 @@
                 const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
-                    animateVisitorCount(counterEl, data.count);
+                    animateCount(counterEl, data.count, 1400);
+                    if (statUsersEl) animateCount(statUsersEl, data.count, 1600);
                     localStorage.setItem('antirot_visited', 'true');
                 } else {
                     counterEl.textContent = '...';
+                    if (statUsersEl) statUsersEl.textContent = '—';
                 }
             } catch (e) {
                 counterEl.textContent = '...';
+                if (statUsersEl) statUsersEl.textContent = '—';
             }
         }
         initVisitorCounter();
 
+        // Animate stat strip counters
+        const statObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    const el = entry.target.querySelector('.stat-value[data-target]');
+                    if (el) {
+                        const target = parseInt(el.getAttribute('data-target'), 10);
+                        animateCount(el, target, 1800);
+                    }
+                    statObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.3 });
+        document.querySelectorAll('.stat-item').forEach(el => statObserver.observe(el));
+
         // Navbar background on scroll
-        let lastScroll = 0;
         window.addEventListener('scroll', () => {
             const nav = document.getElementById('nav');
-            const scrollY = window.scrollY;
-            if (scrollY > 100) {
-                nav.style.borderBottomColor = 'rgba(255, 255, 255, 0.08)';
-                nav.style.background = 'rgba(10, 10, 11, 0.9)';
+            if (window.scrollY > 80) {
+                nav.style.borderBottomColor = 'rgba(139, 92, 246, 0.08)';
+                nav.style.background = 'rgba(8, 7, 11, 0.92)';
             } else {
                 nav.style.borderBottomColor = 'rgba(255, 255, 255, 0.04)';
-                nav.style.background = 'rgba(10, 10, 11, 0.7)';
+                nav.style.background = 'rgba(8, 7, 11, 0.72)';
             }
-            lastScroll = scrollY;
         }, { passive: true });
+
+        // Mobile nav toggle
+        const navToggle = document.getElementById('nav-toggle');
+        const navLinks = document.getElementById('nav-links');
+        if (navToggle && navLinks) {
+            navToggle.addEventListener('click', () => {
+                navLinks.classList.toggle('open');
+            });
+        }
     </script>
 </body>
 </html>
