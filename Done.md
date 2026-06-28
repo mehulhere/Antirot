@@ -75,3 +75,5 @@
 - Open the web frontend and iOS app side by side, then verify onboarding name cache/reset, silent timezone onboarding, quick actions, pending alarm collapse, voice queue, and Plan/Home action copy match.
 - Speak in the web frontend, iOS app, and Android app, then verify the chat shows a playable voice message instead of raw transcription while the coach still receives the transcript.
 - Open the iOS Home tab on a real device and verify the header, cards, chat bubbles, composer, and tab bar stay inside the screen width like the Plan tab.
+- Run `scripts/restart-backend-vps.sh edge-check` and verify it separates VPS-local backend health from public nginx/network reachability.
+- On a real iPhone, sign in with Google and verify any backend connection failure shows the exact Antirot endpoint URL instead of only "Could not connect to the server."

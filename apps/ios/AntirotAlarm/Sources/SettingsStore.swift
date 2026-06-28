@@ -107,7 +107,13 @@ final class SettingsStore: ObservableObject {
 
     private static func normalizedServerURL(_ value: String?) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? defaultServerURL : trimmed
+        guard !trimmed.isEmpty, let url = URL(string: trimmed), let host = url.host()?.lowercased() else {
+            return defaultServerURL
+        }
+        if ["localhost", "127.0.0.1", "0.0.0.0", "::1"].contains(host) {
+            return defaultServerURL
+        }
+        return trimmed
     }
 
     private enum Keys {

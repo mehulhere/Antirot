@@ -5,6 +5,7 @@ struct APIClient {
         case missingServerURL
         case invalidResponse(status: Int, body: String)
         case decodeFailed(body: String)
+        case transportFailed(url: String, underlying: String)
 
         var errorDescription: String? {
             switch self {
@@ -14,6 +15,8 @@ struct APIClient {
                 "Backend returned HTTP \(status): \(body)"
             case let .decodeFailed(body):
                 "Backend returned unexpected JSON: \(body)"
+            case let .transportFailed(url, underlying):
+                "Could not reach Antirot backend at \(url). \(underlying)"
             }
         }
     }
@@ -57,7 +60,7 @@ struct APIClient {
         guard let url = components?.url else { throw APIError.missingServerURL }
         var request = URLRequest(url: url)
         addAuth(to: &request)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await perform(request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
         guard statusCode < 300 else {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
@@ -98,7 +101,7 @@ struct APIClient {
         guard let url = components?.url else { throw APIError.missingServerURL }
         var request = URLRequest(url: url)
         addAuth(to: &request)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await perform(request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
         guard statusCode < 300 else {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
@@ -131,7 +134,7 @@ struct APIClient {
         body.appendString("\r\n--\(boundary)--\r\n")
         request.httpBody = body
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: request)
+        let (data, urlResponse) = try await perform(request)
         let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500
         guard statusCode < 300 else {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
@@ -167,7 +170,7 @@ struct APIClient {
             addAuth(to: &request)
         }
         request.httpBody = try JSONEncoder.antirot.encode(body)
-        let (data, urlResponse) = try await URLSession.shared.data(for: request)
+        let (data, urlResponse) = try await perform(request)
         let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500
         guard statusCode < 300 else {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
@@ -185,6 +188,17 @@ struct APIClient {
     private func addAuth(to request: inout URLRequest) {
         guard !apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch {
+            throw APIError.transportFailed(
+                url: request.url?.absoluteString ?? "<missing URL>",
+                underlying: error.localizedDescription
+            )
+        }
     }
 
     private func effectiveBaseURL() -> URL {
