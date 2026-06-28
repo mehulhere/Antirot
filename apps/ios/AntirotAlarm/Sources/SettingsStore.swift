@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 final class SettingsStore: ObservableObject {
-    static let defaultServerURL = "https://api.antirot.org"
+    nonisolated static let defaultServerURL = "https://api.antirot.org"
 
     @Published var serverURL: String {
         didSet { defaults.set(serverURL, forKey: Keys.serverURL) }
@@ -68,7 +68,9 @@ final class SettingsStore: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             let token = notification.userInfo?["token"] as? String ?? ""
-            self?.pushToken = token
+            Task { @MainActor in
+                self?.pushToken = token
+            }
         }
     }
 

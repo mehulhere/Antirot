@@ -165,7 +165,7 @@ struct HomeView: View {
     private var quickActions: some View {
         let actions = CoachQuickAction.primary(for: coach.runtimeState, at: quickActionRefreshDate)
 
-        ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(actions) { action in
                     Button {
@@ -232,7 +232,7 @@ struct HomeView: View {
 
     private func onboardingMessage(name: String) -> String {
         let timezone = TimeZone.current.identifier
-        [
+        return [
             "The user just shared their name during onboarding. Use it naturally, then continue with the Antirot first onboarding message.",
             "Silent client context is available below for scheduling only.",
             "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
@@ -265,7 +265,7 @@ struct HomeView: View {
 
     private var pendingAlarmStrip: some View {
         let visibleAlarms = alarmCenter.nextReminderAlarms
-        VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 12) {
             AntirotSectionHeader(title: "Pending Alarms", icon: "alarm")
 
             if visibleAlarms.isEmpty {
