@@ -40,6 +40,8 @@ ANTIROT_ADMIN_TOKEN=long-random-admin-token
 ANTIROT_DEVICE_TOKEN=long-random-device-token
 GOOGLE_CLOUD_CREDENTIALS={...vertex service account json...}
 GOOGLE_IOS_CLIENT_ID=your-google-ios-client-id
+GOOGLE_WEB_CLIENT_ID=your-google-web-client-id
+NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID=your-google-web-client-id
 ```
 
 See [apps/backend/README.md](apps/backend/README.md) and [docs/backend-vps-new-user.md](docs/backend-vps-new-user.md).

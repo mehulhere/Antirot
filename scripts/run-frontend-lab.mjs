@@ -247,12 +247,21 @@ const deviceToken =
     localEnv.ANTIROT_DEVICE_TOKEN ||
     backendEnv.ANTIROT_DEVICE_TOKEN ||
     "";
+const googleWebClientId =
+    process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+    process.env.GOOGLE_WEB_CLIENT_ID ||
+    localEnv.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+    localEnv.GOOGLE_WEB_CLIENT_ID ||
+    backendEnv.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+    backendEnv.GOOGLE_WEB_CLIENT_ID ||
+    "";
 
 const nextEnv = {
     ...process.env,
     NEXT_PUBLIC_ANTIROT_BACKEND_URL: backendUrl,
     NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN: adminToken,
-    NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN: deviceToken
+    NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN: deviceToken,
+    NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: googleWebClientId
 };
 
 const tokenSource = vpsEnv.ANTIROT_ADMIN_TOKEN ? "VPS env" : adminToken ? "local env" : "missing";

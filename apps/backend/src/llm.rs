@@ -616,6 +616,7 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
         "patch_file" if sleep_baseline_context => "Got your day shape. Pick the smallest useful task from today's plan, then press Start when you are ready to begin.".to_string(),
         "patch_file" if onboarding_context => onboarding_setup_reply(),
         "patch_file" if recovery_context => "Recovery day accepted. No hero mode: choose one 10-minute low-friction task, then take a real recovery break or sleep if your body is still cooked.".to_string(),
+        "patch_file" if mentions_misc_task_capture_context(&user_message_lower) => "Captured for later. Do not context-switch now; return to the current session and finish the block.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
         "start_session" if recovery_context => "Recovery pace: one low-friction work block is started. Work exactly 20 minutes, stop at the timer, then choose recovery or sleep if your body is still cooked.".to_string(),
         "start_session" => start_session_reply(user_message),
@@ -675,6 +676,22 @@ fn mentions_relationship_context(user_message_lower: &str) -> bool {
     user_message_lower.contains("girlfriend")
         || user_message_lower.contains("relationship")
         || user_message_lower.contains("partner")
+}
+
+fn mentions_misc_task_capture_context(user_message_lower: &str) -> bool {
+    (user_message_lower.contains("remembered")
+        || user_message_lower.contains("remember ")
+        || user_message_lower.contains("add ")
+        || user_message_lower.contains("capture ")
+        || user_message_lower.contains("note "))
+        && (user_message_lower.contains("later")
+            || user_message_lower.contains("for later")
+            || user_message_lower.contains("side task")
+            || user_message_lower.contains("misc")
+            || user_message_lower.contains("low priority")
+            || user_message_lower.contains("low-priority")
+            || user_message_lower.contains("errand")
+            || user_message_lower.contains("task list"))
 }
 
 fn mentions_onboarding_start(user_message_lower: &str) -> bool {

@@ -28,6 +28,7 @@ import type { MicVAD } from "@ricky0123/vad-web";
 const BACKEND_URL = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL || "https://api.antirot.org";
 const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN || "test-admin-token";
 const DEVICE_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN || "test-device-token";
+const GOOGLE_WEB_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
 const USER_ID = "admin";
 const DEVICE_ID = "frontend-lab-device";
 const VAD_SAMPLE_RATE = 16000;
@@ -123,6 +124,39 @@ type ContextReport = {
 };
 
 type ApiError = Error & { status?: number };
+
+type GoogleCredentialResponse = {
+    credential?: string;
+    select_by?: string;
+};
+
+type GoogleIdConfiguration = {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+    ux_mode?: "popup" | "redirect";
+};
+
+type GoogleButtonOptions = {
+    theme?: "outline" | "filled_blue" | "filled_black";
+    size?: "large" | "medium" | "small";
+    type?: "standard" | "icon";
+    shape?: "rectangular" | "pill" | "circle" | "square";
+    text?: "signin_with" | "signup_with" | "continue_with" | "signin";
+    width?: number;
+};
+
+declare global {
+    interface Window {
+        google?: {
+            accounts: {
+                id: {
+                    initialize: (config: GoogleIdConfiguration) => void;
+                    renderButton: (parent: HTMLElement, options: GoogleButtonOptions) => void;
+                };
+            };
+        };
+    }
+}
 
 type LabAction = {
     id: string;
@@ -332,9 +366,13 @@ export default function AntirotLabPage() {
     const [diagnostics, setDiagnostics] = useState<ContextReport | null>(null);
     const [speechStatus, setSpeechStatus] = useState("VAD speech chunks ready.");
     const [lastError, setLastError] = useState("");
+    const [googleStatus, setGoogleStatus] = useState("Google web sign-in not loaded.");
+    const [googleResult, setGoogleResult] = useState("Use this to compare browser Google login with the iOS app.");
     const [iosClock, setIosClock] = useState("");
     const [browserReady, setBrowserReady] = useState(false);
     const [nightActionVisible, setNightActionVisible] = useState(false);
+    const googleButtonRef = useRef<HTMLDivElement | null>(null);
+    const googleButtonRenderedRef = useRef(false);
     const vadRef = useRef<MicVAD | null>(null);
     const vadBufferRef = useRef<Float32Array[]>([]);
     const vadBufferSecondsRef = useRef(0);
@@ -441,6 +479,67 @@ export default function AntirotLabPage() {
     }, []);
 
     useEffect(() => {
+        if (!browserReady || googleButtonRenderedRef.current) {
+            return;
+        }
+
+        if (!GOOGLE_WEB_CLIENT_ID) {
+            setGoogleStatus("Google web client ID missing.");
+            setGoogleResult(
+                "Create a Google OAuth client of type Web application, add http://localhost:3000 to Authorized JavaScript origins, then set GOOGLE_WEB_CLIENT_ID and NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID."
+            );
+            return;
+        }
+
+        function renderGoogleButton() {
+            if (!googleButtonRef.current || !window.google || googleButtonRenderedRef.current) {
+                return;
+            }
+
+            window.google.accounts.id.initialize({
+                client_id: GOOGLE_WEB_CLIENT_ID,
+                callback: (response) => void handleGoogleCredential(response),
+                ux_mode: "popup"
+            });
+            window.google.accounts.id.renderButton(googleButtonRef.current, {
+                theme: "outline",
+                size: "large",
+                type: "standard",
+                shape: "pill",
+                text: "signin_with",
+                width: 260
+            });
+            googleButtonRenderedRef.current = true;
+            setGoogleStatus("Google button ready.");
+        }
+
+        if (window.google) {
+            renderGoogleButton();
+            return;
+        }
+
+        const existingScript = document.querySelector<HTMLScriptElement>("script[data-antirot-google-signin]");
+        if (existingScript) {
+            existingScript.addEventListener("load", renderGoogleButton, { once: true });
+            return () => existingScript.removeEventListener("load", renderGoogleButton);
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.dataset.antirotGoogleSignin = "true";
+        script.addEventListener("load", renderGoogleButton, { once: true });
+        script.addEventListener("error", () => {
+            setGoogleStatus("Google script failed to load.");
+            setGoogleResult("The browser could not load https://accounts.google.com/gsi/client.");
+        }, { once: true });
+        document.head.appendChild(script);
+
+        return () => script.removeEventListener("load", renderGoogleButton);
+    }, [browserReady]);
+
+    useEffect(() => {
         function updateClock() {
             setIosClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
             setNightActionVisible(isNightActionWindow());
@@ -455,6 +554,42 @@ export default function AntirotLabPage() {
             void loadMemory(memoryKey);
         }
     }, [connection, memoryKey]);
+
+    async function handleGoogleCredential(response: GoogleCredentialResponse) {
+        const credential = response.credential?.trim();
+        if (!credential) {
+            setGoogleStatus("Google returned no credential.");
+            setGoogleResult(JSON.stringify(response, null, 2));
+            return;
+        }
+
+        setGoogleStatus("Google token received. Posting to Antirot backend...");
+        setGoogleResult(`Credential JWT received (${credential.length} chars).`);
+
+        try {
+            const result = await backendJson<unknown>(
+                "/v1/auth/google",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        idToken: credential,
+                        deviceId: `frontend-google-${crypto.randomUUID()}`,
+                        platform: "web",
+                        appVersion: "frontend-lab",
+                        notificationCapability: "browser_test",
+                        usageCapability: "none"
+                    })
+                },
+                ""
+            );
+            setGoogleStatus("Backend Google login succeeded.");
+            setGoogleResult(JSON.stringify(result, null, 2));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setGoogleStatus("Backend Google login failed.");
+            setGoogleResult(message);
+        }
+    }
 
     function pushMessage(role: Role, text: string, extras: Partial<Pick<ChatMessage, "audioUrl" | "audioSeconds">> = {}) {
         setMessages((current) => [
@@ -1154,6 +1289,15 @@ export default function AntirotLabPage() {
                                     <dt>Sleep samples</dt>
                                     <dd>{diagnostics?.sleepMetrics?.sleepSampleCount ?? "-"}</dd>
                                 </dl>
+                                <div className="google-login-test">
+                                    <div>
+                                        <h3>Google Login Test</h3>
+                                        <p>Client: {GOOGLE_WEB_CLIENT_ID || "missing NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID"}</p>
+                                    </div>
+                                    <div ref={googleButtonRef} className="google-button-slot" />
+                                    <strong>{googleStatus}</strong>
+                                    <pre>{googleResult}</pre>
+                                </div>
                                 {lastError ? <p className="error-box">{lastError}</p> : null}
                             </article>
                         </section>

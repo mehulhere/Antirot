@@ -1062,6 +1062,46 @@ button:hover:not(:disabled) {
     font-size: 0.88rem;
 }
 
+.google-login-test {
+    display: grid;
+    gap: 10px;
+    margin: 0 16px 16px;
+    padding: 12px;
+    border: 1px solid rgba(6, 182, 212, 0.18);
+    border-radius: var(--radius-sm);
+    background: rgba(6, 182, 212, 0.06);
+}
+
+.google-login-test h3 {
+    margin: 0 0 4px;
+    font-size: 0.9rem;
+}
+
+.google-login-test p,
+.google-login-test strong {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+}
+
+.google-button-slot {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.google-login-test pre {
+    margin: 0;
+    max-height: 160px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-family: var(--font-mono), 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+}
+
 /* ---- Error Box ---- */
 
 .error-box {

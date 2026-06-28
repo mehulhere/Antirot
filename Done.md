@@ -4,6 +4,7 @@
 - Manually verify `start_sleep`, good morning auto-wake logging, sleep-debt calculation, normal alarm fallback, and hidden-buffer loud wake escalation in a backend app flow.
 - Manually verify `list_active_triggers`, early completion clearing, early wake clearing, stale callback ignoring, and `reschedule_trigger` for "I need more time" in a backend app flow.
 - Manually verify behavior context injection, misc queue add/list/pop, nightly rollover cleanup, and nightly summary extraction in a backend app flow.
+- Manually verify a remembered side task during an active work session is captured in `miscellaneous_todo.md` without adding it to `tasks.md` or ending the session.
 - Programmatically verify Scenarios A through M using the `test-scenarios` script to validate all 13 behavioral coaching loops.
 - Manually verify onboarding asks for goals/projects, divides them into levels 1-4, prompts the user for confirmation, and writes them to memory files via `save_onboarding_answers`.
 - Manually verify the simplified humorous coach-style onboarding prompt and confirmation flow in a backend app flow.
@@ -77,3 +78,4 @@
 - Open the iOS Home tab on a real device and verify the header, cards, chat bubbles, composer, and tab bar stay inside the screen width like the Plan tab.
 - Run `scripts/restart-backend-vps.sh edge-check` and verify it separates VPS-local backend health from public nginx/network reachability.
 - On a real iPhone, sign in with Google and verify any backend connection failure shows the exact Antirot endpoint URL instead of only "Could not connect to the server."
+- In the frontend lab, use the Google Login Test panel and verify the browser Google JWT posts to `/v1/auth/google`, or configure `GOOGLE_WEB_CLIENT_ID` plus `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` if Google rejects the iOS client ID on web.
