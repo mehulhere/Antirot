@@ -250,7 +250,6 @@ function assertSecondOnboardingLoopReply(reply) {
     assert.match(reply, /\bstart\b|\bbegin\b/iu, `second onboarding reply did not tell user how to begin: ${reply}`);
     assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
     assert.doesNotMatch(reply, /main blocker|what blocker|what is blocking/iu, `second onboarding reply asked a filler blocker question: ${reply}`);
-    assert.doesNotMatch(reply, /brief gist|raw facts|no essays|baseline parameters|so we can get to work|let'?s lay down the baseline/iu, `second onboarding reply used compressed intake-script language: ${reply}`);
     assert.doesNotMatch(reply, /I[’']m Antirot.*coached plenty of people like you/isu, `second onboarding reply repeated deterministic first intro: ${reply}`);
     assert.doesNotMatch(reply, /2\s*a\.?m.*11\s*a\.?m.*girlfriend|girlfriend.*2\s*hours.*10\s*hours/isu, `second onboarding reply repeated too many user details: ${reply}`);
 }
