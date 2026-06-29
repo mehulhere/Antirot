@@ -46,6 +46,7 @@ struct MainTabView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
 
             // Custom tab bar
             tabBar

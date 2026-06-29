@@ -15,46 +15,51 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ZStack {
-            MeshBackground()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                MeshBackground()
 
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .frame(maxWidth: .infinity)
-
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 18) {
-                            FocusDial(
-                                isRecording: coach.isRecording,
-                                isThinking: coach.isSending
-                            )
-                            .padding(.top, 14)
-
-                            currentTaskStrip
-                            quickActions
-                            transcript
-                            pendingAlarmStrip
-                        }
+                VStack(spacing: 0) {
+                    header
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 210)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .onChange(of: coach.messages.count) { _, _ in
-                        if let last = coach.messages.last?.id {
-                            withAnimation(.easeOut(duration: 0.25)) {
-                                proxy.scrollTo(last, anchor: .bottom)
+                        .padding(.top, 12)
+                        .frame(width: geometry.size.width)
+
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 18) {
+                                FocusDial(
+                                    isRecording: coach.isRecording,
+                                    isThinking: coach.isSending
+                                )
+                                .padding(.top, 14)
+
+                                currentTaskStrip
+                                quickActions
+                                transcript
+                                pendingAlarmStrip
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 210)
+                            .frame(width: geometry.size.width)
+                        }
+                        .onChange(of: coach.messages.count) { _, _ in
+                            if let last = coach.messages.last?.id {
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    proxy.scrollTo(last, anchor: .bottom)
+                                }
                             }
                         }
                     }
+                    .frame(width: geometry.size.width)
                 }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: geometry.size.width, height: geometry.size.height)
 
-            composer
+                composer
+                    .frame(width: geometry.size.width)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
@@ -209,6 +214,7 @@ struct HomeView: View {
             }
             .padding(.vertical, 2)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func presentNamePromptIfNeeded() {
@@ -399,7 +405,7 @@ struct HomeView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
         )
         .padding(.bottom, 72)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .frame(maxWidth: .infinity)
     }
 }
 
