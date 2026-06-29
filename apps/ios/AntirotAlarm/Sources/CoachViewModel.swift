@@ -6,7 +6,7 @@ final class CoachViewModel: ObservableObject {
     @Published var messages: [CoachMessage] = [
         CoachMessage(
             role: .coach,
-            text: "Tell me what you are doing now. Short is fine. I will turn it into the next move."
+            text: "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today."
         )
     ]
     @Published var draft = ""

@@ -124,6 +124,8 @@ pub struct LlmFunctionCall {
     pub arguments: String,
 }
 
+pub const FIRST_ONBOARDING_REPLY: &str = "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.";
+
 pub async fn chat_with_coach(
     pool: &Pool,
     config: &Config,
@@ -173,6 +175,10 @@ pub async fn chat_with_coach(
 
     if !is_active {
         return Ok("🔴 Antirot Coach: Your subscription is inactive. Please activate your subscription ($1/mo BYOK or $5/mo FocusEngine tailored LLM) in Settings to resume coaching.".to_string());
+    }
+
+    if is_first_onboarding_request(user_message) {
+        return Ok(FIRST_ONBOARDING_REPLY.to_string());
     }
 
     if let Some(outcome) = distill_idle_if_due(pool, config, user_id).await? {
@@ -1806,9 +1812,26 @@ fn get_tool_definitions() -> Value {
     ])
 }
 
+fn is_first_onboarding_request(user_message: &str) -> bool {
+    user_message.contains("The user just shared their name during onboarding")
+        && user_message.contains("Antirot first onboarding message")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_onboarding_request_returns_exact_deterministic_reply() {
+        assert!(is_first_onboarding_request(
+            "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.\nName: Mehul"
+        ));
+
+        assert_eq!(
+            FIRST_ONBOARDING_REPLY,
+            "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today."
+        );
+    }
 
     #[test]
     fn start_session_reply_is_direct_for_auto_started_task() {

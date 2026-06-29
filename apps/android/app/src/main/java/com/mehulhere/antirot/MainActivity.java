@@ -384,7 +384,10 @@ public class MainActivity extends android.app.Activity {
     }
 
     private String onboardingMessage(String name) {
-        return "Start onboarding with this user's name. Save it, then continue onboarding conversationally through chat or speech.\n" +
+        return "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.\n" +
+                "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\n" +
+                "So let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\n" +
+                "Tell me what your day looks like and what you’re planning to get done today.\n" +
                 "Name: " + name;
     }
 

@@ -245,10 +245,10 @@ struct HomeView: View {
     private func onboardingMessage(name: String) -> String {
         let timezone = TimeZone.current.identifier
         return [
-            "The user just shared their name during onboarding. Use it naturally, then continue with the Antirot first onboarding message.",
+            "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
             "Silent client context is available below for scheduling only.",
             "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-            "The first onboarding message asks for a gist of long-term goals, short-term goals, what the day looks like, and what the user plans to get done today.",
+            "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.",
             "Name: \(name)",
             "Silent device timezone: \(timezone)"
         ].joined(separator: "\n")

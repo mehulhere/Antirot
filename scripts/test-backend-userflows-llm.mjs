@@ -234,12 +234,11 @@ function assertNoStaleVacationCopy(reply) {
 }
 
 function assertFirstOnboardingOpener(reply) {
-    assert.match(reply, /I(?:'|’)m Antirot/iu, `first onboarding reply did not introduce Antirot: ${reply}`);
-    assert.match(reply, /coach|accountability|standard|drift|focus|work/iu, `first onboarding reply did not establish the accountability-coach role: ${reply}`);
-    assert.match(reply, /long[- ]?term/iu, `first onboarding reply did not ask long-term goals: ${reply}`);
-    assert.match(reply, /short[- ]?term/iu, `first onboarding reply did not ask short-term goals: ${reply}`);
-    assert.match(reply, /day .*look|what .*day|typical day/iu, `first onboarding reply did not ask day shape: ${reply}`);
-    assert.match(reply, /today|planning|get done/iu, `first onboarding reply did not ask today's plan: ${reply}`);
+    assert.equal(
+        reply,
+        "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.",
+        `first onboarding reply drifted from deterministic copy: ${reply}`
+    );
     assert.doesNotMatch(reply, /timezone|raw data|numbered|1\.\s|2\.\s/iu, `first onboarding reply used stale form language: ${reply}`);
 }
 
@@ -661,10 +660,10 @@ async function main() {
                 backend.baseUrl,
                 coachLoopFixture.deviceToken,
                 [
-                    "The user just shared their name during onboarding. Use it naturally, then continue with the Antirot first onboarding message.",
+                    "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
                     "Silent client context is available below for scheduling only.",
                     "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-                    "The first onboarding message asks for a gist of long-term goals, short-term goals, what the day looks like, and what the user plans to get done today.",
+                    "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.",
                     "Name: Mehul",
                     "Silent device timezone: Asia/Kolkata"
                 ].join("\n")
