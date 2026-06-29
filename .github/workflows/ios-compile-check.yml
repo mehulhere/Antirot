@@ -1,0 +1,69 @@
+name: iOS Compile Check
+
+on:
+  pull_request:
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-compile-check.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-compile-check.yml"
+  workflow_dispatch:
+
+jobs:
+  compile-ios:
+    name: Compile iOS app
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: apps/ios
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          ls -1 /Applications/Xcode*.app || true
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Verify iOS 26 SDK
+        run: |
+          set -euo pipefail
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iphoneos SDK: ${SDK_VERSION}"
+          case "${SDK_VERSION}" in
+            26*) ;;
+            *)
+              echo "AlarmKit requires an iOS 26 SDK. Refusing to run a misleading compile check."
+              exit 1
+              ;;
+          esac
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Compile app without signing
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Antirot.xcodeproj \
+            -scheme Antirot \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build/CompileCheckDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
