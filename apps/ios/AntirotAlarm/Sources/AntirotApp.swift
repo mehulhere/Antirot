@@ -43,9 +43,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             let settings = SettingsStore()
             guard !settings.apiToken.isEmpty else { return }
 
-            let alarmCenter = AlarmCenter()
-            await alarmCenter.configure(settings: settings)
-            await alarmCenter.registerDevice()
+            let client = APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
+            do {
+                let response = try await client.registerDevice(DeviceRegistrationRequest(
+                    deviceId: settings.deviceId,
+                    platform: "ios",
+                    appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0",
+                    notificationCapability: "remote_notification",
+                    usageCapability: await ScreenTimeCenter.currentCapability(),
+                    pushProvider: "apns",
+                    pushToken: settings.pushToken.isEmpty ? nil : settings.pushToken
+                ))
+                settings.registered = response.ok
+                settings.statusMessage = response.message ?? "Registered as \(response.deviceId)"
+            } catch {
+                print("🔴 FALLBACK: APNs token backend registration failed - Reason: \(error.localizedDescription) - Impact: backend wake pushes may not reach this device until next manual registration")
+            }
         }
     }
 

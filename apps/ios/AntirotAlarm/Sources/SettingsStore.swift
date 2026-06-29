@@ -51,9 +51,10 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        let storedDeviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
         self.serverURL = Self.normalizedServerURL(defaults.string(forKey: Keys.serverURL))
         self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
-        self.deviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
+        self.deviceId = storedDeviceId
         self.userId = defaults.string(forKey: Keys.userId) ?? "admin"
         self.registered = defaults.bool(forKey: Keys.registered)
         self.alarmSoundName = defaults.string(forKey: Keys.alarmSoundName) ?? ""
@@ -62,6 +63,9 @@ final class SettingsStore: ObservableObject {
         self.onboardingName = defaults.string(forKey: Keys.onboardingName) ?? ""
         self.onboardingNameSent = defaults.bool(forKey: Keys.onboardingNameSent)
             || !(defaults.string(forKey: Keys.onboardingName) ?? "").isEmpty
+        if defaults.string(forKey: Keys.deviceId) == nil {
+            defaults.set(storedDeviceId, forKey: Keys.deviceId)
+        }
         self.pushTokenObserver = NotificationCenter.default.addObserver(
             forName: .antirotPushTokenDidChange,
             object: nil,
