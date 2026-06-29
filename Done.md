@@ -60,6 +60,7 @@
 - Press Speak in the frontend lab and verify gentle VAD sends 10s-minimum, 30-60s-preferred audio chunks through `/v1/speech/transcribe`.
 - Build iOS and Android on real phones, then verify state-aware coach chips and gentle voice capture send 10s-minimum, 30-60s-preferred clips through `/v1/speech/transcribe` before `/v1/chat`.
 - In frontend, iOS, and Android onboarding, enter the name in the popup and verify the coach continues the remaining onboarding through chat or voice.
+- During onboarding, give goals/day/today details and verify the second coach reply sounds like a human coach, not an intake form with phrases like "raw facts" or "so we can get to work."
 - In frontend, iOS, and Android voice chat, speak multiple VAD chunks quickly and verify transcriptions and coach sends process in capture order without dropped messages.
 - Run `npm run frontend:dev` with a localhost `DATABASE_URL` and Postgres stopped, then verify the launcher starts/creates `antirot-postgres` before Next.js serves the lab.
 - Open the frontend lab and verify it renders inside an iPhone-style frame with iOS status chrome, dynamic island, rounded screen, and scrollable in-phone content.
