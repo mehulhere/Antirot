@@ -1,6 +1,13 @@
 import Foundation
 
 struct APIClient {
+    private enum RequestTimeout {
+        static let health: TimeInterval = 15
+        static let standard: TimeInterval = 60
+        static let chat: TimeInterval = 300
+        static let speechTranscription: TimeInterval = 60
+    }
+
     enum APIError: Error, LocalizedError {
         case missingServerURL
         case invalidResponse(status: Int, body: String)
@@ -16,7 +23,7 @@ struct APIClient {
             case let .decodeFailed(body):
                 "Antirot backend returned unexpected JSON: \(body)"
             case let .transportFailed(url, underlying):
-                "Could not reach Antirot backend at \(url). Network failed before an HTTP response. \(underlying)"
+                "Could not complete Antirot backend request at \(url). Network failed before an HTTP response or the backend took too long to reply. \(underlying)"
             }
         }
 
@@ -29,7 +36,7 @@ struct APIClient {
             case .decodeFailed:
                 "The device reached the backend, but the app and backend disagree on the response shape. Rebuild the app from the latest code."
             case .transportFailed:
-                "Open https://api.antirot.org/v1/health on this iPhone. If Safari works but the app fails, share this full error including the NSURLError code."
+                "Open https://api.antirot.org/v1/health on this iPhone. If Safari works but chat still times out, retry once on the same network and share this full error including the NSURLError code."
             }
         }
 
@@ -55,6 +62,7 @@ struct APIClient {
         let url = try Self.endpointURL(baseURL: effectiveBaseURL(), path: "/v1/health")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = RequestTimeout.health
         let (data, urlResponse) = try await perform(request)
         let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode ?? 500
         guard statusCode < 300 else {
@@ -130,7 +138,8 @@ struct APIClient {
             path: "/v1/chat",
             method: "POST",
             body: ChatCoachRequest(message: message),
-            response: ChatCoachResponse.self
+            response: ChatCoachResponse.self,
+            timeoutInterval: RequestTimeout.chat
         )
     }
 
@@ -161,7 +170,7 @@ struct APIClient {
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/speech/transcribe"))
         request.httpMethod = "POST"
-        request.timeoutInterval = 60
+        request.timeoutInterval = RequestTimeout.speechTranscription
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         addAuth(to: &request)
 
@@ -203,11 +212,13 @@ struct APIClient {
         method: String,
         body: RequestBody,
         response: ResponseBody.Type,
-        includeAuth: Bool = true
+        includeAuth: Bool = true,
+        timeoutInterval: TimeInterval = RequestTimeout.standard
     ) async throws -> ResponseBody {
         let baseURL = effectiveBaseURL()
         var request = URLRequest(url: try Self.endpointURL(baseURL: baseURL, path: path))
         request.httpMethod = method
+        request.timeoutInterval = timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if includeAuth {
             addAuth(to: &request)
@@ -242,7 +253,7 @@ struct APIClient {
     private func logPreparedRequest(_ request: URLRequest, includeAuth: Bool) {
         let method = request.httpMethod ?? "<missing>"
         let url = request.url?.absoluteString ?? "<missing>"
-        print("Antirot API request method=\(method) url=\(url) includeAuth=\(includeAuth)")
+        print("Antirot API request method=\(method) url=\(url) timeout=\(Int(request.timeoutInterval))s includeAuth=\(includeAuth)")
     }
 
     private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -280,10 +291,13 @@ struct APIClient {
         return url
     }
 
-    private static func transportFailureDescription(_ error: Error) -> String {
+    static func transportFailureDescription(_ error: Error) -> String {
         let nsError = error as NSError
         var parts = [error.localizedDescription, "\(nsError.domain) \(nsError.code)"]
         if let urlError = error as? URLError {
+            if urlError.code == .timedOut {
+                parts[0] = "The request timed out before the backend replied. This can happen when the coach LLM is still thinking or the current network is slow."
+            }
             parts.append("URLError \(urlError.code.rawValue)")
         }
         if let failingURL = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL {

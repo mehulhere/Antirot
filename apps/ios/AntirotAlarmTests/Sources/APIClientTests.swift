@@ -31,4 +31,19 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(error.localizedDescription.contains("NSURLErrorDomain -1004"))
         XCTAssertTrue(error.recoverySuggestion?.contains("/v1/health") == true)
     }
+
+    func testTransportTimeoutExplainsBackendWait() {
+        let description = APIClient.transportFailureDescription(URLError(.timedOut))
+        XCTAssertTrue(description.contains("timed out before the backend replied"))
+        XCTAssertTrue(description.contains("URLError -1001"))
+
+        let error = APIClient.APIError.transportFailed(
+            url: "https://api.antirot.org/v1/chat",
+            underlying: description
+        )
+
+        XCTAssertTrue(error.localizedDescription.contains("timed out before the backend replied"))
+        XCTAssertTrue(error.localizedDescription.contains("/v1/chat"))
+        XCTAssertTrue(error.localizedDescription.contains("URLError -1001"))
+    }
 }
