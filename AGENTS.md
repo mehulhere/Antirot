@@ -19,6 +19,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - If a port is busy, use another port
 - If `.brain/KNOWLEDGE.md` exists, record project-specific gotchas there
 - In setup/deployment instructions, whenever using placeholders like `YOUR_REPO_URL`, `CHANGE_DB_PASSWORD`, or `api.yourdomain.com`, mention exactly what each placeholder means directly below the instruction or command block.
+- For VPS-level work that requires sudo access the agent cannot use directly, give the user exact copy/paste commands and ask them to paste the output back before continuing.
 
 ## 🤖 Autonomy
 - Continue when the next step is obvious from the repo, logs, runtime output, or the user’s goal

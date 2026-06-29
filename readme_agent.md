@@ -42,6 +42,8 @@ If debugging logs are needed and journal access is configured, use:
 sudo -n /usr/bin/journalctl -u antirot-backend.service -n 120 --no-pager
 ```
 
+If VPS-level work needs sudo access that the agent cannot use directly, give the user exact copy/paste commands and ask them to paste the output back before continuing. If the user shares a temporary sudo password in chat for diagnostics, use it only for the active session and do not save the password in tracked files, logs, commits, or docs.
+
 Important: do not replace `/usr/bin/systemctl` with bare `systemctl` in deploy scripts or GitHub Actions. The sudoers rule may reject command forms that do not match exactly.
 
 For manual backend hot deploys on the VPS, non-interactive SSH usually does not have Cargo on `PATH`, and the systemd service runs the binary from `/opt/antirot/apps/backend/antirot-backend`. Use the full Cargo path and install to that service path:

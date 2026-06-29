@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, FixedOffset, SecondsFormat, Utc};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -122,7 +122,14 @@ async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         ok: true,
         service: "antirot-backend",
+        current_time_ist: current_time_ist(Utc::now()),
     })
+}
+
+fn current_time_ist(now: DateTime<Utc>) -> String {
+    let ist = FixedOffset::east_opt(5 * 60 * 60 + 30 * 60)
+        .expect("IST fixed offset should be valid");
+    now.with_timezone(&ist).to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 async fn auth_google(
@@ -1956,4 +1963,18 @@ async fn cancel_alarms_by_kind(
         .await? as i64;
 
     Ok(Json(CancelAlarmsResponse { ok: true, count }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_time_ist_formats_utc_time_with_ist_offset() {
+        let now = DateTime::parse_from_rfc3339("2026-06-29T19:40:05Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        assert_eq!(current_time_ist(now), "2026-06-30T01:10:05+05:30");
+    }
 }

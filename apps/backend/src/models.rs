@@ -174,6 +174,7 @@ pub struct DeliveryState {
 pub struct HealthResponse {
     pub ok: bool,
     pub service: &'static str,
+    pub current_time_ist: String,
 }
 
 impl CreateAlarmRequest {
