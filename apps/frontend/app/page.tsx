@@ -407,16 +407,54 @@ function describeSnapshotChange(previous: Snapshot | null, next: Snapshot) {
         }
     }
 
-    const previousAlarms = normalizeForReport(previous?.alarmCounts ?? []);
-    const nextAlarms = normalizeForReport(next.alarmCounts);
-    if (previous && previousAlarms !== nextAlarms) {
-        changes.push(`Alarm counts changed:\nBefore: ${previousAlarms}\nAfter: ${nextAlarms}`);
-    }
     return changes;
 }
 
 function reportWindowStartIso(now = new Date()) {
     return new Date(now.getTime() - REPORT_WINDOW_MS).toISOString();
+}
+
+function runtimeSnapshotForReport(value: Snapshot | null) {
+    if (!value) {
+        return null;
+    }
+    return {
+        ok: value.ok,
+        userId: value.userId,
+        deviceId: value.deviceId,
+        runtimeState: value.runtimeState
+    };
+}
+
+function diagnosticsForReport(value: ContextReport | null) {
+    if (!value) {
+        return null;
+    }
+    return {
+        ok: value.ok,
+        userId: value.userId,
+        provider: value.report.provider,
+        model: value.report.model,
+        systemPromptChars: value.report.systemPromptChars,
+        toolCount: value.report.toolCount,
+        memory: value.report.memory,
+        runtimeState: value.runtimeState ?? null,
+        sleepMetrics: value.sleepMetrics ?? null
+    };
+}
+
+function reportEventIsRedundant(event: ReportEvent) {
+    return [
+        "alarms.pending",
+        "backend.health",
+        "chat.coach",
+        "chat.system",
+        "chat.user",
+        "chat.send",
+        "diagnostics.prompt",
+        "llm.reply",
+        "memory.observed"
+    ].includes(event.kind);
 }
 
 export default function AntirotLabPage() {
@@ -457,7 +495,6 @@ export default function AntirotLabPage() {
     const reportEventsRef = useRef<ReportEvent[]>([]);
     const memorySnapshotsRef = useRef(new Map<string, string>());
     const lastSnapshotRef = useRef<Snapshot | null>(null);
-    const lastPendingAlarmsRef = useRef<PendingAlarm[]>([]);
 
     const stateName = runtimeStateName(snapshot?.runtimeState?.state);
     const stateSource = snapshot?.runtimeState?.sourceTool ?? "none";
@@ -699,16 +736,14 @@ export default function AntirotLabPage() {
     function trackSnapshotChange(source: string, next: Snapshot) {
         const changes = describeSnapshotChange(lastSnapshotRef.current, next);
         if (changes.length > 0) {
-            recordEvent("state.snapshot", `${source}: ${changes.length} state/alarm change(s)`, changes.join("\n\n"));
+            recordEvent("state.snapshot", `${source}: ${changes.length} state change(s)`, changes.join("\n\n"));
         }
         lastSnapshotRef.current = next;
     }
 
     function trackMemoryObservation(key: string, content: string, source: string) {
         const previous = memorySnapshotsRef.current.get(key);
-        if (previous === undefined) {
-            recordEvent("memory.observed", `${source}: observed ${key}.md (${content.length} chars)`);
-        } else if (previous !== content) {
+        if (previous !== undefined && previous !== content) {
             recordEvent(
                 "memory.changed",
                 `${source}: ${key}.md changed (${summarizeMemoryDiff(previous, content)})`,
@@ -857,12 +892,6 @@ export default function AntirotLabPage() {
                 DEVICE_TOKEN
             );
             setPendingAlarms(alarms);
-            const previous = normalizeForReport(lastPendingAlarmsRef.current);
-            const next = normalizeForReport(alarms);
-            if (previous !== next) {
-                recordEvent("alarms.pending", `Pending alarms changed: ${lastPendingAlarmsRef.current.length} -> ${alarms.length}`, `Before:\n${previous}\n\nAfter:\n${next}`);
-            }
-            lastPendingAlarmsRef.current = alarms;
         } catch {
             setPendingAlarms([]);
         }
@@ -1232,13 +1261,14 @@ export default function AntirotLabPage() {
     function buildReportMarkdown(events: ReportEvent[], memoryRows: ReportMemorySnapshot[], now = new Date()) {
         const windowStart = reportWindowStartIso(now);
         const reportCreated = now.toISOString();
-        const eventLines = events.length
-            ? events.map((event, index) => [
+        const timelineEvents = events.filter((event) => !reportEventIsRedundant(event));
+        const eventLines = timelineEvents.length
+            ? timelineEvents.map((event, index) => [
                 `### ${index + 1}. ${event.kind} @ ${event.at}`,
                 event.summary,
                 event.detail ? `\n\`\`\`text\n${event.detail}\n\`\`\`` : ""
             ].filter(Boolean).join("\n")).join("\n\n")
-            : "No frontend events were recorded in this 30-minute window.";
+            : "No non-chat state/action/error events were recorded in this 30-minute window.";
 
         const chatLines = messages.length
             ? messages.map((message, index) => [
@@ -1249,13 +1279,16 @@ export default function AntirotLabPage() {
             ].join("\n")).join("\n\n")
             : "No browser-visible chat messages.";
 
-        const memoryLines = memoryRows.map((row) => [
+        const changedMemoryRows = memoryRows.filter((row) => row.previous !== undefined && row.previous !== row.content);
+        const failedMemoryRows = memoryRows.filter((row) => row.previous === undefined && row.summary === "Load failed during report capture.");
+        const memoryLines = [...changedMemoryRows, ...failedMemoryRows].map((row) => [
             `### ${row.key}.md`,
             `Summary: ${row.summary}`,
             row.previous !== undefined && row.previous !== row.content
                 ? `\nBefore:\n\`\`\`md\n${row.previous}\n\`\`\`\n\nAfter:\n\`\`\`md\n${row.content}\n\`\`\``
-                : `\nCurrent:\n\`\`\`md\n${row.content}\n\`\`\``
-        ].join("\n")).join("\n\n");
+                : `\n\`\`\`text\n${row.content}\n\`\`\``
+        ].join("\n")).join("\n\n") || "No memory file changed after this frontend session started.";
+        const observedMemoryKeys = memoryRows.map((row) => `${row.key}.md`).join(", ") || "none";
 
         return [
             "# Antirot Frontend Flow Report",
@@ -1265,20 +1298,16 @@ export default function AntirotLabPage() {
             `Backend: ${BACKEND_URL}`,
             `User ID: ${USER_ID}`,
             `Device ID: ${DEVICE_ID}`,
+            `Observed memory files: ${observedMemoryKeys}`,
             "",
-            "## Current Runtime Snapshot",
+            "## Current Runtime State",
             "```json",
-            normalizeForReport(snapshot),
+            normalizeForReport(runtimeSnapshotForReport(snapshot)),
             "```",
             "",
-            "## Current Pending Alarms",
+            "## Backend Diagnostics Summary",
             "```json",
-            normalizeForReport(pendingAlarms),
-            "```",
-            "",
-            "## Current Diagnostics",
-            "```json",
-            normalizeForReport(diagnostics),
+            normalizeForReport(diagnosticsForReport(diagnostics)),
             "```",
             "",
             "## Browser Chat Messages",
