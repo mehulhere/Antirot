@@ -156,6 +156,21 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS chat_messages_user_id_created_at_idx
     ON chat_messages (user_id, created_at ASC);
 
+CREATE TABLE IF NOT EXISTS user_reports (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_id TEXT,
+    title TEXT NOT NULL,
+    window_start TIMESTAMPTZ NOT NULL,
+    window_end TIMESTAMPTZ NOT NULL,
+    report_markdown TEXT NOT NULL,
+    events JSONB NOT NULL DEFAULT '[]'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS user_reports_user_created_idx
+    ON user_reports (user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS user_runtime_states (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     state TEXT NOT NULL CHECK (state IN ('onboarding', 'idle', 'working', 'sleeping', 'break', 'vacation')),

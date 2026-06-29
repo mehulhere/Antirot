@@ -260,6 +260,34 @@ pub struct ChatHistoryResponse {
     pub messages: Vec<ChatHistoryMessage>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportEvent {
+    pub at: DateTime<Utc>,
+    pub kind: String,
+    pub summary: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateReportRequest {
+    pub device_id: Option<String>,
+    pub title: String,
+    pub window_start: DateTime<Utc>,
+    pub window_end: DateTime<Utc>,
+    pub report_markdown: String,
+    pub events: Vec<ReportEvent>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateReportResponse {
+    pub ok: bool,
+    pub report_id: String,
+    pub saved_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpeechTranscriptionResponse {

@@ -6,21 +6,20 @@ use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use chrono::{DateTime, Duration, FixedOffset, SecondsFormat, Utc};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio_postgres::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::AppState;
 use crate::auth::{
-    SESSION_DAYS, expired_session_cookie_header, get_user_id_from_auth, issue_session_jwt,
-    require_admin_auth, require_device_auth, require_device_auth_for, session_cookie_header,
-    session_from_headers, token_hash,
+    expired_session_cookie_header, get_user_id_from_auth, issue_session_jwt, require_admin_auth,
+    require_device_auth, require_device_auth_for, session_cookie_header, session_from_headers,
+    token_hash, SESSION_DAYS,
 };
 use crate::error::{AppError, AppResult};
 use crate::llm::{
@@ -30,13 +29,15 @@ use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, AuthMeResponse, ChatHistoryMessage,
     ChatHistoryResponse, ChatRequest, ChatResponse, CreateAlarmRequest, CreateAlarmResponse,
-    DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse, GoogleAuthRequest,
-    GoogleAuthResponse, HealthResponse, MemoryResponse, PairingClaimRequest, PairingClaimResponse,
-    SessionRequest, SessionResponse, SpeechSynthesisRequest, SpeechSynthesisResponse,
-    SpeechTranscriptionResponse, SubscriptionResponse, SubscriptionUpdateRequest,
-    UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
+    CreateReportRequest, CreateReportResponse, DeliveryState, DeviceRegistrationRequest,
+    DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
+    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SessionRequest, SessionResponse,
+    SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechTranscriptionResponse,
+    SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
+    WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key};
+use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,6 +71,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
         .route("/chat/history", get(chat_history))
+        .route("/reports", post(create_report))
         .route("/speech/transcribe", post(transcribe_speech))
         .route("/speech/synthesize", post(synthesize_speech))
         .route("/test/reset", post(test_reset))
@@ -101,6 +103,7 @@ pub fn router() -> Router<AppState> {
         .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
         .route("/v1/chat/history", get(chat_history))
+        .route("/v1/reports", post(create_report))
         .route("/v1/speech/transcribe", post(transcribe_speech))
         .route("/v1/speech/synthesize", post(synthesize_speech))
         .route("/v1/test/reset", post(test_reset))
@@ -127,9 +130,10 @@ async fn health() -> Json<HealthResponse> {
 }
 
 fn current_time_ist(now: DateTime<Utc>) -> String {
-    let ist = FixedOffset::east_opt(5 * 60 * 60 + 30 * 60)
-        .expect("IST fixed offset should be valid");
-    now.with_timezone(&ist).to_rfc3339_opts(SecondsFormat::Secs, true)
+    let ist =
+        FixedOffset::east_opt(5 * 60 * 60 + 30 * 60).expect("IST fixed offset should be valid");
+    now.with_timezone(&ist)
+        .to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 async fn auth_google(
@@ -1319,6 +1323,72 @@ async fn chat_history(
         })
         .collect();
     Ok(Json(ChatHistoryResponse { ok: true, messages }))
+}
+
+async fn create_report(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<CreateReportRequest>,
+) -> AppResult<Json<CreateReportResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    validate_non_empty("title", &req.title)?;
+    validate_non_empty("reportMarkdown", &req.report_markdown)?;
+    if req.report_markdown.chars().count() > 250_000 {
+        return Err(AppError::BadRequest(
+            "Report is too large. Trim the captured window and try again.".to_string(),
+        ));
+    }
+    if req.events.len() > 1_000 {
+        return Err(AppError::BadRequest(
+            "Report has too many events. Trim the captured window and try again.".to_string(),
+        ));
+    }
+
+    let report_id = Uuid::new_v4().to_string();
+    let events = serde_json::to_string(&req.events).map_err(|err| {
+        AppError::BadRequest(format!("Failed to serialize report events: {}", err))
+    })?;
+    let client = state.pool.get().await?;
+    client
+        .execute(
+            "
+            INSERT INTO user_reports (
+                id,
+                user_id,
+                device_id,
+                title,
+                window_start,
+                window_end,
+                report_markdown,
+                events
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::TEXT::JSONB)
+            ",
+            &[
+                &report_id,
+                &user_id,
+                &req.device_id,
+                &req.title,
+                &req.window_start,
+                &req.window_end,
+                &req.report_markdown,
+                &events,
+            ],
+        )
+        .await?;
+
+    info!(
+        report_id = %report_id,
+        user_id = %user_id,
+        event_count = req.events.len(),
+        "saved user report"
+    );
+
+    Ok(Json(CreateReportResponse {
+        ok: true,
+        report_id,
+        saved_at: Utc::now(),
+    }))
 }
 
 async fn transcribe_speech(

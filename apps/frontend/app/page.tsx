@@ -36,7 +36,7 @@ const VAD_MIN_UPLOAD_SECONDS = 10;
 const VAD_PREFERRED_UPLOAD_SECONDS = 30;
 const VAD_HARD_UPLOAD_SECONDS = 60;
 const VAD_SETTLED_SILENCE_MS = 1500;
-const MAX_VISIBLE_MESSAGES = 3;
+const REPORT_WINDOW_MS = 30 * 60 * 1000;
 const NIGHT_ACTION_START_HOUR = 20;
 const NIGHT_ACTION_END_HOUR = 5;
 const ONBOARDING_NAME_STORAGE_KEY = "antirot:onboardingName";
@@ -184,6 +184,27 @@ type SpeechTranscriptResult = {
     seconds: number;
     reason: string;
     error?: string;
+};
+
+type ReportEvent = {
+    id: string;
+    at: string;
+    kind: string;
+    summary: string;
+    detail?: string;
+};
+
+type CreateReportResponse = {
+    ok: boolean;
+    reportId: string;
+    savedAt: string;
+};
+
+type ReportMemorySnapshot = {
+    key: string;
+    content: string;
+    previous?: string;
+    summary: string;
 };
 
 const memoryTabs = [
@@ -349,6 +370,55 @@ function loadCachedNamePromptSent() {
     return window.localStorage.getItem(ONBOARDING_NAME_SENT_STORAGE_KEY) === "true" || Boolean(loadCachedOnboardingName());
 }
 
+function normalizeForReport(value: unknown) {
+    return JSON.stringify(value, null, 2);
+}
+
+function summarizeMemoryDiff(previous: string, next: string) {
+    const previousLines = previous.split("\n");
+    const nextLines = next.split("\n");
+    const maxLines = Math.max(previousLines.length, nextLines.length);
+    let changedLines = 0;
+    for (let index = 0; index < maxLines; index += 1) {
+        if ((previousLines[index] ?? "") !== (nextLines[index] ?? "")) {
+            changedLines += 1;
+        }
+    }
+    return `${changedLines} line(s) changed, ${previous.length} -> ${next.length} chars`;
+}
+
+function describeSnapshotChange(previous: Snapshot | null, next: Snapshot) {
+    const changes: string[] = [];
+    const previousState = previous?.runtimeState;
+    const nextState = next.runtimeState;
+    if (!previousState && nextState) {
+        changes.push(`Runtime state observed: ${nextState.state} from ${nextState.sourceTool ?? "unknown"}`);
+    } else if (previousState && !nextState) {
+        changes.push(`Runtime state cleared from ${previousState.state}`);
+    } else if (previousState && nextState) {
+        if (previousState.state !== nextState.state) {
+            changes.push(`Runtime state: ${previousState.state} -> ${nextState.state}`);
+        }
+        if (previousState.sourceTool !== nextState.sourceTool) {
+            changes.push(`State source: ${previousState.sourceTool ?? "none"} -> ${nextState.sourceTool ?? "none"}`);
+        }
+        if (previousState.metadata !== nextState.metadata) {
+            changes.push(`State metadata changed: ${previousState.metadata} -> ${nextState.metadata}`);
+        }
+    }
+
+    const previousAlarms = normalizeForReport(previous?.alarmCounts ?? []);
+    const nextAlarms = normalizeForReport(next.alarmCounts);
+    if (previous && previousAlarms !== nextAlarms) {
+        changes.push(`Alarm counts changed:\nBefore: ${previousAlarms}\nAfter: ${nextAlarms}`);
+    }
+    return changes;
+}
+
+function reportWindowStartIso(now = new Date()) {
+    return new Date(now.getTime() - REPORT_WINDOW_MS).toISOString();
+}
+
 export default function AntirotLabPage() {
     const [connection, setConnection] = useState<Status>("idle");
     const [testMode, setTestMode] = useState<Status>("idle");
@@ -368,11 +438,14 @@ export default function AntirotLabPage() {
     const [lastError, setLastError] = useState("");
     const [googleStatus, setGoogleStatus] = useState("Google web sign-in not loaded.");
     const [googleResult, setGoogleResult] = useState("Use this to compare browser Google login with the iOS app.");
+    const [reportStatus, setReportStatus] = useState("Report captures the last 30 minutes.");
+    const [isReporting, setIsReporting] = useState(false);
     const [iosClock, setIosClock] = useState("");
     const [browserReady, setBrowserReady] = useState(false);
     const [nightActionVisible, setNightActionVisible] = useState(false);
     const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const googleButtonRenderedRef = useRef(false);
+    const chatLogRef = useRef<HTMLDivElement | null>(null);
     const vadRef = useRef<MicVAD | null>(null);
     const vadBufferRef = useRef<Float32Array[]>([]);
     const vadBufferSecondsRef = useRef(0);
@@ -381,6 +454,10 @@ export default function AntirotLabPage() {
     const nextTranscriptSequenceRef = useRef(0);
     const pendingTranscriptResultsRef = useRef(new Map<number, SpeechTranscriptResult>());
     const speechInFlightRef = useRef(0);
+    const reportEventsRef = useRef<ReportEvent[]>([]);
+    const memorySnapshotsRef = useRef(new Map<string, string>());
+    const lastSnapshotRef = useRef<Snapshot | null>(null);
+    const lastPendingAlarmsRef = useRef<PendingAlarm[]>([]);
 
     const stateName = runtimeStateName(snapshot?.runtimeState?.state);
     const stateSource = snapshot?.runtimeState?.sourceTool ?? "none";
@@ -555,16 +632,26 @@ export default function AntirotLabPage() {
         }
     }, [connection, memoryKey]);
 
+    useEffect(() => {
+        const chatLog = chatLogRef.current;
+        if (!chatLog) {
+            return;
+        }
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }, [messages]);
+
     async function handleGoogleCredential(response: GoogleCredentialResponse) {
         const credential = response.credential?.trim();
         if (!credential) {
             setGoogleStatus("Google returned no credential.");
             setGoogleResult(JSON.stringify(response, null, 2));
+            recordEvent("auth.google.empty", "Google returned no credential.", normalizeForReport(response));
             return;
         }
 
         setGoogleStatus("Google token received. Posting to Antirot backend...");
         setGoogleResult(`Credential JWT received (${credential.length} chars).`);
+        recordEvent("auth.google.token", `Google credential received (${credential.length} chars).`);
 
         try {
             const result = await backendJson<unknown>(
@@ -584,14 +671,59 @@ export default function AntirotLabPage() {
             );
             setGoogleStatus("Backend Google login succeeded.");
             setGoogleResult(JSON.stringify(result, null, 2));
+            recordEvent("auth.google.success", "Backend Google login succeeded.", normalizeForReport(result));
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             setGoogleStatus("Backend Google login failed.");
             setGoogleResult(message);
+            recordEvent("auth.google.fail", `Backend Google login failed: ${message}`);
         }
     }
 
+    function recordEvent(kind: string, summary: string, detail?: string) {
+        const now = new Date();
+        const cutoff = now.getTime() - REPORT_WINDOW_MS;
+        const nextEvent: ReportEvent = {
+            id: `${now.getTime()}-${Math.random().toString(16).slice(2)}`,
+            at: now.toISOString(),
+            kind,
+            summary,
+            ...(detail ? { detail } : {})
+        };
+        reportEventsRef.current = [
+            ...reportEventsRef.current.filter((event) => new Date(event.at).getTime() >= cutoff),
+            nextEvent
+        ];
+    }
+
+    function trackSnapshotChange(source: string, next: Snapshot) {
+        const changes = describeSnapshotChange(lastSnapshotRef.current, next);
+        if (changes.length > 0) {
+            recordEvent("state.snapshot", `${source}: ${changes.length} state/alarm change(s)`, changes.join("\n\n"));
+        }
+        lastSnapshotRef.current = next;
+    }
+
+    function trackMemoryObservation(key: string, content: string, source: string) {
+        const previous = memorySnapshotsRef.current.get(key);
+        if (previous === undefined) {
+            recordEvent("memory.observed", `${source}: observed ${key}.md (${content.length} chars)`);
+        } else if (previous !== content) {
+            recordEvent(
+                "memory.changed",
+                `${source}: ${key}.md changed (${summarizeMemoryDiff(previous, content)})`,
+                [`Before:\n${previous}`, `After:\n${content}`].join("\n\n---\n\n")
+            );
+        }
+        memorySnapshotsRef.current.set(key, content);
+    }
+
     function pushMessage(role: Role, text: string, extras: Partial<Pick<ChatMessage, "audioUrl" | "audioSeconds">> = {}) {
+        recordEvent(
+            `chat.${role}`,
+            `${role === "coach" ? "Antirot" : role} message${extras.audioSeconds ? ` (${extras.audioSeconds.toFixed(1)}s audio)` : ""}`,
+            text
+        );
         setMessages((current) => [
             ...current,
             {
@@ -601,7 +733,7 @@ export default function AntirotLabPage() {
                 at: nowLabel(),
                 ...extras
             }
-        ].slice(-MAX_VISIBLE_MESSAGES));
+        ]);
     }
 
     function removeMessage(id: string) {
@@ -609,6 +741,7 @@ export default function AntirotLabPage() {
     }
 
     async function resetBrowserConversation() {
+        recordEvent("button.resetConversation", "Reset browser conversation pressed.");
         window.localStorage.removeItem(ONBOARDING_NAME_STORAGE_KEY);
         window.localStorage.removeItem(ONBOARDING_NAME_SENT_STORAGE_KEY);
         setMessages([...initialMessages]);
@@ -633,6 +766,7 @@ export default function AntirotLabPage() {
                 })
             });
             setSnapshot(reset);
+            trackSnapshotChange("backend fixture reset", reset);
             setTestMode("ok");
             setMessages([
                 ...initialMessages,
@@ -654,16 +788,19 @@ export default function AntirotLabPage() {
     function handleError(error: unknown, fallback: string) {
         const message = error instanceof Error ? error.message : fallback;
         setLastError(message);
+        recordEvent("error", `${fallback}: ${message}`);
         pushMessage("system", `${fallback}: ${message}`);
     }
 
     async function bootLab() {
+        recordEvent("button.resetLab", "Reset lab / boot flow started.");
         setConnection("loading");
         setTestMode("loading");
         setLastError("");
         try {
             await backendJson<{ ok: boolean }>("/v1/health", { method: "GET" }, "");
             setConnection("ok");
+            recordEvent("backend.health", `Backend health online at ${BACKEND_URL}.`);
             pushMessage("system", `Backend health is online at ${BACKEND_URL}.`);
         } catch (error) {
             setConnection("fail");
@@ -682,6 +819,7 @@ export default function AntirotLabPage() {
                 })
             });
             setSnapshot(reset);
+            trackSnapshotChange("boot test reset", reset);
             setTestMode("ok");
             pushMessage("system", "Test fixture reset. Direct state actions are enabled.");
         } catch (error) {
@@ -705,6 +843,7 @@ export default function AntirotLabPage() {
                 `/v1/test/state?userId=${encodeURIComponent(USER_ID)}&deviceId=${encodeURIComponent(DEVICE_ID)}`
             );
             setSnapshot(state);
+            trackSnapshotChange("state refresh", state);
         } catch {
             setSnapshot((current) => current);
         }
@@ -718,6 +857,12 @@ export default function AntirotLabPage() {
                 DEVICE_TOKEN
             );
             setPendingAlarms(alarms);
+            const previous = normalizeForReport(lastPendingAlarmsRef.current);
+            const next = normalizeForReport(alarms);
+            if (previous !== next) {
+                recordEvent("alarms.pending", `Pending alarms changed: ${lastPendingAlarmsRef.current.length} -> ${alarms.length}`, `Before:\n${previous}\n\nAfter:\n${next}`);
+            }
+            lastPendingAlarmsRef.current = alarms;
         } catch {
             setPendingAlarms([]);
         }
@@ -729,6 +874,7 @@ export default function AntirotLabPage() {
         try {
             const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(targetKey)}`, {}, DEVICE_TOKEN);
             setMemoryContent(memory.content || "# Empty\n");
+            trackMemoryObservation(targetKey, memory.content || "# Empty\n", "memory tab load");
         } catch (error) {
             setMemoryContent(error instanceof Error ? `Could not load ${targetKey}: ${error.message}` : `Could not load ${targetKey}.`);
         }
@@ -740,6 +886,7 @@ export default function AntirotLabPage() {
                 `/v1/admin/context?userId=${encodeURIComponent(USER_ID)}&provider=gemini&model=gemini-3.5-flash`
             );
             setDiagnostics(report);
+            recordEvent("diagnostics.prompt", `Diagnostics loaded: ${report.report.systemPromptChars} prompt chars, ${report.report.toolCount} tools.`);
         } catch {
             setDiagnostics(null);
         }
@@ -754,13 +901,17 @@ export default function AntirotLabPage() {
         setBusy(true);
         setDraft("");
         if (visible) {
+            recordEvent("chat.send", "User sent chat to coach.", visible);
             pushMessage("user", visible);
+        } else {
+            recordEvent("chat.send.hidden", "Hidden client onboarding message sent to coach.", trimmed);
         }
         try {
             const reply = await backendJson<{ ok: boolean; reply: string }>("/v1/chat", {
                 method: "POST",
                 body: JSON.stringify({ message: trimmed })
             });
+            recordEvent("llm.reply", "Coach LLM reply received.", reply.reply);
             pushMessage("coach", reply.reply);
             if (autoSpeak) {
                 void speakText(reply.reply);
@@ -784,6 +935,7 @@ export default function AntirotLabPage() {
         if (!name) {
             return;
         }
+        recordEvent("onboarding.name", `Onboarding name submitted: ${name}`);
         window.localStorage.setItem(ONBOARDING_NAME_STORAGE_KEY, name);
         window.localStorage.setItem(ONBOARDING_NAME_SENT_STORAGE_KEY, "true");
         setNamePromptSent(true);
@@ -791,6 +943,7 @@ export default function AntirotLabPage() {
     }
 
     async function runTool(action: LabAction) {
+        recordEvent("button.stateAction", `${action.label} pressed.`, normalizeForReport({ tool: action.tool, args: action.args }));
         setBusy(true);
         try {
             const result = await backendJson<{ ok: boolean; result: string; snapshot: Snapshot }>("/v1/test/tool", {
@@ -802,6 +955,8 @@ export default function AntirotLabPage() {
                 })
             });
             setSnapshot(result.snapshot);
+            trackSnapshotChange(`tool ${action.tool}`, result.snapshot);
+            recordEvent("tool.result", `${action.label}: ${result.result}`);
             pushMessage("system", `${action.label}: ${result.result}`);
             await refreshAll();
         } catch (error) {
@@ -812,6 +967,7 @@ export default function AntirotLabPage() {
     }
 
     async function acknowledgeAlarm(alarmId: string, action: "ack" | "dismiss" | "snooze" | "clear") {
+        recordEvent("button.alarmAction", `Alarm ${action} pressed for ${alarmId}.`);
         try {
             await backendJson(`/v1/alarms/${encodeURIComponent(alarmId)}/${action}`, {
                 method: "POST",
@@ -828,6 +984,7 @@ export default function AntirotLabPage() {
     }
 
     async function startRecording() {
+        recordEvent("button.voiceStart", "Voice capture start pressed.");
         if (!navigator.mediaDevices?.getUserMedia) {
             handleError(new Error("Microphone capture is unavailable in this browser."), "Voice capture failed");
             return;
@@ -850,14 +1007,22 @@ export default function AntirotLabPage() {
                 onSpeechStart: () => {
                     clearVadFlushTimer();
                     setSpeechStatus("Listening: speech detected...");
+                    recordEvent("voice.speechStart", "VAD detected speech.");
                 },
-                onSpeechRealStart: () => setSpeechStatus("Capturing utterance..."),
-                onVADMisfire: () => setSpeechStatus("Ignored a very short voice blip."),
+                onSpeechRealStart: () => {
+                    setSpeechStatus("Capturing utterance...");
+                    recordEvent("voice.realStart", "VAD confirmed real speech.");
+                },
+                onVADMisfire: () => {
+                    setSpeechStatus("Ignored a very short voice blip.");
+                    recordEvent("voice.misfire", "Ignored a very short voice blip.");
+                },
                 onSpeechEnd: (audio) => {
                     vadBufferRef.current.push(audio);
                     vadBufferSecondsRef.current += audio.length / VAD_SAMPLE_RATE;
                     const bufferedSeconds = vadBufferSecondsRef.current;
                     if (bufferedSeconds >= VAD_HARD_UPLOAD_SECONDS || bufferedSeconds >= VAD_PREFERRED_UPLOAD_SECONDS) {
+                        recordEvent("voice.bufferFlush", `Flushing ${bufferedSeconds.toFixed(1)}s voice buffer by threshold.`);
                         void flushVadBuffer(utils.encodeWAV, "vad-threshold");
                     } else if (bufferedSeconds >= VAD_MIN_UPLOAD_SECONDS) {
                         setSpeechStatus(`Buffered ${bufferedSeconds.toFixed(1)}s. Waiting for settled silence...`);
@@ -871,6 +1036,7 @@ export default function AntirotLabPage() {
             await vad.start();
             setRecording(true);
             setSpeechStatus("VAD listening. Speak naturally.");
+            recordEvent("voice.started", "VAD voice capture started.");
         } catch (error) {
             await cleanupVad();
             handleError(error, "Voice capture failed");
@@ -878,6 +1044,7 @@ export default function AntirotLabPage() {
     }
 
     async function stopRecording() {
+        recordEvent("button.voiceStop", "Voice capture stop pressed.");
         await cleanupVad();
         await flushVadBufferFromPackage("manual-stop");
         if (speechInFlightRef.current === 0) {
@@ -932,6 +1099,7 @@ export default function AntirotLabPage() {
         const audio = concatFloat32(chunks);
         const wav = encodeWAV(audio, 1, VAD_SAMPLE_RATE, 1, 16);
         const blob = new Blob([wav], { type: "audio/wav" });
+        recordEvent("voice.chunk", `Captured ${seconds.toFixed(1)}s voice chunk.`, `reason=${reason}, samples=${audio.length}`);
         pushMessage("user", "Voice message", {
             audioUrl: URL.createObjectURL(blob),
             audioSeconds: seconds
@@ -969,13 +1137,16 @@ export default function AntirotLabPage() {
                 continue;
             }
             if (result.error) {
+                recordEvent("speech.transcribe.fail", `Speech transcription failed for ${result.seconds.toFixed(1)}s chunk.`, result.error);
                 pushMessage("system", `Speech-to-text failed: ${result.error}`);
                 continue;
             }
             if (!result.text) {
+                recordEvent("speech.transcribe.empty", `No transcript returned for ${result.seconds.toFixed(1)}s voice chunk.`);
                 pushMessage("system", `No transcript returned for ${result.seconds.toFixed(1)}s voice chunk.`);
                 continue;
             }
+            recordEvent("speech.transcribe.success", `Transcript returned for ${result.seconds.toFixed(1)}s voice chunk.`, result.text);
             setDraft((current) => (current.trim() ? `${current.trim()} ${result.text}` : result.text));
         }
         updateSpeechStatus();
@@ -1021,8 +1192,179 @@ export default function AntirotLabPage() {
             });
             const audio = new Audio(`data:${response.contentType ?? "audio/mpeg"};base64,${response.audioBase64}`);
             await audio.play();
+            recordEvent("speech.synthesize.success", `TTS playback started (${response.contentType ?? "audio/mpeg"}).`);
         } catch (error) {
             handleError(error, "Text-to-speech failed");
+        }
+    }
+
+    async function loadReportMemorySnapshots() {
+        const rows: ReportMemorySnapshot[] = [];
+        for (const tab of memoryTabs) {
+            const key = tab.key === "work" ? todayWorkKey() : tab.key;
+            try {
+                const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(key)}`, {}, DEVICE_TOKEN);
+                const content = memory.content || "# Empty\n";
+                const previous = memorySnapshotsRef.current.get(key);
+                const summary = previous === undefined
+                    ? "No earlier browser-session baseline was observed; current content included."
+                    : previous === content
+                        ? "No change since the frontend last observed this file."
+                        : summarizeMemoryDiff(previous, content);
+                rows.push({
+                    key,
+                    content,
+                    ...(previous !== undefined ? { previous } : {}),
+                    summary
+                });
+                trackMemoryObservation(key, content, "report capture");
+            } catch (error) {
+                rows.push({
+                    key,
+                    content: error instanceof Error ? `Could not load ${key}: ${error.message}` : `Could not load ${key}.`,
+                    summary: "Load failed during report capture."
+                });
+            }
+        }
+        return rows;
+    }
+
+    function buildReportMarkdown(events: ReportEvent[], memoryRows: ReportMemorySnapshot[], now = new Date()) {
+        const windowStart = reportWindowStartIso(now);
+        const reportCreated = now.toISOString();
+        const eventLines = events.length
+            ? events.map((event, index) => [
+                `### ${index + 1}. ${event.kind} @ ${event.at}`,
+                event.summary,
+                event.detail ? `\n\`\`\`text\n${event.detail}\n\`\`\`` : ""
+            ].filter(Boolean).join("\n")).join("\n\n")
+            : "No frontend events were recorded in this 30-minute window.";
+
+        const chatLines = messages.length
+            ? messages.map((message, index) => [
+                `### ${index + 1}. ${message.role} / ${message.at}`,
+                message.audioUrl
+                    ? `Voice message${message.audioSeconds ? ` (${message.audioSeconds.toFixed(1)}s)` : ""}`
+                    : message.text
+            ].join("\n")).join("\n\n")
+            : "No browser-visible chat messages.";
+
+        const memoryLines = memoryRows.map((row) => [
+            `### ${row.key}.md`,
+            `Summary: ${row.summary}`,
+            row.previous !== undefined && row.previous !== row.content
+                ? `\nBefore:\n\`\`\`md\n${row.previous}\n\`\`\`\n\nAfter:\n\`\`\`md\n${row.content}\n\`\`\``
+                : `\nCurrent:\n\`\`\`md\n${row.content}\n\`\`\``
+        ].join("\n")).join("\n\n");
+
+        return [
+            "# Antirot Frontend Flow Report",
+            "",
+            `Created: ${reportCreated}`,
+            `Window: ${windowStart} -> ${reportCreated}`,
+            `Backend: ${BACKEND_URL}`,
+            `User ID: ${USER_ID}`,
+            `Device ID: ${DEVICE_ID}`,
+            "",
+            "## Current Runtime Snapshot",
+            "```json",
+            normalizeForReport(snapshot),
+            "```",
+            "",
+            "## Current Pending Alarms",
+            "```json",
+            normalizeForReport(pendingAlarms),
+            "```",
+            "",
+            "## Current Diagnostics",
+            "```json",
+            normalizeForReport(diagnostics),
+            "```",
+            "",
+            "## Browser Chat Messages",
+            chatLines,
+            "",
+            "## Memory File Observations",
+            memoryLines,
+            "",
+            "## Detailed Event Timeline",
+            eventLines
+        ].join("\n");
+    }
+
+    async function copyTextToClipboard(text: string) {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            if (!document.execCommand("copy")) {
+                throw new Error("Browser rejected the fallback clipboard copy.");
+            }
+        } finally {
+            document.body.removeChild(textarea);
+        }
+    }
+
+    async function createReport() {
+        if (isReporting) {
+            return;
+        }
+        const startedAt = new Date();
+        recordEvent("button.report", "Report button pressed.");
+        setIsReporting(true);
+        setReportStatus("Building report...");
+        try {
+            const windowStart = reportWindowStartIso(startedAt);
+            const memoryRows = await loadReportMemorySnapshots();
+            const windowEvents = reportEventsRef.current.filter((event) => new Date(event.at).getTime() >= startedAt.getTime() - REPORT_WINDOW_MS);
+            const reportMarkdown = buildReportMarkdown(windowEvents, memoryRows, startedAt);
+            setReportStatus("Saving report to backend...");
+            const saved = await backendJson<CreateReportResponse>("/v1/reports", {
+                method: "POST",
+                body: JSON.stringify({
+                    deviceId: DEVICE_ID,
+                    title: "Frontend lab flow report",
+                    windowStart,
+                    windowEnd: startedAt.toISOString(),
+                    reportMarkdown,
+                    events: windowEvents.map(({ at, kind, summary, detail }) => ({
+                        at,
+                        kind,
+                        summary,
+                        detail
+                    }))
+                })
+            }, DEVICE_TOKEN);
+
+            setReportStatus("Copying report to clipboard...");
+            try {
+                await copyTextToClipboard(reportMarkdown);
+                recordEvent("report.saved", `Report saved and copied. id=${saved.reportId}`);
+                setReportStatus(`Report copied and saved: ${saved.reportId}`);
+                pushMessage("system", `Report copied to clipboard and saved as ${saved.reportId}.`);
+            } catch (clipboardError) {
+                const copyMessage = clipboardError instanceof Error ? clipboardError.message : "Clipboard copy failed.";
+                recordEvent("report.copyFailed", `Report saved but clipboard copy failed. id=${saved.reportId}`, copyMessage);
+                setReportStatus(`Report saved as ${saved.reportId}, but clipboard copy failed.`);
+                pushMessage("system", `Report saved as ${saved.reportId}, but clipboard copy failed: ${copyMessage}`);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Report failed";
+            recordEvent("report.failed", `Report failed: ${message}`);
+            setReportStatus(`Report failed: ${message}`);
+            handleError(error, "Report failed");
+        } finally {
+            setIsReporting(false);
         }
     }
 
@@ -1144,18 +1486,31 @@ export default function AntirotLabPage() {
                                     icon={<Brain size={18} />}
                                     title="Coach conversation"
                                     action={
-                                        <button
-                                            aria-label="Reset browser conversation"
-                                            className="icon-button panel-action"
-                                            onClick={() => void resetBrowserConversation()}
-                                            title="Reset browser conversation"
-                                            type="button"
-                                        >
-                                            <Trash2 size={17} />
-                                        </button>
+                                        <div className="panel-actions">
+                                            <button
+                                                aria-label="Copy and save flow report"
+                                                className="icon-button panel-action"
+                                                disabled={isReporting}
+                                                onClick={() => void createReport()}
+                                                title="Copy and save flow report"
+                                                type="button"
+                                            >
+                                                <ClipboardList size={17} />
+                                            </button>
+                                            <button
+                                                aria-label="Reset browser conversation"
+                                                className="icon-button panel-action"
+                                                onClick={() => void resetBrowserConversation()}
+                                                title="Reset browser conversation"
+                                                type="button"
+                                            >
+                                                <Trash2 size={17} />
+                                            </button>
+                                        </div>
                                     }
                                 />
-                                <div className="chat-log">
+                                <p className="hint report-status">{reportStatus}</p>
+                                <div className="chat-log" ref={chatLogRef}>
                                     {messages.map((message) => (
                                         <div className={`message ${message.role}`} key={message.id}>
                                             <button

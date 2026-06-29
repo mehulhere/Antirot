@@ -692,10 +692,20 @@ button:hover:not(:disabled) {
     letter-spacing: 0.03em;
 }
 
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .panel-action {
     width: 36px;
     height: 36px;
     flex: 0 0 36px;
+}
+
+.report-status {
+    padding: 0 14px;
 }
 
 /* ---- Chat Messages ---- */
