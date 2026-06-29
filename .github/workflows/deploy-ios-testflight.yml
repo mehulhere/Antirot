@@ -82,6 +82,29 @@ jobs:
             plutil -p "${plist}" | grep -i version
           done
 
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: apps/ios/build/DerivedData/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('apps/ios/project.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Compile app without signing
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Antirot.xcodeproj \
+            -scheme Antirot \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="${{ env.BUILD_VERSION }}" \
+            build
+
       - name: Install Apple Certificate
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -167,14 +190,6 @@ jobs:
           cp main_app.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           cp report.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           cp widget.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-
-      - name: Cache Swift Package Manager
-        uses: actions/cache@v4
-        with:
-          path: apps/ios/build/DerivedData/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('apps/ios/project.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
 
       - name: Build and Archive App
         run: |
