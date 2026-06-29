@@ -78,7 +78,7 @@ struct APIClient {
 
     func signInWithGoogle(_ request: GoogleAuthRequest) async throws -> GoogleAuthResponse {
         try logRequest(method: "POST", path: "/v1/auth/google", includeAuth: false)
-        try await send(
+        return try await send(
             path: "/v1/auth/google",
             method: "POST",
             body: request,
