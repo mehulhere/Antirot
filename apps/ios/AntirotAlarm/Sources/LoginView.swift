@@ -121,10 +121,34 @@ struct LoginView: View {
             alarmCenter.lastErrorDetails = nil
             await alarmCenter.registerDevice()
         } catch {
-            settings.statusMessage = "Google sign-in failed"
-            alarmCenter.lastMessage = "Google sign-in failed"
-            alarmCenter.lastErrorDetails = error.localizedDescription
+            let message = shortErrorMessage(error)
+            settings.statusMessage = message
+            alarmCenter.lastMessage = message
+            alarmCenter.lastErrorDetails = fullErrorDetails(error)
         }
+    }
+
+    private func shortErrorMessage(_ error: Error) -> String {
+        if let apiError = error as? APIClient.APIError {
+            return apiError.shortMessage
+        }
+        if let googleAuthError = error as? GoogleAuthError {
+            return googleAuthError.shortMessage
+        }
+        return "Sign-in failed"
+    }
+
+    private func fullErrorDetails(_ error: Error) -> String {
+        var parts = [error.localizedDescription]
+        if let localizedError = error as? LocalizedError,
+           let suggestion = localizedError.recoverySuggestion,
+           !suggestion.isEmpty {
+            parts.append("Suggestion: \(suggestion)")
+        }
+        let nsError = error as NSError
+        parts.append("Domain: \(nsError.domain)")
+        parts.append("Code: \(nsError.code)")
+        return parts.joined(separator: "\n\n")
     }
 }
 

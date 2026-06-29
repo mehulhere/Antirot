@@ -1,5 +1,10 @@
 import Foundation
 
+struct HealthResponse: Codable {
+    var ok: Bool
+    var service: String
+}
+
 struct AlarmJob: Codable, Identifiable, Equatable {
     enum Kind: String, Codable {
         case normalWake = "normal_wake"
