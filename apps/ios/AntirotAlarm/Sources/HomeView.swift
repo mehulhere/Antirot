@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
     @State private var sheetHeight: CGFloat = 108
+    private let actionClearance: CGFloat = 132
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
@@ -26,7 +27,7 @@ struct HomeView: View {
                 .ignoresSafeArea()
 
             actionStack
-                .padding(.bottom, sheetHeight + 22)
+                .padding(.bottom, min(sheetHeight, actionClearance) + 22)
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
 

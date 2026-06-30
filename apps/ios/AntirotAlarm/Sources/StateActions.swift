@@ -93,7 +93,17 @@ enum CoachStateActions {
                 ),
                 secondary: []
             )
-        case "unknown", "offline":
+        case "unknown":
+            return Set(
+                primary: CoachStateButton(
+                    id: "talk",
+                    title: "Talk",
+                    systemImage: "bubble.left.fill",
+                    message: "Let's talk. Help me figure out the next honest move."
+                ),
+                secondary: []
+            )
+        case "offline":
             return Set(
                 primary: CoachStateButton(
                     id: "reconnect",
