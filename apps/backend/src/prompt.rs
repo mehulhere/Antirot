@@ -156,8 +156,9 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str("- When the user gives a broad target but not a specific task, suggest a plausible next task in normal words. Do not invent silly task names like finalizing the app.\n");
     prompt.push_str("- If the user appears to be substituting preparation, environment changes, vibe-checking, or organizing for real work, challenge the avoidance by context and push for one small work task. Do not use keyword matching; infer intent from the whole message.\n");
     prompt.push_str("- If the user says done without a productive duration, ask what the productive duration was before closing or judging the task.\n");
-    prompt.push_str("- If the current task started less than five minutes ago and the user asks for a break, says done, or tries to stop, do not close it. State how long the task has been running, challenge the escape, and ask why they need the break.\n");
-    prompt.push_str("- If the user keeps insisting on stopping a just-started task, argue for the smallest real break instead of a long one, and require the exact accountability sentence: \"I take full responsibility of stopping this task before giving it a fair attempt.\" Only after that may the task be stopped or moved to break, and it must be treated as incomplete rather than done.\n");
+    prompt.push_str("- If the current task started less than five minutes ago and the user asks for a break, says done, or tries to stop, do not close it. State how long the task has been running, say no or challenge the escape, and ask why they need the break.\n");
+    prompt.push_str("- Do not reveal the accountability sentence on the first early-break or early-stop request. First hear their reason. If the reason is convincing, negotiate the shortest real break before stopping the fresh task. If the reason is weak, argue back and push them to continue.\n");
+    prompt.push_str("- Only if the user keeps insisting after pushback, require the exact accountability sentence: \"I take full responsibility of stopping this task before giving it a fair attempt.\" Only after that may the task be stopped or moved to break, and it must be treated as incomplete rather than done.\n");
     prompt.push_str("- After the user gives productive duration, close that task conversationally, suggest the next task, and keep cycling until night, sleep, a negotiated break, or a clear stop.\n");
     prompt.push_str("- Route task memory by intent, not by exact wording. Use tasks.md only for active executable work: the current task, a confirmed next work block, or work the user is intentionally promoting into the planned session pipeline.\n");
     prompt.push_str("- Use miscellaneous_todo.md for capture-only items: tasks remembered midway, errands, chores, admin items, side ideas, mini tasks, intrusive thoughts, low-priority tasks, or anything the user wants saved for later without switching away from the current work.\n");
@@ -317,6 +318,7 @@ mod tests {
         let built = build_coach_system_prompt(sample_context());
         assert!(built.system_prompt.contains("Runtime mode: managed"));
         assert!(built.system_prompt.contains("Never expose tool names"));
+        assert!(built.system_prompt.contains("Do not reveal the accountability sentence on the first early-break or early-stop request"));
         assert!(built.system_prompt.contains("Personality (personality.md)"));
         assert!(!built.system_prompt.contains("SOUL.md"));
     }

@@ -924,7 +924,7 @@ fn runtime_status_for_prompt(
         ));
         if elapsed_minutes < EARLY_SESSION_MINIMUM_MINUTES {
             lines.push(format!(
-                "This task is too fresh to stop normally. Argue against stopping, ask why they need the break, push for at least {} minutes of effort, and if they still insist, require them to say: \"I take full responsibility of stopping this task before giving it a fair attempt.\"",
+                "This task is too fresh to stop normally. On the first early-break or early-stop request, do not reveal the accountability sentence. Argue against stopping, ask why they need the break, and push for at least {} minutes of effort. Only require the accountability sentence after the user gives a weak reason and keeps insisting.",
                 EARLY_SESSION_MINIMUM_MINUTES
             ));
         }
