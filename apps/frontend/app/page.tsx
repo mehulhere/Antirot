@@ -1,14 +1,10 @@
 "use client";
 
 import {
-    Activity,
-    AlarmClock,
-    Brain,
     Check,
+    ChevronRight,
     ClipboardList,
     Coffee,
-    Gauge,
-    HeartPulse,
     Loader2,
     Mic,
     Moon,
@@ -251,16 +247,6 @@ const quickMessagesByState: Record<RuntimeStateName, string[]> = {
     unknown: []
 };
 
-const actionsByState: Record<RuntimeStateName, string[]> = {
-    onboarding: [],
-    idle: ["start-work"],
-    working: ["done"],
-    break: [],
-    sleeping: [],
-    vacation: [],
-    unknown: []
-};
-
 function nowLabel() {
     return new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -336,7 +322,7 @@ function onboardingMessage(name: string) {
         "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
         "Silent client context is available below for scheduling only.",
         "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-        "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.",
+        "First onboarding message: I'm Antirot. I've coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let's see what you've got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you're planning to get done today.",
         `Name: ${name || "not provided"}`,
         `Silent device timezone: ${timezone}`
     ].join("\n");
@@ -443,6 +429,8 @@ function reportEventIsRedundant(event: ReportEvent) {
     ].includes(event.kind);
 }
 
+// ─── Main Component ───────────────────────────────────────────────
+
 export default function AntirotLabPage() {
     const [connection, setConnection] = useState<Status>("idle");
     const [testMode, setTestMode] = useState<Status>("idle");
@@ -464,8 +452,19 @@ export default function AntirotLabPage() {
     const [googleResult, setGoogleResult] = useState("Use this to compare browser Google login with the iOS app.");
     const [reportStatus, setReportStatus] = useState("Report captures the last 30 minutes.");
     const [isReporting, setIsReporting] = useState(false);
-    const [iosClock, setIosClock] = useState("");
     const [browserReady, setBrowserReady] = useState(false);
+
+    // Collapsible side panel sections
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+        controls: true,
+        actions: true,
+        memory: true,
+        alarms: false,
+        diagnostics: false,
+        google: false,
+        report: false
+    });
+
     const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const googleButtonRenderedRef = useRef(false);
     const chatLogRef = useRef<HTMLDivElement | null>(null);
@@ -490,35 +489,35 @@ export default function AntirotLabPage() {
             {
                 id: "start-work",
                 label: "Start Work",
-                icon: <Play size={16} />,
+                icon: <Play size={14} />,
                 tool: "start_session",
                 args: { task_id: "Frontend lab validation", estimated_minutes: 25 }
             },
             {
                 id: "extend-work",
                 label: "Extend",
-                icon: <RefreshCw size={16} />,
+                icon: <RefreshCw size={14} />,
                 tool: "extend_session",
                 args: { extension_minutes: 10 }
             },
             {
                 id: "done",
                 label: "Done",
-                icon: <Check size={16} />,
+                icon: <Check size={14} />,
                 tool: "end_session",
                 args: { actual_minutes: 25, productive_level: 80 }
             },
             {
                 id: "break",
                 label: "Break",
-                icon: <Coffee size={16} />,
+                icon: <Coffee size={14} />,
                 tool: "start_break",
                 args: { duration_minutes: 10 }
             },
             {
                 id: "wake",
                 label: "Awake",
-                icon: <Moon size={16} />,
+                icon: <Moon size={14} />,
                 tool: "log_wake",
                 args: { sleep_quality: 4 }
             },
@@ -528,10 +527,6 @@ export default function AntirotLabPage() {
     const visibleQuickMessages = useMemo(
         () => quickMessages.filter((message) => quickMessagesByState[stateName].includes(message.id)),
         [stateName]
-    );
-    const visibleLabActions = useMemo(
-        () => labActions.filter((action) => actionsByState[stateName].includes(action.id)),
-        [labActions, stateName]
     );
     const visiblePendingAlarms = useMemo(
         () => collapsePendingAlarmsToNextReminder(pendingAlarms),
@@ -575,7 +570,7 @@ export default function AntirotLabPage() {
                 ux_mode: "popup"
             });
             window.google.accounts.id.renderButton(googleButtonRef.current, {
-                theme: "outline",
+                theme: "filled_black",
                 size: "large",
                 type: "standard",
                 shape: "pill",
@@ -613,15 +608,6 @@ export default function AntirotLabPage() {
     }, [browserReady]);
 
     useEffect(() => {
-        function updateClock() {
-            setIosClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-        }
-        updateClock();
-        const timer = window.setInterval(updateClock, 30_000);
-        return () => window.clearInterval(timer);
-    }, []);
-
-    useEffect(() => {
         if (connection === "ok") {
             void loadMemory(memoryKey);
         }
@@ -634,6 +620,14 @@ export default function AntirotLabPage() {
         }
         chatLog.scrollTop = chatLog.scrollHeight;
     }, [messages]);
+
+    // ─── Toggle section ───────────────────────────────────────────
+
+    function toggleSection(key: string) {
+        setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+    }
+
+    // ─── Backend logic (unchanged) ────────────────────────────────
 
     async function handleGoogleCredential(response: GoogleCredentialResponse) {
         const credential = response.credential?.trim();
@@ -729,9 +723,6 @@ export default function AntirotLabPage() {
         ]);
     }
 
-    function removeMessage(id: string) {
-        setMessages((current) => current.filter((message) => message.id !== id));
-    }
 
     async function resetBrowserConversation() {
         recordEvent("button.resetConversation", "Reset browser conversation pressed.");
@@ -1356,247 +1347,215 @@ export default function AntirotLabPage() {
 
     const latestCoachText = [...messages].reverse().find((message) => message.role === "coach")?.text ?? "";
 
+    // ─── Render ───────────────────────────────────────────────────
+
     return (
-        <main className="phone-stage">
+        <>
             {showNamePrompt ? (
                 <div className="name-modal-backdrop">
                     <form className="name-modal" onSubmit={(event) => void submitOnboarding(event)}>
-                        <PanelHeader icon={<Brain size={18} />} title="Your name" />
-                        <div className="name-modal-body">
-                            <input
-                                autoFocus
-                                value={onboardingName}
-                                onChange={(event) => setOnboardingName(event.target.value)}
-                                placeholder="Name"
-                            />
-                            <button type="submit" disabled={busy || !onboardingName.trim()}>
-                                {busy ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
-                                Continue
-                            </button>
-                        </div>
+                        <h2>What&apos;s your name?</h2>
+                        <p>Your coach needs to know who they&apos;re working with.</p>
+                        <input
+                            autoFocus
+                            value={onboardingName}
+                            onChange={(event) => setOnboardingName(event.target.value)}
+                            placeholder="Name"
+                        />
+                        <button className="primary-btn" type="submit" disabled={busy || !onboardingName.trim()}>
+                            {busy ? <Loader2 className="spinner" size={16} /> : null}
+                            Continue
+                        </button>
                     </form>
                 </div>
             ) : null}
-            <div className="iphone-frame" aria-label="iPhone preview of Antirot Lab">
-                <div className="iphone-side-button left" aria-hidden="true" />
-                <div className="iphone-side-button right top" aria-hidden="true" />
-                <div className="iphone-side-button right bottom" aria-hidden="true" />
-                <div className="iphone-screen">
-                    <div className="dynamic-island" aria-hidden="true" />
-                    <div className="ios-statusbar" aria-hidden="true">
-                        <span>{iosClock}</span>
-                        <span className="ios-sensors">
-                            <span className="ios-signal" />
-                            <span>5G</span>
-                            <span className="ios-battery" />
+
+            <div className="lab-shell">
+                {/* ── Left: Chat Panel ────────────────────────────────── */}
+                <div className="chat-panel">
+                    <div className="chat-header">
+                        <span className={`status-dot ${connection}`} />
+                        <span className="chat-header-title">Antirot Lab</span>
+                        <span className={`state-pill${stateName === "working" ? " active" : ""}`}>
+                            {stateName}
                         </span>
+                        <div className="chat-header-actions">
+                            <button
+                                className="icon-btn"
+                                type="button"
+                                onClick={() => void speakText(latestCoachText)}
+                                disabled={!latestCoachText}
+                                title="Speak last reply"
+                            >
+                                <Volume2 size={16} />
+                            </button>
+                            <button
+                                className="icon-btn"
+                                type="button"
+                                onClick={() => void resetBrowserConversation()}
+                                title="Reset conversation"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                            <button
+                                className="icon-btn"
+                                type="button"
+                                onClick={() => void bootLab()}
+                                title="Refresh"
+                            >
+                                <RefreshCw size={16} />
+                            </button>
+                        </div>
                     </div>
-                    <div className="lab-shell">
-                        <section className="topbar">
-                            <div>
-                                <p className="eyebrow">Antirot Lab</p>
-                                <h1>Coach simulator</h1>
+
+                    <div className="chat-log" ref={chatLogRef}>
+                        {messages.map((message) => (
+                            <div className={`message ${message.role}`} key={message.id}>
+                                {message.audioUrl ? (
+                                    <div>
+                                        <button
+                                            className="message-audio-btn"
+                                            type="button"
+                                            onClick={() => {
+                                                const audio = new Audio(message.audioUrl);
+                                                void audio.play();
+                                            }}
+                                        >
+                                            <Volume2 size={14} />
+                                            Voice ({message.audioSeconds ? `${message.audioSeconds.toFixed(1)}s` : "audio"})
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p>{message.text}</p>
+                                )}
+                                <span className="message-time">
+                                    {message.role === "coach" ? "Antirot" : message.role} · {message.at}
+                                </span>
                             </div>
-                            <div className="status-row">
-                                <StatusPill label="Backend" status={connection} />
-                                <StatusPill label="Test fixture" status={testMode} />
-                                <button className="icon-button" type="button" onClick={() => void bootLab()} aria-label="Reset lab">
-                                    <RefreshCw size={18} />
+                        ))}
+                    </div>
+
+                    {visibleQuickMessages.length > 0 ? (
+                        <div className="quick-actions">
+                            {visibleQuickMessages.map((message) => (
+                                <button
+                                    className="quick-chip"
+                                    key={message.id}
+                                    type="button"
+                                    onClick={() => void sendChat(message.text)}
+                                    disabled={busy}
+                                >
+                                    {message.label}
                                 </button>
+                            ))}
+                        </div>
+                    ) : null}
+
+                    {recording ? (
+                        <div className="composer-hint">{speechStatus}</div>
+                    ) : null}
+
+                    <form className="composer" onSubmit={(event) => void handleSubmit(event)}>
+                        <button
+                            className={`composer-mic${recording ? " recording" : ""}`}
+                            type="button"
+                            onClick={() => void (recording ? stopRecording() : startRecording())}
+                            aria-label={recording ? "Stop recording" : "Start recording"}
+                        >
+                            {recording ? <Square size={20} /> : <Mic size={20} />}
+                        </button>
+                        <input
+                            className="composer-input"
+                            value={draft}
+                            onChange={(event) => setDraft(event.target.value)}
+                            placeholder="Type..."
+                        />
+                        <button
+                            className="composer-send"
+                            type="submit"
+                            disabled={busy || !draft.trim()}
+                        >
+                            {busy ? <Loader2 className="spinner" size={16} /> : <Send size={16} />}
+                        </button>
+                    </form>
+                </div>
+
+                {/* ── Right: Side Panel ───────────────────────────────── */}
+                <div className="side-panel">
+                    {/* Controls */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("controls")}>
+                            <h3>Lab Controls</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.controls ? " open" : ""}`} />
+                        </div>
+                        {openSections.controls ? (
+                            <div className="panel-section-body">
+                                <div className="lab-controls">
+                                    <span className={`state-pill${connection === "ok" ? " active" : ""}`}>
+                                        <span className={`status-dot ${connection}`} />
+                                        Backend: {connection}
+                                    </span>
+                                    <span className={`state-pill${testMode === "ok" ? " active" : ""}`}>
+                                        <span className={`status-dot ${testMode}`} />
+                                        Fixture: {testMode}
+                                    </span>
+                                </div>
+                                <div style={{ marginTop: 12 }}>
+                                    <div className="toggle-row">
+                                        <span className="toggle-label">Auto-play coach replies</span>
+                                        <label className="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                checked={autoSpeak}
+                                                onChange={(event) => setAutoSpeak(event.target.checked)}
+                                            />
+                                            <span className="toggle-track" />
+                                        </label>
+                                    </div>
+                                </div>
+                                {lastError ? <div className="error-box" style={{ marginTop: 12 }}>{lastError}</div> : null}
                             </div>
-                        </section>
+                        ) : null}
+                    </div>
 
-                        <section className="hero-grid">
-                            <article className="voice-orb-panel">
-                                <div className="orb-wrap" aria-hidden="true">
-                                    <svg viewBox="0 0 160 160" className={`focus-dial${recording ? " recording" : ""}`}>
-                                        <defs>
-                                            <radialGradient id="dialCenterGradient" cx="50%" cy="50%" r="50%">
-                                                <stop offset="0%" stopColor="#e11d48" stopOpacity="0.3" />
-                                                <stop offset="100%" stopColor="#08070b" stopOpacity="1" />
-                                            </radialGradient>
-                                        </defs>
-                                        <circle className="dial-ring-outer" cx="80" cy="80" r="72" />
-                                        <circle className="dial-ring-mid" cx="80" cy="80" r="56" />
-                                        <circle className="dial-ring-inner" cx="80" cy="80" r="40" />
-                                        <circle className="dial-center" cx="80" cy="80" r="24" />
-                                        <text x="80" y="80" textAnchor="middle" dominantBaseline="central" fill="#fb7185" fontSize="16" fontWeight="700">{recording ? "◉" : "⚡"}</text>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p className="eyebrow">Voice-first test surface</p>
-                                    <h2>{stateName === "unknown" ? "Connect the backend" : `State: ${stateName}`}</h2>
-                                    <p className="muted">Speak first, type only when needed. This page tests the same backend paths the apps rely on.</p>
-                                </div>
-                                <div className="voice-controls">
-                                    <button className="primary-button" type="button" onClick={() => void (recording ? stopRecording() : startRecording())}>
-                                        {recording ? <Square size={18} /> : <Mic size={18} />}
-                                        {recording ? "Stop" : "Speak"}
-                                    </button>
-                                    <button className="ghost-button" type="button" disabled={!latestCoachText} onClick={() => void speakText(latestCoachText)}>
-                                        <Volume2 size={18} />
-                                        Speak reply
-                                    </button>
-                                </div>
-                                <label className="toggle">
-                                    <input checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} type="checkbox" />
-                                    Auto-play coach replies
-                                </label>
-                                <p className="hint">{speechStatus}</p>
-                            </article>
-
-                            <article className="state-panel">
-                                <PanelHeader icon={<Gauge size={18} />} title="Runtime truth" />
-                                <div className="metric-tile">
-                                    <span className="metric-label">Current state</span>
-                                    <span className="metric-value">{stateName}</span>
-                                </div>
-                                <div className="metric-tile">
-                                    <span className="metric-label">Source</span>
-                                    <span className="metric-value">{stateSource}</span>
-                                </div>
-                                <div className="metric-tile">
-                                    <span className="metric-label">Next reminders</span>
-                                    <span className="metric-value">{visiblePendingAlarms.length}</span>
-                                </div>
-                                <div className="metric-tile">
-                                    <span className="metric-label">Prompt size</span>
-                                    <span className="metric-value">{diagnostics?.report.systemPromptChars ?? "-"}</span>
-                                </div>
-                            </article>
-                        </section>
-
-                        <section className="main-grid">
-                            <article className="chat-panel">
-                                <PanelHeader
-                                    icon={<Brain size={18} />}
-                                    title="Coach conversation"
-                                    action={
-                                        <div className="panel-actions">
-                                            <button
-                                                aria-label="Copy and save flow report"
-                                                className="icon-button panel-action"
-                                                disabled={isReporting}
-                                                onClick={() => void createReport()}
-                                                title="Copy and save flow report"
-                                                type="button"
-                                            >
-                                                <ClipboardList size={17} />
-                                            </button>
-                                            <button
-                                                aria-label="Reset browser conversation"
-                                                className="icon-button panel-action"
-                                                onClick={() => void resetBrowserConversation()}
-                                                title="Reset browser conversation"
-                                                type="button"
-                                            >
-                                                <Trash2 size={17} />
-                                            </button>
-                                        </div>
-                                    }
-                                />
-                                <p className="hint report-status">{reportStatus}</p>
-                                <div className="chat-log" ref={chatLogRef}>
-                                    {messages.map((message) => (
-                                        <div className={`message ${message.role}`} key={message.id}>
-                                            <button
-                                                aria-label="Remove message"
-                                                className="message-close"
-                                                onClick={() => removeMessage(message.id)}
-                                                type="button"
-                                            >
-                                                ×
-                                            </button>
-                                            {message.audioUrl ? (
-                                                <div className="voice-message">
-                                                    <audio controls src={message.audioUrl} />
-                                                    <span>{message.audioSeconds ? `${message.audioSeconds.toFixed(1)}s` : "voice"}</span>
-                                                </div>
-                                            ) : (
-                                                <p>{message.text}</p>
-                                            )}
-                                            <span>{message.role === "coach" ? "Antirot" : message.role} / {message.at}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="quick-grid">
-                                    {visibleQuickMessages.map((message) => (
-                                        <button key={message.id} type="button" onClick={() => void sendChat(message.text)} disabled={busy}>
-                                            {message.label}
+                    {/* State Actions */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("actions")}>
+                            <h3>State Actions</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.actions ? " open" : ""}`} />
+                        </div>
+                        {openSections.actions ? (
+                            <div className="panel-section-body">
+                                <div className="action-grid">
+                                    {labActions.map((action) => (
+                                        <button
+                                            className="action-btn"
+                                            key={action.id}
+                                            type="button"
+                                            disabled={busy || testMode !== "ok"}
+                                            onClick={() => void runTool(action)}
+                                        >
+                                            {action.icon}
+                                            {action.label}
                                         </button>
                                     ))}
                                 </div>
-                                <form className="composer" onSubmit={(event) => void handleSubmit(event)}>
-                                    <button
-                                        aria-label={recording ? "Stop voice input" : "Start voice input"}
-                                        className="composer-speak"
-                                        onClick={() => void (recording ? stopRecording() : startRecording())}
-                                        type="button"
-                                    >
-                                        {recording ? <Square size={18} /> : <Mic size={18} />}
-                                        {recording ? "Stop" : "Speak"}
-                                    </button>
-                                    <input
-                                        value={draft}
-                                        onChange={(event) => setDraft(event.target.value)}
-                                        placeholder="Speak or type the user's next message"
-                                    />
-                                    <button className={`composer-send${draft.trim() ? " has-text" : ""}`} type="submit" disabled={busy || !draft.trim()}>
-                                        {busy ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
-                                        Send
-                                    </button>
-                                </form>
-                            </article>
+                            </div>
+                        ) : null}
+                    </div>
 
-                            <aside className="side-stack">
-                                <article className="panel">
-                                    <PanelHeader icon={<Activity size={18} />} title="Direct state actions" />
-                                    <div className="action-grid">
-                                        {visibleLabActions.map((action) => (
-                                            <button key={action.id} type="button" disabled={busy || testMode !== "ok"} onClick={() => void runTool(action)}>
-                                                {action.icon}
-                                                {action.label}
-                                            </button>
-                                        ))}
-                                        {visibleLabActions.length === 0 ? (
-                                            <p className="empty">No direct actions for this state.</p>
-                                        ) : null}
-                                    </div>
-                                </article>
-
-                                <article className="panel">
-                                    <PanelHeader icon={<AlarmClock size={18} />} title="Pending alarms" />
-                                    <div className="alarm-list">
-                                        {visiblePendingAlarms.length === 0 ? (
-                                            <p className="empty">No pending alarms.</p>
-                                        ) : (
-                                            visiblePendingAlarms.map((alarm) => (
-                                                <div className="alarm-card" key={alarm.id}>
-                                                    <div>
-                                                        <strong>{alarm.title ?? alarm.kind}</strong>
-                                                        <span>{alarm.severity} / {formatAlarmTime(alarm)}</span>
-                                                    </div>
-                                                    <p>{alarm.message ?? "No message."}</p>
-                                                    <div className="alarm-buttons">
-                                                        <button type="button" onClick={() => void acknowledgeAlarm(alarm.id, "ack")}>Ack</button>
-                                                        <button type="button" onClick={() => void acknowledgeAlarm(alarm.id, "snooze")}>Snooze</button>
-                                                        <button type="button" onClick={() => void acknowledgeAlarm(alarm.id, "clear")}>Clear</button>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </article>
-                            </aside>
-                        </section>
-
-                        <section className="lower-grid">
-                            <article className="panel memory-panel">
-                                <PanelHeader icon={<ClipboardList size={18} />} title="Memory logs" />
-                                <div className="tabs">
+                    {/* Memory */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("memory")}>
+                            <h3>Memory</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.memory ? " open" : ""}`} />
+                        </div>
+                        {openSections.memory ? (
+                            <div className="panel-section-body">
+                                <div className="memory-tabs">
                                     {memoryTabs.map((tab) => (
                                         <button
-                                            className={memoryKey === tab.key ? "active" : ""}
+                                            className={`memory-tab${memoryKey === tab.key ? " active" : ""}`}
                                             key={tab.key}
                                             type="button"
                                             onClick={() => void loadMemory(tab.key)}
@@ -1605,70 +1564,138 @@ export default function AntirotLabPage() {
                                         </button>
                                     ))}
                                 </div>
-                                <pre>{memoryContent}</pre>
-                            </article>
+                                <pre className="memory-content">{memoryContent}</pre>
+                            </div>
+                        ) : null}
+                    </div>
 
-                            <article className="panel diagnostics-panel">
-                                <PanelHeader icon={<HeartPulse size={18} />} title="Diagnostics" />
-                                <dl>
-                                    <dt>Backend URL</dt>
-                                    <dd>{BACKEND_URL}</dd>
-                                    <dt>User / device</dt>
-                                    <dd>{USER_ID} / {DEVICE_ID}</dd>
-                                    <dt>Provider</dt>
-                                    <dd>{diagnostics ? `${diagnostics.report.provider} / ${diagnostics.report.model}` : "Unavailable"}</dd>
-                                    <dt>Tools</dt>
-                                    <dd>{diagnostics?.report.toolCount ?? "-"}</dd>
-                                    <dt>Memory budget</dt>
-                                    <dd>
-                                        {diagnostics
-                                            ? `${diagnostics.report.memory.totalInjectedChars} / ${diagnostics.report.memory.totalMemoryBudgetChars}`
-                                            : "-"}
-                                    </dd>
-                                    <dt>Truncated sections</dt>
-                                    <dd>{diagnostics?.report.memory.truncatedSections.join(", ") || "None"}</dd>
-                                    <dt>Sleep samples</dt>
-                                    <dd>{diagnostics?.sleepMetrics?.sleepSampleCount ?? "-"}</dd>
-                                </dl>
-                                <div className="google-login-test">
-                                    <div>
-                                        <h3>Google Login Test</h3>
-                                        <p>Client: {GOOGLE_WEB_CLIENT_ID || "missing NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID"}</p>
+                    {/* Alarms */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("alarms")}>
+                            <h3>Pending Alarms</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.alarms ? " open" : ""}`} />
+                        </div>
+                        {openSections.alarms ? (
+                            <div className="panel-section-body">
+                                {visiblePendingAlarms.length === 0 ? (
+                                    <p className="empty-text">No pending alarms</p>
+                                ) : (
+                                    <div className="alarm-list">
+                                        {visiblePendingAlarms.map((alarm) => (
+                                            <div className="alarm-row" key={alarm.id}>
+                                                <span className={`alarm-dot ${alarm.severity}`} />
+                                                <span className="alarm-title">{alarm.title ?? alarm.kind}</span>
+                                                <span className="alarm-time">{formatAlarmTime(alarm)}</span>
+                                                <div className="alarm-actions">
+                                                    <button className="alarm-action-btn" type="button" onClick={() => void acknowledgeAlarm(alarm.id, "ack")}>Ack</button>
+                                                    <button className="alarm-action-btn" type="button" onClick={() => void acknowledgeAlarm(alarm.id, "snooze")}>Snz</button>
+                                                    <button className="alarm-action-btn" type="button" onClick={() => void acknowledgeAlarm(alarm.id, "clear")}>Clr</button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div ref={googleButtonRef} className="google-button-slot" />
-                                    <strong>{googleStatus}</strong>
-                                    <pre>{googleResult}</pre>
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Diagnostics */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("diagnostics")}>
+                            <h3>Diagnostics</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.diagnostics ? " open" : ""}`} />
+                        </div>
+                        {openSections.diagnostics ? (
+                            <div className="panel-section-body">
+                                <div className="diagnostics-grid">
+                                    <div className="diag-item">
+                                        <div className="diag-label">State</div>
+                                        <div className="diag-value">{stateName}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Source</div>
+                                        <div className="diag-value">{stateSource}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Provider</div>
+                                        <div className="diag-value">{diagnostics ? `${diagnostics.report.provider}` : "-"}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Model</div>
+                                        <div className="diag-value">{diagnostics?.report.model ?? "-"}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Prompt</div>
+                                        <div className="diag-value">{diagnostics?.report.systemPromptChars ?? "-"}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Tools</div>
+                                        <div className="diag-value">{diagnostics?.report.toolCount ?? "-"}</div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Memory</div>
+                                        <div className="diag-value">
+                                            {diagnostics
+                                                ? `${diagnostics.report.memory.totalInjectedChars}/${diagnostics.report.memory.totalMemoryBudgetChars}`
+                                                : "-"}
+                                        </div>
+                                    </div>
+                                    <div className="diag-item">
+                                        <div className="diag-label">Sleep</div>
+                                        <div className="diag-value">{diagnostics?.sleepMetrics?.sleepSampleCount ?? "-"}</div>
+                                    </div>
                                 </div>
-                                {lastError ? <p className="error-box">{lastError}</p> : null}
-                            </article>
-                        </section>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Google */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("google")}>
+                            <h3>Google Login Test</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.google ? " open" : ""}`} />
+                        </div>
+                        {openSections.google ? (
+                            <div className="panel-section-body">
+                                <div className="google-section">
+                                    <div ref={googleButtonRef} />
+                                    <p className="google-status">{googleStatus}</p>
+                                    <pre className="google-result">{googleResult}</pre>
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Report */}
+                    <div className="panel-section">
+                        <div className="panel-section-header" onClick={() => toggleSection("report")}>
+                            <h3>Session Report</h3>
+                            <ChevronRight size={12} className={`toggle-icon${openSections.report ? " open" : ""}`} />
+                        </div>
+                        {openSections.report ? (
+                            <div className="panel-section-body">
+                                <div className="report-section">
+                                    <p className="report-status">{reportStatus}</p>
+                                    <button
+                                        className="primary-btn"
+                                        type="button"
+                                        disabled={isReporting}
+                                        onClick={() => void createReport()}
+                                    >
+                                        {isReporting ? <Loader2 className="spinner" size={14} /> : <ClipboardList size={14} />}
+                                        {" "}Generate Report
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             </div>
-        </main>
+        </>
     );
 }
 
-function StatusPill({ label, status }: { label: string; status: Status }) {
-    return (
-        <span className={`status-pill ${status}`}>
-            <span />
-            {label}: {status}
-        </span>
-    );
-}
-
-function PanelHeader({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) {
-    return (
-        <div className="panel-header">
-            <div>
-                <span className="panel-icon">{icon}</span>
-                <h2>{title}</h2>
-            </div>
-            {action}
-        </div>
-    );
-}
+// ─── Helper Components ────────────────────────────────────────────
 
 function collapsePendingAlarmsToNextReminder(alarms: PendingAlarm[]) {
     const nextByReminder = new Map<string, PendingAlarm>();

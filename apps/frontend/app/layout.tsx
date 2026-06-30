@@ -1,24 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+const inter = Inter({
     subsets: ["latin"],
-    weight: ["700"],
-    variable: "--font-heading",
-    display: "swap",
-});
-
-const dmSans = DM_Sans({
-    subsets: ["latin"],
-    weight: ["400", "500", "600"],
     variable: "--font-body",
     display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
+const jetbrainsMono = JetBrains_Mono({
     subsets: ["latin"],
-    weight: ["400", "500", "600"],
+    weight: ["400", "500"],
     variable: "--font-mono",
     display: "swap",
 });
@@ -31,13 +23,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
-    themeColor: "#08070b"
+    themeColor: "#0A0A0A"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
     return (
         <html lang="en">
-            <body className={`${spaceGrotesk.variable} ${dmSans.variable} ${ibmPlexMono.variable}`}>
+            <body className={`${inter.variable} ${jetbrainsMono.variable}`}>
                 {children}
             </body>
         </html>
