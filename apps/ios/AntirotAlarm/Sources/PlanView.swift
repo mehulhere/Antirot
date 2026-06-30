@@ -47,7 +47,6 @@ struct PlanView: View {
                 planButton("Start Work", "play.fill", "I am ready to work. Start the task we just picked.")
                 planButton("Done", "checkmark", "Done. I finished the current task. Ask me how much of it was actually productive before closing it.")
                 planButton("Break", "pause.fill", "I need a real break. Help me choose the minimum honest break.")
-                planButton("Sleep", "moon.fill", "Good night. Close today and prepare tomorrow.")
             }
         }
     }

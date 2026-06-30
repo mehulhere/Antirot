@@ -157,9 +157,6 @@ struct CoachMessage: Identifiable, Equatable {
 }
 
 struct CoachQuickAction: Identifiable, Equatable {
-    private static let nightActionStartHour = 20
-    private static let nightActionEndHour = 5
-
     var id: String
     var title: String
     var systemImage: String
@@ -186,12 +183,6 @@ struct CoachQuickAction: Identifiable, Equatable {
             message: "I need a real break. Help me choose the minimum honest break."
         ),
         CoachQuickAction(
-            id: "good_night",
-            title: "Good night",
-            systemImage: "moon.fill",
-            message: "Good night. Close today and prepare tomorrow."
-        ),
-        CoachQuickAction(
             id: "wake_up",
             title: "I am awake",
             systemImage: "sun.max.fill",
@@ -210,13 +201,13 @@ struct CoachQuickAction: Identifiable, Equatable {
         let ids: [String]
         switch runtimeState.lowercased() {
         case "onboarding":
-            ids = ["start_working", "good_night"]
+            ids = ["start_working"]
         case "idle":
-            ids = ["start_working", "need_break", "good_night", "movie_break"]
+            ids = ["start_working", "need_break", "movie_break"]
         case "working":
             ids = ["done", "need_break"]
         case "break":
-            ids = ["start_working", "good_night"]
+            ids = ["start_working"]
         case "sleeping":
             ids = ["wake_up"]
         case "vacation", "unknown":
@@ -225,15 +216,7 @@ struct CoachQuickAction: Identifiable, Equatable {
             ids = []
         }
         return ids.compactMap { id in
-            if id == "good_night", !isNightActionWindow(at: date) {
-                return nil
-            }
-            return byId[id]
+            byId[id]
         }
-    }
-
-    private static func isNightActionWindow(at date: Date) -> Bool {
-        let hour = Calendar.current.component(.hour, from: date)
-        return hour >= nightActionStartHour || hour < nightActionEndHour
     }
 }

@@ -1,15 +1,11 @@
 package com.mehulhere.antirot;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class CoachQuickAction {
-    private static final int NIGHT_ACTION_START_HOUR = 20;
-    private static final int NIGHT_ACTION_END_HOUR = 5;
-
     public final String id;
     public final String title;
     public final String message;
@@ -28,16 +24,16 @@ public class CoachQuickAction {
         String[] ids;
         switch (state) {
             case "onboarding":
-                ids = new String[] {"start_working", "good_night"};
+                ids = new String[] {"start_working"};
                 break;
             case "idle":
-                ids = new String[] {"start_working", "need_break", "good_night", "movie_break"};
+                ids = new String[] {"start_working", "need_break", "movie_break"};
                 break;
             case "working":
                 ids = new String[] {"done", "need_break", "log_work"};
                 break;
             case "break":
-                ids = new String[] {"start_working", "good_night"};
+                ids = new String[] {"start_working"};
                 break;
             case "sleeping":
                 ids = new String[] {"wake_up"};
@@ -49,9 +45,6 @@ public class CoachQuickAction {
 
         List<CoachQuickAction> actions = new ArrayList<>();
         for (String id : ids) {
-            if ("good_night".equals(id) && !isNightActionWindow()) {
-                continue;
-            }
             CoachQuickAction action = byId.get(id);
             if (action != null) {
                 actions.add(action);
@@ -87,12 +80,6 @@ public class CoachQuickAction {
                 true
         ));
         add(actions, new CoachQuickAction(
-                "good_night",
-                "Good Night",
-                "Good night. Close today and prepare tomorrow.",
-                false
-        ));
-        add(actions, new CoachQuickAction(
                 "wake_up",
                 "Awake",
                 "I am awake. Log it and tell me the first concrete move.",
@@ -109,10 +96,5 @@ public class CoachQuickAction {
 
     private static void add(Map<String, CoachQuickAction> actions, CoachQuickAction action) {
         actions.put(action.id, action);
-    }
-
-    private static boolean isNightActionWindow() {
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        return hour >= NIGHT_ACTION_START_HOUR || hour < NIGHT_ACTION_END_HOUR;
     }
 }

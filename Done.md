@@ -75,6 +75,7 @@
 - Start a frontend work session that schedules repeated 5-minute alarms, then verify the frontend Pending alarms panel and top stat show only the next upcoming reminder per alarm family while the backend still keeps the full alarm sequence scheduled.
 - During onboarding, verify the second coach reply suggests one specific first task, asks for exact task details plus estimated minutes, and only then tells the user to press Start.
 - Open the web frontend and iOS app side by side, then verify onboarding name cache/reset, silent timezone onboarding, quick actions, pending alarm collapse, voice queue, and Plan/Home action copy match.
+- Open the web frontend, iOS app, and Android app in onboarding/idle/break states and verify no Good night, Sleep, Vacation, or vacation Back action buttons are shown.
 - Speak in the web frontend, iOS app, and Android app, then verify the chat shows a playable voice message instead of raw transcription while the coach still receives the transcript.
 - In the frontend lab, press the report button after several chats/actions and verify the clipboard contains the last-30-minute flow while `/v1/reports` saves the same report.
 - Start a fresh task, ask for a break within five minutes, and verify Antirot argues instead of ending the task until the responsibility sentence is explicitly provided.

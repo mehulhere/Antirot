@@ -3,7 +3,6 @@
 import {
     Activity,
     AlarmClock,
-    Bed,
     Brain,
     Check,
     ClipboardList,
@@ -13,7 +12,6 @@ import {
     Loader2,
     Mic,
     Moon,
-    Plane,
     Play,
     RefreshCw,
     Send,
@@ -37,8 +35,6 @@ const VAD_PREFERRED_UPLOAD_SECONDS = 30;
 const VAD_HARD_UPLOAD_SECONDS = 60;
 const VAD_SETTLED_SILENCE_MS = 1500;
 const REPORT_WINDOW_MS = 30 * 60 * 1000;
-const NIGHT_ACTION_START_HOUR = 20;
-const NIGHT_ACTION_END_HOUR = 5;
 const ONBOARDING_NAME_STORAGE_KEY = "antirot:onboardingName";
 const ONBOARDING_NAME_SENT_STORAGE_KEY = "antirot:onboardingNameSent";
 
@@ -234,11 +230,6 @@ const quickMessages: QuickMessage[] = [
         text: "I need a real break. Help me choose the minimum honest break."
     },
     {
-        id: "good-night",
-        label: "Good night",
-        text: "Good night. Close today and prepare tomorrow."
-    },
-    {
         id: "awake",
         label: "I am awake",
         text: "I am awake. Log it and tell me the first specific move."
@@ -251,22 +242,22 @@ const quickMessages: QuickMessage[] = [
 ];
 
 const quickMessagesByState: Record<RuntimeStateName, string[]> = {
-    onboarding: ["ready-work", "good-night"],
-    idle: ["ready-work", "real-break", "good-night", "movie-break"],
+    onboarding: ["ready-work"],
+    idle: ["ready-work", "real-break", "movie-break"],
     working: ["done", "real-break"],
-    break: ["ready-work", "good-night"],
+    break: ["ready-work"],
     sleeping: ["awake"],
     vacation: [],
     unknown: []
 };
 
 const actionsByState: Record<RuntimeStateName, string[]> = {
-    onboarding: ["start-work", "sleep", "vacation"],
-    idle: ["start-work", "break", "sleep", "vacation"],
+    onboarding: ["start-work"],
+    idle: ["start-work", "break"],
     working: ["extend-work", "break"],
-    break: ["start-work", "sleep"],
+    break: ["start-work"],
     sleeping: ["wake"],
-    vacation: ["back"],
+    vacation: [],
     unknown: []
 };
 
@@ -276,11 +267,6 @@ function nowLabel() {
         minute: "2-digit",
         second: "2-digit"
     });
-}
-
-function isNightActionWindow(date = new Date()) {
-    const hour = date.getHours();
-    return hour >= NIGHT_ACTION_START_HOUR || hour < NIGHT_ACTION_END_HOUR;
 }
 
 function todayWorkKey() {
@@ -480,7 +466,6 @@ export default function AntirotLabPage() {
     const [isReporting, setIsReporting] = useState(false);
     const [iosClock, setIosClock] = useState("");
     const [browserReady, setBrowserReady] = useState(false);
-    const [nightActionVisible, setNightActionVisible] = useState(false);
     const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const googleButtonRenderedRef = useRef(false);
     const chatLogRef = useRef<HTMLDivElement | null>(null);
@@ -531,44 +516,18 @@ export default function AntirotLabPage() {
                 args: { duration_minutes: 10 }
             },
             {
-                id: "sleep",
-                label: "Sleep",
-                icon: <Bed size={16} />,
-                tool: "start_sleep",
-                args: { estimated_hours: 8 }
-            },
-            {
                 id: "wake",
                 label: "Awake",
                 icon: <Moon size={16} />,
                 tool: "log_wake",
                 args: { sleep_quality: 4 }
             },
-            {
-                id: "vacation",
-                label: "Vacation",
-                icon: <Plane size={16} />,
-                tool: "start_vacation",
-                args: { reason: "planned off-duty time" }
-            },
-            {
-                id: "back",
-                label: "Back",
-                icon: <Activity size={16} />,
-                tool: "end_vacation",
-                args: {}
-            }
         ],
         []
     );
     const visibleQuickMessages = useMemo(
-        () => quickMessages.filter((message) => {
-            if (!quickMessagesByState[stateName].includes(message.id)) {
-                return false;
-            }
-            return message.id !== "good-night" || nightActionVisible;
-        }),
-        [nightActionVisible, stateName]
+        () => quickMessages.filter((message) => quickMessagesByState[stateName].includes(message.id)),
+        [stateName]
     );
     const visibleLabActions = useMemo(
         () => labActions.filter((action) => actionsByState[stateName].includes(action.id)),
@@ -656,7 +615,6 @@ export default function AntirotLabPage() {
     useEffect(() => {
         function updateClock() {
             setIosClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-            setNightActionVisible(isNightActionWindow());
         }
         updateClock();
         const timer = window.setInterval(updateClock, 30_000);
@@ -784,7 +742,6 @@ export default function AntirotLabPage() {
         setLastError("");
         setOnboardingName("");
         setNamePromptSent(false);
-        setNightActionVisible(isNightActionWindow());
         setSpeechStatus("VAD speech chunks ready.");
         setMemoryContent("Resetting backend fixture and memory files...");
         pendingTranscriptResultsRef.current.clear();
