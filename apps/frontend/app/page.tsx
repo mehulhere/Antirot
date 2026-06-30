@@ -247,6 +247,16 @@ const quickMessagesByState: Record<RuntimeStateName, string[]> = {
     unknown: []
 };
 
+const actionsByState: Record<RuntimeStateName, string[]> = {
+    onboarding: [],
+    idle: ["start-work"],
+    working: ["done"],
+    break: [],
+    sleeping: [],
+    vacation: [],
+    unknown: []
+};
+
 function nowLabel() {
     return new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -523,6 +533,10 @@ export default function AntirotLabPage() {
             },
         ],
         []
+    );
+    const visibleLabActions = useMemo(
+        () => labActions.filter((action) => actionsByState[stateName].includes(action.id)),
+        [labActions, stateName]
     );
     const visibleQuickMessages = useMemo(
         () => quickMessages.filter((message) => quickMessagesByState[stateName].includes(message.id)),
@@ -1527,7 +1541,7 @@ export default function AntirotLabPage() {
                         {openSections.actions ? (
                             <div className="panel-section-body">
                                 <div className="action-grid">
-                                    {labActions.map((action) => (
+                                    {visibleLabActions.map((action) => (
                                         <button
                                             className="action-btn"
                                             key={action.id}
@@ -1539,6 +1553,9 @@ export default function AntirotLabPage() {
                                             {action.label}
                                         </button>
                                     ))}
+                                    {visibleLabActions.length === 0 ? (
+                                        <p className="empty">No direct actions for this state.</p>
+                                    ) : null}
                                 </div>
                             </div>
                         ) : null}

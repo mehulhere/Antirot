@@ -200,14 +200,14 @@ struct CoachQuickAction: Identifiable, Equatable {
         let byId = Dictionary(uniqueKeysWithValues: primary.map { ($0.id, $0) })
         let ids: [String]
         switch runtimeState.lowercased() {
+        case "onboarding":
+            ids = []
         case "idle":
-            ids = ["start_working", "wake_up"]
-        case "working":
-            ids = ["done", "need_break"]
-        case "break":
             ids = ["start_working"]
-        case "sleeping":
-            ids = ["wake_up"]
+        case "working":
+            ids = ["done"]
+        case "break", "sleeping", "vacation", "unknown":
+            ids = []
         default:
             ids = []
         }

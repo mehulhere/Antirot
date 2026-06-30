@@ -45,13 +45,9 @@ const expectations = [
     ],
     [
         "ios plan state actions",
-        files.iosPlan.includes(`switch coach.runtimeState.lowercased() {
-        case "idle":`) &&
-            files.iosPlan.includes(`id: "plan_start_work",
-                    title: "Start Work"`) &&
-            files.iosPlan.includes(`case "working":`) &&
-            files.iosPlan.includes(`id: "plan_done",
-                    title: "Done"`) &&
+        files.iosPlan.includes(`private var visibleStateActions: [CoachQuickAction] {
+        CoachQuickAction.primary(for: coach.runtimeState)
+    }`) &&
             !files.iosPlan.includes(`planButton("Break"`)
     ],
     [
