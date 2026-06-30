@@ -78,6 +78,7 @@
 - Speak in the web frontend, iOS app, and Android app, then verify the chat shows a playable voice message instead of raw transcription while the coach still receives the transcript.
 - In the frontend lab, press the report button after several chats/actions and verify the clipboard contains the last-30-minute flow while `/v1/reports` saves the same report.
 - Start a fresh task, ask for a break within five minutes, and verify Antirot argues instead of ending the task until the responsibility sentence is explicitly provided.
+- Run `npm run scenario -- scenarios/antirot/early-break-ladder.md` and verify the saved markdown transcript shows a fresh VPS slate, a working state after turn 2, and no responsibility sentence on the first break request.
 - Open the iOS Home tab on a real device and verify the header, cards, chat bubbles, composer, and tab bar stay inside the screen width like the Plan tab.
 - Run `scripts/restart-backend-vps.sh edge-check` and verify it separates VPS-local backend health from public nginx/network reachability.
 - On a real iPhone, sign in with Google and verify any backend connection failure shows the exact Antirot endpoint URL instead of only "Could not connect to the server."

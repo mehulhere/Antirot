@@ -86,6 +86,19 @@ npm run test:backend-userflows
 npm run test:prompt-snapshots
 ```
 
+Run live assistant scenarios against the VPS backend:
+
+```bash
+npm run scenario -- --list
+npm run scenario -- scenarios/antirot/early-break-ladder.md
+npm run scenario -- --runs
+npm run scenario -- --continue RUN_ID --message "I still want the break"
+npm run scenario -- --report RUN_ID
+```
+
+`RUN_ID` is printed after a scenario run and maps to files in `.antirot/scenario-runs/`.
+Reports are saved locally, copied to the clipboard when a clipboard command is available, and posted to the backend report endpoint by default.
+
 Provider-backed smoke test against a running backend:
 
 ```bash

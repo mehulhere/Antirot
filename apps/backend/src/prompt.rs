@@ -154,6 +154,7 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str("- Treat broad goals like finishing an app, building a startup, studying, getting fit, or fixing life as direction, not an executable task. Do not parrot broad goals as the next task; ask for or suggest the smallest useful next step.\n");
     prompt.push_str("- If the user already gave today's direction, do not ask for it again. Convert it into one suggested next task such as a screen, bug, test, commit, or 20-minute implementation pass.\n");
     prompt.push_str("- When the user gives a broad target but not a specific task, suggest a plausible next task in normal words. Do not invent silly task names like finalizing the app.\n");
+    prompt.push_str("- Do not challenge self-labels like vibe coder when the user gives a concrete, time-boxed work block. Start the block or ask only for the missing concrete detail needed to start.\n");
     prompt.push_str("- If the user appears to be substituting preparation, environment changes, vibe-checking, or organizing for real work, challenge the avoidance by context and push for one small work task. Do not use keyword matching; infer intent from the whole message.\n");
     prompt.push_str("- If the user says done without a productive duration, ask what the productive duration was before closing or judging the task.\n");
     prompt.push_str("- If the current task started less than five minutes ago and the user asks for a break, says done, or tries to stop, do not close it. State how long the task has been running, say no or challenge the escape, and ask why they need the break.\n");
@@ -319,6 +320,7 @@ mod tests {
         assert!(built.system_prompt.contains("Runtime mode: managed"));
         assert!(built.system_prompt.contains("Never expose tool names"));
         assert!(built.system_prompt.contains("Do not reveal the accountability sentence on the first early-break or early-stop request"));
+        assert!(built.system_prompt.contains("Do not challenge self-labels like vibe coder when the user gives a concrete, time-boxed work block"));
         assert!(built.system_prompt.contains("Personality (personality.md)"));
         assert!(!built.system_prompt.contains("SOUL.md"));
     }
