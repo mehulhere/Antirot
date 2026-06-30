@@ -242,21 +242,21 @@ const quickMessages: QuickMessage[] = [
 ];
 
 const quickMessagesByState: Record<RuntimeStateName, string[]> = {
-    onboarding: ["ready-work"],
-    idle: ["ready-work", "real-break", "movie-break"],
-    working: ["done", "real-break"],
-    break: ["ready-work"],
-    sleeping: ["awake"],
+    onboarding: [],
+    idle: ["ready-work"],
+    working: ["done"],
+    break: [],
+    sleeping: [],
     vacation: [],
     unknown: []
 };
 
 const actionsByState: Record<RuntimeStateName, string[]> = {
-    onboarding: ["start-work"],
-    idle: ["start-work", "break"],
-    working: ["extend-work", "break"],
-    break: ["start-work"],
-    sleeping: ["wake"],
+    onboarding: [],
+    idle: ["start-work"],
+    working: ["done"],
+    break: [],
+    sleeping: [],
     vacation: [],
     unknown: []
 };

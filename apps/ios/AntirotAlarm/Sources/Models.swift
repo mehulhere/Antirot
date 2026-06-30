@@ -201,16 +201,12 @@ struct CoachQuickAction: Identifiable, Equatable {
         let ids: [String]
         switch runtimeState.lowercased() {
         case "onboarding":
-            ids = ["start_working"]
+            ids = []
         case "idle":
-            ids = ["start_working", "need_break", "movie_break"]
-        case "working":
-            ids = ["done", "need_break"]
-        case "break":
             ids = ["start_working"]
-        case "sleeping":
-            ids = ["wake_up"]
-        case "vacation", "unknown":
+        case "working":
+            ids = ["done"]
+        case "break", "sleeping", "vacation", "unknown":
             ids = []
         default:
             ids = []

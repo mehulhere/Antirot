@@ -40,14 +40,45 @@ struct PlanView: View {
     }
 
     private var stateActions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "State Actions", icon: "switch.2")
+        let actions = visibleStateActions
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                planButton("Start Work", "play.fill", "I am ready to work. Start the task we just picked.")
-                planButton("Done", "checkmark", "Done. I finished the current task. Ask me how much of it was actually productive before closing it.")
-                planButton("Break", "pause.fill", "I need a real break. Help me choose the minimum honest break.")
+        return Group {
+            if !actions.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    AntirotSectionHeader(title: "State Actions", icon: "switch.2")
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(actions) { action in
+                            planButton(action.title, action.systemImage, action.message)
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    private var visibleStateActions: [CoachQuickAction] {
+        switch coach.runtimeState.lowercased() {
+        case "idle":
+            return [
+                CoachQuickAction(
+                    id: "plan_start_work",
+                    title: "Start Work",
+                    systemImage: "play.fill",
+                    message: "I am ready to work. Start the task we just picked."
+                )
+            ]
+        case "working":
+            return [
+                CoachQuickAction(
+                    id: "plan_done",
+                    title: "Done",
+                    systemImage: "checkmark",
+                    message: "Done. I finished the current task. Ask me how much of it was actually productive before closing it."
+                )
+            ]
+        default:
+            return []
         }
     }
 

@@ -24,19 +24,13 @@ public class CoachQuickAction {
         String[] ids;
         switch (state) {
             case "onboarding":
-                ids = new String[] {"start_working"};
+                ids = new String[] {};
                 break;
             case "idle":
-                ids = new String[] {"start_working", "need_break", "movie_break"};
-                break;
-            case "working":
-                ids = new String[] {"done", "need_break", "log_work"};
-                break;
-            case "break":
                 ids = new String[] {"start_working"};
                 break;
-            case "sleeping":
-                ids = new String[] {"wake_up"};
+            case "working":
+                ids = new String[] {"done"};
                 break;
             default:
                 ids = new String[] {};
