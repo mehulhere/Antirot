@@ -37,8 +37,7 @@ struct ConfettiBurst: View {
                     let h = particle.size * 0.34 * scale
                     path.addRoundedRect(
                         in: CGRect(x: -w / 2, y: -h / 2, width: w, height: h),
-                        cornerWidth: h / 2,
-                        cornerHeight: h / 2
+                        cornerSize: CGSize(width: h / 2, height: h / 2)
                     )
 
                     var particleContext = graphics
