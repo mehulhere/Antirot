@@ -66,13 +66,14 @@ async function main() {
         pass("UF-02c fresh work session resists immediate done");
 
         result = await runTool(backend.baseUrl, fixture.userId, "start_break", {
-            duration_minutes: 5,
+            duration_minutes: 15,
             responsibility_acknowledgement: "I take full responsibility of stopping this task before giving it a fair attempt."
         });
         assert.equal(result.ok, true, result.result);
+        assert.match(result.result, /Break started for 15 minutes/u);
         assertState(result.snapshot, "break");
         assertAlarmFamily(result.snapshot, "break_alarm");
-        pass("UF-02d explicit responsibility allows minimum early break");
+        pass("UF-02d explicit responsibility allows early break without duration cap");
 
         result = await runTool(backend.baseUrl, fixture.userId, "start_session", {
             task_id: "Write backend userflow tests",

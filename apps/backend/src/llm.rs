@@ -21,7 +21,6 @@ use crate::prompt::{
 };
 
 const EARLY_SESSION_MINIMUM_MINUTES: i64 = 5;
-const EARLY_BREAK_MAX_MINUTES: i64 = 5;
 
 #[derive(Serialize)]
 struct GcpClaims {
@@ -1506,7 +1505,7 @@ async fn execute_tool_locally(
             )
         }
         "start_break" => {
-            let requested_duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
+            let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
             let responsibility_acknowledgement = args["responsibility_acknowledgement"].as_str();
             let runtime_snapshot = match current_runtime_state(&client, user_id).await {
                 Ok(snapshot) => snapshot,
@@ -1519,11 +1518,6 @@ async fn execute_tool_locally(
                 Ok(elapsed) => elapsed.filter(|minutes| *minutes < EARLY_SESSION_MINIMUM_MINUTES),
                 Err(message) => return message,
             };
-            let duration_minutes = if early_elapsed_minutes.is_some() {
-                requested_duration_minutes.clamp(1, EARLY_BREAK_MAX_MINUTES)
-            } else {
-                requested_duration_minutes
-            };
 
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
@@ -1535,8 +1529,8 @@ async fn execute_tool_locally(
             };
             if let Some(elapsed_minutes) = early_elapsed_minutes {
                 work.push_str(&format!(
-                    "- session_incomplete_override: early break after {} mins; task remains incomplete; requested {} mins, capped to {} mins at {}\n",
-                    elapsed_minutes, requested_duration_minutes, duration_minutes, now
+                    "- session_incomplete_override: early break after {} mins; task remains incomplete; break duration {} mins at {}\n",
+                    elapsed_minutes, duration_minutes, now
                 ));
             }
             work.push_str(&format!(
