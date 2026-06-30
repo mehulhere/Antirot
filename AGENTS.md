@@ -38,6 +38,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - Since LLM output is nondeterministic, testing and manual quality verification are usually the only reliable ways to validate LLM behavior
 - LLM testcase failures are review signals, not mandatory product requirements; never overfit prompts or backend code to satisfy one scripted case when the broader user behavior is better handled by a clear instruction or manual quality judgment
 - Do not fix weak LLM outputs by adding corner-case phrase bans, keyword blacklists, or exact example-specific guards. If a testcase is not passing, either say the testcase is still failing or keep improving the broad prompt/product instruction without making the prompt too specific.
+- Do not create backend guards for LLM behavioral quality issues. If coach behavior is weak, prefer broad prompt/product guidance plus tests/manual verification; report failures instead of enforcing coach choices in backend tool code.
 - When scoring LLM/model outputs, research properly, verify the exact current model name/version, score each choice where relevant, and include variance/uncertainty when unsure
 - Default iteration baseline: `npx eslint <changed-files>` and `npx tsc --noEmit`
 - Then run the smallest relevant script or manual flow for the change

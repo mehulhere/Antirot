@@ -506,12 +506,6 @@ pub async fn chat_with_coach(
 
 fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &str) -> String {
     if !result_text.starts_with("Success:") {
-        if result_text.starts_with("Rejected:") {
-            return result_text
-                .trim_start_matches("Rejected:")
-                .trim()
-                .to_string();
-        }
         return format!("I hit a backend problem: {}", result_text);
     }
 
@@ -936,36 +930,6 @@ fn runtime_status_for_prompt(
         }
     }
     lines.join("\n")
-}
-
-fn responsibility_acknowledged(value: Option<&str>) -> bool {
-    value
-        .unwrap_or("")
-        .to_ascii_lowercase()
-        .contains("i take full responsibility")
-}
-
-fn early_work_session_guard(
-    snapshot: Option<&RuntimeStateSnapshot>,
-    acknowledgement: Option<&str>,
-) -> Result<Option<i64>, String> {
-    let Some(snapshot) = snapshot else {
-        return Ok(None);
-    };
-    if snapshot.state != "working" {
-        return Ok(None);
-    }
-    let elapsed_minutes = (Utc::now() - snapshot.entered_at).num_minutes().max(0);
-    if elapsed_minutes >= EARLY_SESSION_MINIMUM_MINUTES {
-        return Ok(Some(elapsed_minutes));
-    }
-    if responsibility_acknowledged(acknowledgement) {
-        return Ok(Some(elapsed_minutes));
-    }
-    Err(format!(
-        "Rejected: Current work task is too fresh to stop ({} minute(s) since start). Keep the task marked incomplete and do not end it yet. Argue against the break, ask why they need it, push for at least {} minutes of effort, and if they still insist require: \"I take full responsibility of stopping this task before giving it a fair attempt.\"",
-        elapsed_minutes, EARLY_SESSION_MINIMUM_MINUTES
-    ))
 }
 
 fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
@@ -1429,19 +1393,6 @@ async fn execute_tool_locally(
         "end_session" => {
             let actual = args["actual_minutes"].as_i64().unwrap_or(0);
             let productivity = args["productive_level"].as_i64().unwrap_or(100);
-            let responsibility_acknowledgement = args["responsibility_acknowledgement"].as_str();
-            let runtime_snapshot = match current_runtime_state(&client, user_id).await {
-                Ok(snapshot) => snapshot,
-                Err(err) => return format!("Error reading runtime state: {}", err),
-            };
-            let early_elapsed_minutes = match early_work_session_guard(
-                runtime_snapshot.as_ref(),
-                responsibility_acknowledgement,
-            ) {
-                Ok(elapsed) => elapsed.filter(|minutes| *minutes < EARLY_SESSION_MINIMUM_MINUTES),
-                Err(message) => return message,
-            };
-
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
@@ -1450,12 +1401,6 @@ async fn execute_tool_locally(
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            if let Some(elapsed_minutes) = early_elapsed_minutes {
-                work.push_str(&format!(
-                    "- session_incomplete_override: stopped after {} mins because user accepted responsibility at {}\n",
-                    elapsed_minutes, now
-                ));
-            }
             work.push_str(&format!(
                 "- session_end: {} actual mins, productivity level {}% at {}\n",
                 actual, productivity, now
@@ -1506,19 +1451,6 @@ async fn execute_tool_locally(
         }
         "start_break" => {
             let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
-            let responsibility_acknowledgement = args["responsibility_acknowledgement"].as_str();
-            let runtime_snapshot = match current_runtime_state(&client, user_id).await {
-                Ok(snapshot) => snapshot,
-                Err(err) => return format!("Error reading runtime state: {}", err),
-            };
-            let early_elapsed_minutes = match early_work_session_guard(
-                runtime_snapshot.as_ref(),
-                responsibility_acknowledgement,
-            ) {
-                Ok(elapsed) => elapsed.filter(|minutes| *minutes < EARLY_SESSION_MINIMUM_MINUTES),
-                Err(message) => return message,
-            };
-
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
             let db_key = format!("work_log_{}", today);
@@ -1527,12 +1459,6 @@ async fn execute_tool_locally(
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
-            if let Some(elapsed_minutes) = early_elapsed_minutes {
-                work.push_str(&format!(
-                    "- session_incomplete_override: early break after {} mins; task remains incomplete; break duration {} mins at {}\n",
-                    elapsed_minutes, duration_minutes, now
-                ));
-            }
             work.push_str(&format!(
                 "- break_start: {} mins at {}\n",
                 duration_minutes, now
@@ -1820,13 +1746,12 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "end_session",
-                "description": "Concludes the current accountability work session. If the work task started less than five minutes ago, do not call this unless the user explicitly says they take full responsibility for stopping before a fair attempt; otherwise challenge the stop and ask why they need to quit.",
+                "description": "Concludes the current accountability work session after the coach has conversationally confirmed the user is stopping.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "actual_minutes": { "type": "integer", "description": "Actual duration spent in minutes." },
-                        "productive_level": { "type": "integer", "description": "Productive rating from 0 to 100." },
-                        "responsibility_acknowledgement": { "type": "string", "description": "Only include this when the user explicitly says they take full responsibility for stopping a work task before a fair attempt. Do not invent it." }
+                        "productive_level": { "type": "integer", "description": "Productive rating from 0 to 100." }
                     },
                     "required": ["actual_minutes", "productive_level"]
                 }
@@ -1850,12 +1775,11 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "start_break",
-                "description": "Starts a structured recovery break and schedules alerts to return to work. If a work task started less than five minutes ago, do not call this unless the user explicitly says they take full responsibility for stopping before a fair attempt; argue first, ask why the break is needed, and push for the minimum break.",
+                "description": "Starts a structured recovery break and schedules alerts to return to work after the coach has conversationally negotiated it.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "duration_minutes": { "type": "integer", "description": "Duration of the break in minutes. Use the minimum viable duration for early-task overrides." },
-                        "responsibility_acknowledgement": { "type": "string", "description": "Only include this when the user explicitly says they take full responsibility for stopping a work task before a fair attempt. Do not invent it." }
+                        "duration_minutes": { "type": "integer", "description": "Duration of the break in minutes." }
                     },
                     "required": ["duration_minutes"]
                 }
