@@ -7,37 +7,76 @@ struct AlarmsView: View {
     @State private var isImportingSound = false
 
     var body: some View {
-        ZStack {
-            Color.antirotBg.ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 16) {
+            AntirotSectionHeader(title: "Alarms", icon: "bell")
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 28) {
-                    // MARK: - Title
-                    Text("Alarms")
-                        .font(.title.bold())
-                        .foregroundStyle(.antirotTextPrimary)
+            // Upcoming alarms
+            if alarmCenter.scheduledAlarms.isEmpty {
+                Text("No pending alarms")
+                    .font(.subheadline)
+                    .foregroundStyle(.arTextMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(alarmCenter.scheduledAlarms.enumerated()), id: \.element.id) { index, alarm in
+                        alarmRow(alarm)
 
-                    // MARK: - Test Alarms
-                    testAlarmsSection
-
-                    // MARK: - Sound Configuration
-                    soundConfigSection
-
-                    // MARK: - Upcoming
-                    upcomingSection
-
-                    // MARK: - Status
-                    if !alarmCenter.lastMessage.isEmpty {
-                        Text(alarmCenter.lastMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.antirotTextMuted)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 4)
+                        if index < alarmCenter.scheduledAlarms.count - 1 {
+                            SectionDivider()
+                                .padding(.leading, 30)
+                        }
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+                .minimalCard(cornerRadius: 12, padding: 0)
             }
+
+            // Sound config — single row
+            Button {
+                isImportingSound = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "speaker.wave.2")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
+                    Text("Alarm Sound")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextPrimary)
+                    Spacer()
+                    Text(soundSelectionLabel)
+                        .font(.caption)
+                        .foregroundStyle(.arTextSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.arTextMuted)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .minimalCard(cornerRadius: 12, padding: 0)
+
+            // Test alarm — single row
+            Button {
+                Task { await alarmCenter.scheduleTestAlarm(severity: .normal) }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
+                    Text("Test Alarm")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.arTextMuted)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .minimalCard(cornerRadius: 12, padding: 0)
         }
         .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
             switch result {
@@ -55,222 +94,50 @@ struct AlarmsView: View {
         }
     }
 
-    // MARK: - Test Alarms Section
-
-    private var testAlarmsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Test alarms", icon: "waveform")
-
-            HStack(spacing: 12) {
-                testAlarmCard(
-                    title: "Normal Test",
-                    subtitle: "Standard wake alarm",
-                    icon: "alarm",
-                    accentColor: .antirotGold,
-                    severity: .normal
-                )
-
-                testAlarmCard(
-                    title: "Loud Test",
-                    subtitle: "Emergency escalation",
-                    icon: "alarm",
-                    accentColor: .antirotDanger,
-                    severity: .loud
-                )
-            }
-        }
-    }
-
-    private func testAlarmCard(
-        title: String,
-        subtitle: String,
-        icon: String,
-        accentColor: Color,
-        severity: AlarmJob.Severity
-    ) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(accentColor)
-
-            VStack(spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.antirotTextPrimary)
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.antirotTextMuted)
-            }
-
-            Button {
-                Task { await alarmCenter.scheduleTestAlarm(severity: severity) }
-            } label: {
-                Text("Schedule")
-                    .font(.caption.weight(.medium))
-            }
-            .buttonStyle(AntirotGhostButtonStyle())
-        }
-        .frame(maxWidth: .infinity)
-        .layeredCard(cornerRadius: 14, padding: 16)
-        .overlay(alignment: .top) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(accentColor)
-                .frame(height: 2)
-                .padding(.horizontal, 1)
-        }
-    }
-
-    // MARK: - Sound Configuration Section
-
-    private var soundConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Alarm sound", icon: "speaker.wave.2")
-
-            VStack(alignment: .leading, spacing: 16) {
-                // Segmented picker
-                VStack(spacing: 8) {
-                    Picker("Mode", selection: $settings.alarmSoundMode) {
-                        ForEach(AlarmSoundMode.allCases) { mode in
-                            Text(mode.label).tag(mode.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.antirotBgSurface)
-                    )
-                }
-
-                // Current selection
-                HStack(spacing: 8) {
-                    Image(systemName: "music.note")
-                        .font(.caption)
-                        .foregroundStyle(.antirotGold)
-                    Text(soundSelectionLabel)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.antirotTextPrimary)
-                }
-
-                // Mode detail
-                Text(AlarmSoundMode(storedValue: settings.alarmSoundMode).detail)
-                    .font(.caption)
-                    .foregroundStyle(.antirotTextMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // Action buttons
-                HStack(spacing: 10) {
-                    Button {
-                        isImportingSound = true
-                    } label: {
-                        Label("Choose sound", systemImage: "folder")
-                    }
-                    .buttonStyle(AntirotGhostButtonStyle())
-
-                    Button {
-                        settings.alarmSoundMode = AlarmSoundMode.automatic.rawValue
-                        settings.alarmSoundName = ""
-                        alarmCenter.lastMessage = "Alarm sound reset to automatic bundled sounds"
-                    } label: {
-                        Label("Reset to auto", systemImage: "arrow.counterclockwise")
-                    }
-                    .buttonStyle(AntirotGhostButtonStyle())
-                }
-            }
-            .layeredCard()
-        }
-    }
-
-    // MARK: - Upcoming Section
-
-    private var upcomingSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Upcoming", icon: "clock")
-
-            if alarmCenter.scheduledAlarms.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "moon.stars")
-                        .font(.title)
-                        .foregroundStyle(.antirotTextMuted)
-                    Text("Nothing on the horizon. Your coach will schedule alarms as needed.")
-                        .font(.subheadline)
-                        .foregroundStyle(.antirotTextMuted)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .layeredCard()
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(alarmCenter.scheduledAlarms) { alarm in
-                        alarmRow(alarm)
-                    }
-                }
-            }
-        }
-    }
+    // MARK: - Alarm Row
 
     private func alarmRow(_ alarm: AlarmJob) -> some View {
-        HStack(spacing: 14) {
-            // Severity bar
-            RoundedRectangle(cornerRadius: 2)
+        HStack(spacing: 10) {
+            Circle()
                 .fill(alarm.severity.color)
-                .frame(width: 4)
+                .frame(width: 6, height: 6)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    // Severity badge
-                    Text(alarm.severity.label)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(alarm.severity.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(alarm.severity.color.opacity(0.15))
-                        )
+            Text(alarm.title)
+                .font(.subheadline)
+                .foregroundStyle(.arTextPrimary)
+                .lineLimit(1)
 
-                    Spacer()
+            Spacer()
 
-                    // Fire time
-                    Text(alarm.fireAt.formatted(date: .omitted, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.antirotTextSecondary)
-                }
-
-                Text(alarm.title)
-                    .font(.headline)
-                    .foregroundStyle(.antirotTextPrimary)
-
-                Text(alarm.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.antirotTextSecondary)
-                    .lineLimit(2)
-            }
+            Text(alarm.fireAt.formatted(date: .omitted, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.arTextSecondary)
         }
-        .layeredCard(cornerRadius: 14, padding: 14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Computed
 
     private var soundSelectionLabel: String {
         let mode = AlarmSoundMode(storedValue: settings.alarmSoundMode)
         switch mode {
         case .automatic:
-            return "Auto: normal + loud"
+            return "Auto"
         case .bundledNormal:
             return "Bundled normal"
         case .bundledLoud:
             return "Bundled loud"
         case .custom:
-            return settings.alarmSoundName.isEmpty ? "Custom not imported yet" : settings.alarmSoundName
+            return settings.alarmSoundName.isEmpty ? "Custom" : settings.alarmSoundName
         }
     }
 }
 
 #Preview {
     AlarmsView()
+        .padding(.horizontal, 24)
+        .background(Color.arBg)
         .environmentObject(SettingsStore())
         .environmentObject(AlarmCenter())
 }

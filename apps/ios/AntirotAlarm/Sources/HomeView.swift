@@ -14,54 +14,17 @@ struct HomeView: View {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
     }
 
+    private var hasDraft: Bool {
+        !coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                MeshBackground()
-
-                VStack(spacing: 0) {
-                    header
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .frame(width: geometry.size.width)
-
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(spacing: 18) {
-                                FocusDial(
-                                    isRecording: coach.isRecording,
-                                    isThinking: coach.isSending
-                                )
-                                .padding(.top, 14)
-
-                                currentTaskStrip
-                                quickActions
-                                transcript
-                                pendingAlarmStrip
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 210)
-                            .frame(width: geometry.size.width)
-                        }
-                        .onChange(of: coach.messages.count) { _, _ in
-                            if let last = coach.messages.last?.id {
-                                withAnimation(.easeOut(duration: 0.25)) {
-                                    proxy.scrollTo(last, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                    .frame(width: geometry.size.width)
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-
-                composer
-                    .frame(width: geometry.size.width)
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipped()
+        VStack(spacing: 0) {
+            statusBar
+            conversation
+            composer
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.arBg.ignoresSafeArea())
         .task {
             onboardingName = settings.onboardingName
             await alarmCenter.pollPendingAlarms()
@@ -85,99 +48,98 @@ struct HomeView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            // Red monogram
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.antirotGlowPrimary)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(Color.antirotBorderStrong, lineWidth: 1)
-                    )
-                Text("A")
-                    .font(.headline.bold())
-                    .foregroundStyle(.antirotAccent)
-            }
-            .frame(width: 36, height: 36)
-            .accessibilityHidden(true)
+    // MARK: - Zone 1: Status Bar
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Coach")
-                    .font(.headline.bold())
-                    .foregroundStyle(.antirotTextPrimary)
-                Text(settings.registered ? "Backend connected" : "Offline")
-                    .font(.caption)
-                    .foregroundStyle(.antirotTextMuted)
-            }
-
+    private var statusBar: some View {
+        HStack {
+            StatePill(
+                label: coach.runtimeState,
+                isActive: coach.runtimeState.lowercased() == "working"
+            )
             Spacer()
+            StatusDot(color: settings.registered ? .arSuccess : .arDanger)
+        }
+        .padding(.horizontal, 24)
+        .frame(height: 44)
+    }
 
-            Button {
-                resetLocalConversation()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.antirotTextPrimary)
-                    .frame(width: 38, height: 38)
-                    .background(Color.antirotBgElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.antirotBorder, lineWidth: 1)
-                    )
+    // MARK: - Zone 2: Conversation
+
+    private var conversation: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 10) {
+                    ForEach(coach.messages) { message in
+                        CoachBubble(message: message)
+                            .id(message.id)
+                    }
+
+                    if coach.isSending {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(.arTextMuted)
+                            Text(coach.statusText)
+                                .font(.caption)
+                                .foregroundStyle(.arTextMuted)
+                            Spacer()
+                        }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.arElevated)
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 120)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Reset conversation")
-
-            StatusDot(color: settings.registered ? .antirotCyan : .antirotDanger)
+            .onChange(of: coach.messages.count) { _, _ in
+                if let last = coach.messages.last?.id {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(last, anchor: .bottom)
+                    }
+                }
+            }
         }
     }
 
-    private var currentTaskStrip: some View {
-        let snapshot = SharedTaskStore.read()
+    // MARK: - Zone 3: Composer
 
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "target")
-                    .foregroundStyle(.antirotAccent)
-                Text(snapshot.mode.uppercased())
-                    .font(.caption2.weight(.bold))
-                    .tracking(1)
-                    .foregroundStyle(.antirotTextMuted)
-                Spacer()
-                if let dueAt = snapshot.dueAt {
-                    Text(dueAt, style: .relative)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.antirotGold)
+    private var composer: some View {
+        let actions = CoachQuickAction.primary(for: coach.runtimeState, at: quickActionRefreshDate)
+
+        return VStack(spacing: 8) {
+            SectionDivider()
+
+            if !actions.isEmpty {
+                quickActionChips(actions)
+            }
+
+            HStack(spacing: 10) {
+                micButton
+                textField
+                if hasDraft {
+                    sendButton
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
 
-            Text(snapshot.title)
-                .font(.headline)
-                .foregroundStyle(.antirotTextPrimary)
-                .lineLimit(2)
-
-            Text(snapshot.subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.antirotTextSecondary)
-                .lineLimit(2)
+            Text(coach.isRecording ? "Listening..." : "Voice is preferred")
+                .font(.caption2)
+                .foregroundStyle(.arTextMuted)
+                .padding(.bottom, 4)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .layeredCard(cornerRadius: 14, padding: 16)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(Color.antirotAccent)
-                .frame(width: 3)
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: 14))
-        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .background(Color.arBg.ignoresSafeArea(.container, edges: .bottom))
+        .animation(.spring(duration: 0.3), value: hasDraft)
     }
 
-    private var quickActions: some View {
-        let actions = CoachQuickAction.primary(for: coach.runtimeState, at: quickActionRefreshDate)
-
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+    private func quickActionChips(_ actions: [CoachQuickAction]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 ForEach(actions) { action in
                     Button {
                         Task {
@@ -185,48 +147,86 @@ struct HomeView: View {
                             await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: action.systemImage)
-                                .font(.caption.weight(.bold))
-                            Text(action.title)
-                                .font(.caption.weight(.semibold))
-                                .lineLimit(1)
-                        }
-                        .foregroundStyle(.antirotTextPrimary)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 10)
-                        .background(Color.antirotGlowPrimary)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(Color.antirotBorderStrong, lineWidth: 1)
-                        )
+                        Text(action.title)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.arTextSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.arSurface)
+                            )
                     }
                     .buttonStyle(.plain)
                 }
-
-                if actions.isEmpty {
-                    Text("No quick actions for this state.")
-                        .font(.caption)
-                        .foregroundStyle(.antirotTextMuted)
-                        .padding(.vertical, 10)
-                }
             }
-            .padding(.vertical, 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    private var micButton: some View {
+        Button {
+            Task {
+                await coach.toggleVoice(client: client)
+                await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+            }
+        } label: {
+            Image(systemName: coach.isRecording ? "stop.fill" : "mic.fill")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(
+                    Circle()
+                        .fill(coach.isRecording ? Color.arDanger : Color.arAccent)
+                )
+                .scaleEffect(coach.isRecording ? 1.06 : 1.0)
+                .animation(
+                    coach.isRecording
+                        ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                        : .default,
+                    value: coach.isRecording
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(coach.isSending)
+    }
+
+    private var textField: some View {
+        TextField("Type...", text: $coach.draft, axis: .vertical)
+            .lineLimit(1...3)
+            .focused($draftFocused)
+            .textInputAutocapitalization(.sentences)
+            .font(.body)
+            .foregroundStyle(.arTextPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.arSurface)
+            )
+    }
+
+    private var sendButton: some View {
+        Button {
+            Task {
+                await coach.sendDraft(client: client)
+                await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+            }
+        } label: {
+            Image(systemName: "arrow.up")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.arAccent))
+        }
+        .buttonStyle(.plain)
+        .disabled(coach.isSending)
+    }
+
+    // MARK: - Helpers
 
     private func presentNamePromptIfNeeded() {
         guard !settings.onboardingNameSent else { return }
         showNamePrompt = coach.runtimeState == "onboarding" || coach.runtimeState == "unknown"
-    }
-
-    private func resetLocalConversation() {
-        settings.resetOnboardingNamePrompt()
-        onboardingName = ""
-        coach.resetConversation()
-        presentNamePromptIfNeeded()
     }
 
     private func sendNameOnboarding() async {
@@ -248,255 +248,80 @@ struct HomeView: View {
             "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
             "Silent client context is available below for scheduling only.",
             "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-            "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.",
+            "First onboarding message: I'm Antirot. I've coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let's see what you've got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you're planning to get done today.",
             "Name: \(name)",
             "Silent device timezone: \(timezone)"
         ].joined(separator: "\n")
     }
-
-    private var transcript: some View {
-        VStack(spacing: 12) {
-            ForEach(coach.messages) { message in
-                CoachBubble(message: message)
-                    .id(message.id)
-            }
-
-            if coach.isSending {
-                HStack {
-                    ProgressView()
-                        .tint(.antirotTextMuted)
-                    Text(coach.statusText)
-                        .font(.caption)
-                        .foregroundStyle(.antirotTextMuted)
-                    Spacer()
-                }
-                .layeredCard(cornerRadius: 14, padding: 14)
-            }
-        }
-    }
-
-    private var pendingAlarmStrip: some View {
-        let visibleAlarms = alarmCenter.nextReminderAlarms
-        return VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Pending Alarms", icon: "alarm")
-
-            if visibleAlarms.isEmpty {
-                HStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.antirotSuccess)
-                    Text("No pending phone alarms.")
-                        .font(.subheadline)
-                        .foregroundStyle(.antirotTextSecondary)
-                    Spacer()
-                }
-                .layeredCard(cornerRadius: 14, padding: 14)
-            } else {
-                ForEach(visibleAlarms) { alarm in
-                    HStack(spacing: 10) {
-                        StatusDot(color: alarm.severity.color, animated: false)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(alarm.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.antirotTextPrimary)
-                            Text(alarm.fireAt.formatted(date: .omitted, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.antirotTextMuted)
-                        }
-                        Spacer()
-                    }
-                    .layeredCard(cornerRadius: 14, padding: 14)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var composer: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                Button {
-                    Task {
-                        await coach.toggleVoice(client: client)
-                        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
-                    }
-                } label: {
-                    Image(systemName: coach.isRecording ? "stop.fill" : "mic.fill")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(
-                            Circle()
-                                .fill(
-                                    coach.isRecording
-                                        ? Color.antirotDanger
-                                        : Color.antirotAccent
-                                )
-                        )
-                        .shadow(
-                            color: (coach.isRecording ? Color.antirotDanger : Color.antirotAccent).opacity(0.4),
-                            radius: 16,
-                            y: 6
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(coach.isSending)
-
-                TextField("Say it or type a short check-in", text: $coach.draft, axis: .vertical)
-                    .lineLimit(1...3)
-                    .focused($draftFocused)
-                    .textInputAutocapitalization(.sentences)
-                    .foregroundStyle(.antirotTextPrimary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(Color.antirotBgElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .strokeBorder(
-                                draftFocused ? Color.antirotBorderStrong : Color.antirotBorder,
-                                lineWidth: 1
-                            )
-                    )
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    Task {
-                        await coach.sendDraft(client: client)
-                        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
-                    }
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(
-                            coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? .white
-                                : Color.antirotBgElevated
-                        )
-                        .frame(width: 42, height: 42)
-                        .background(
-                            Circle().fill(
-                                coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? Color.antirotAccent
-                                    : Color.antirotGold
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || coach.isSending)
-                .opacity(coach.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-            }
-            .frame(maxWidth: .infinity)
-
-            Text(coach.isRecording ? "Listening: 10s minimum, gentle silence cutoff." : "Voice is preferred. Typing is the fallback.")
-                .font(.caption2)
-                .foregroundStyle(.antirotTextMuted)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(
-            Rectangle()
-                .fill(Color.antirotBgElevated)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color.antirotBorderStrong)
-                        .frame(height: 0.5)
-                }
-                .ignoresSafeArea(.container, edges: .bottom)
-        )
-        .padding(.bottom, 72)
-        .frame(maxWidth: .infinity)
-    }
 }
 
+// MARK: - Coach Bubble
+
 private struct CoachBubble: View {
-    var message: CoachMessage
+    let message: CoachMessage
+    @State private var showTimestamp = false
     @State private var player: AVAudioPlayer?
 
-    private var alignment: HorizontalAlignment {
-        message.role == .user ? .trailing : .leading
-    }
-
-    private var fill: Color {
-        switch message.role {
-        case .user:
-            return .antirotAccent.opacity(0.20)
-        case .coach:
-            return .antirotBgElevated
-        case .system:
-            return .antirotGold.opacity(0.12)
-        }
-    }
-
-    private var borderColor: Color {
-        switch message.role {
-        case .user:
-            return .antirotBorderStrong
-        case .coach:
-            return .antirotBorder
-        case .system:
-            return .antirotGold.opacity(0.18)
-        }
-    }
-
-    private var bubbleShape: UnevenRoundedRectangle {
-        switch message.role {
-        case .user:
-            return UnevenRoundedRectangle(
-                topLeadingRadius: 14, bottomLeadingRadius: 14,
-                bottomTrailingRadius: 4, topTrailingRadius: 14
-            )
-        case .coach:
-            return UnevenRoundedRectangle(
-                topLeadingRadius: 14, bottomLeadingRadius: 4,
-                bottomTrailingRadius: 14, topTrailingRadius: 14
-            )
-        case .system:
-            return UnevenRoundedRectangle(
-                topLeadingRadius: 14, bottomLeadingRadius: 14,
-                bottomTrailingRadius: 14, topTrailingRadius: 14
-            )
-        }
-    }
-
     var body: some View {
-        HStack {
-            if message.role == .user { Spacer(minLength: 48) }
+        if message.role == .system {
+            systemBubble
+        } else {
+            chatBubble
+        }
+    }
 
-            VStack(alignment: alignment, spacing: 5) {
-                if let audioFileURL = message.audioFileURL {
-                    Button {
-                        playAudio(url: audioFileURL)
-                    } label: {
+    private var systemBubble: some View {
+        Text(message.text)
+            .font(.caption)
+            .foregroundStyle(.arTextMuted)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+    }
+
+    private var chatBubble: some View {
+        let isUser = message.role == .user
+
+        return HStack {
+            if isUser { Spacer(minLength: 60) }
+
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+                if let audioURL = message.audioFileURL {
+                    Button { playAudio(url: audioURL) } label: {
                         Label("Voice message", systemImage: "play.circle.fill")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.antirotTextPrimary)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.arTextPrimary)
                     }
                     .buttonStyle(.plain)
                 } else {
                     Text(message.text)
                         .font(.body)
-                        .foregroundStyle(.antirotTextPrimary)
+                        .foregroundStyle(.arTextPrimary)
+                        .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text(message.createdAt.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.antirotTextMuted)
+                if showTimestamp {
+                    Text(message.createdAt.formatted(date: .omitted, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(.arTextMuted)
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(fill)
-            .clipShape(bubbleShape)
-            .overlay(
-                bubbleShape
-                    .strokeBorder(borderColor, lineWidth: 1)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isUser ? Color.arSurface : Color.arElevated)
             )
-            .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showTimestamp.toggle()
+                }
+            }
 
-            if message.role != .user { Spacer(minLength: 48) }
+            if !isUser { Spacer(minLength: 60) }
         }
-        .frame(maxWidth: .infinity)
     }
 
     private func playAudio(url: URL) {
@@ -510,29 +335,7 @@ private struct CoachBubble: View {
     }
 }
 
-private struct SiriCoachBackground: View {
-    var body: some View {
-        ZStack {
-            Color.antirotBg.ignoresSafeArea()
-
-            LinearGradient(
-                colors: [
-                    Color(red: 0.02, green: 0.02, blue: 0.04),
-                    Color(red: 0.10, green: 0.03, blue: 0.05),
-                    Color(red: 0.02, green: 0.04, blue: 0.08)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.12)
-                .ignoresSafeArea()
-        }
-    }
-}
+// MARK: - Preview
 
 #Preview {
     HomeView()

@@ -12,7 +12,7 @@ struct ContentView: View {
                 LoginView()
             }
         }
-        .animation(.easeInOut(duration: 0.4), value: settings.registered)
+        .animation(.easeInOut(duration: 0.35), value: settings.registered)
     }
 }
 

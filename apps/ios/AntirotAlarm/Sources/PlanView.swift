@@ -10,151 +10,116 @@ struct PlanView: View {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
-    private let routineItems: [(String, String, String)] = [
-        ("Work Blocks", "Deep work sessions, completion, and recovery checks.", "timer"),
-        ("Gym", "Fixed daily body maintenance, not backlog work.", "figure.strengthtraining.traditional"),
-        ("Relationship", "Protected time for girlfriend and real human presence.", "heart.fill"),
-        ("Sleep", "Good night, wake logging, and nightly distillation.", "bed.double.fill"),
-        ("Vacation", "No alarm pressure when vacation mode is explicit.", "beach.umbrella.fill")
+    private let routineItems: [(String, String)] = [
+        ("Work Blocks", "timer"),
+        ("Gym", "figure.strengthtraining.traditional"),
+        ("Relationship", "heart.fill"),
+        ("Sleep", "bed.double.fill"),
+        ("Vacation", "beach.umbrella.fill")
     ]
 
     var body: some View {
-        ZStack {
-            Color.antirotBg.ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 16) {
+            AntirotSectionHeader(title: "Plan", icon: "list.bullet")
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    Text("Plan")
-                        .font(.title.bold())
-                        .foregroundStyle(.antirotTextPrimary)
-
-                    stateActions
-                    routineSection
-                    reviewSection
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 92)
-            }
-        }
-    }
-
-    private var stateActions: some View {
-        let actions = visibleStateActions
-
-        return Group {
-            if !actions.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    AntirotSectionHeader(title: "State Actions", icon: "switch.2")
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(actions) { action in
-                            planButton(action.title, action.systemImage, action.message)
-                        }
+            // State actions
+            if !visibleStateActions.isEmpty {
+                VStack(spacing: 2) {
+                    ForEach(visibleStateActions) { action in
+                        actionRow(action)
                     }
                 }
+                .minimalCard(cornerRadius: 12, padding: 0)
             }
-        }
-    }
 
-    private var visibleStateActions: [CoachQuickAction] {
-        switch coach.runtimeState.lowercased() {
-        case "idle":
-            return [
-                CoachQuickAction(
-                    id: "plan_start_work",
-                    title: "Start Work",
-                    systemImage: "play.fill",
-                    message: "I am ready to work. Start the task we just picked."
-                )
-            ]
-        case "working":
-            return [
-                CoachQuickAction(
-                    id: "plan_done",
-                    title: "Done",
-                    systemImage: "checkmark",
-                    message: "Done. I finished the current task. Ask me how much of it was actually productive before closing it."
-                )
-            ]
-        default:
-            return []
-        }
-    }
+            // Routine
+            AntirotSectionHeader(title: "Routine")
 
-    private var routineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Routine", icon: "calendar")
-
-            ForEach(Array(routineItems.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 12) {
-                    Image(systemName: item.2)
-                        .font(.headline)
-                        .foregroundStyle(.antirotGold)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 0) {
+                ForEach(Array(routineItems.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 12) {
+                        Image(systemName: item.1)
+                            .font(.subheadline)
+                            .foregroundStyle(.arTextMuted)
+                            .frame(width: 24)
                         Text(item.0)
-                            .font(.headline)
-                            .foregroundStyle(.antirotTextPrimary)
-                        Text(item.1)
-                            .font(.caption)
-                            .foregroundStyle(.antirotTextMuted)
+                            .font(.subheadline)
+                            .foregroundStyle(.arTextPrimary)
+                        Spacer()
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
 
-                    Spacer()
+                    if index < routineItems.count - 1 {
+                        SectionDivider()
+                            .padding(.leading, 50)
+                    }
                 }
-                .layeredCard(cornerRadius: 16, padding: 14)
             }
-        }
-    }
+            .minimalCard(cornerRadius: 12, padding: 0)
 
-    private var reviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AntirotSectionHeader(title: "Review", icon: "doc.text.magnifyingglass")
-
+            // Review
             Button {
                 Task { await requestDailyReview() }
             } label: {
-                HStack {
+                HStack(spacing: 10) {
                     Image(systemName: isReviewing ? "hourglass" : "sparkles")
-                    Text(isReviewing ? "Reviewing today" : "Ask coach for today's review")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
+                    Text(isReviewing ? "Reviewing..." : "Request daily review")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextPrimary)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(.caption2)
+                        .foregroundStyle(.arTextMuted)
                 }
-                .foregroundStyle(.antirotTextPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
             .disabled(isReviewing)
-            .layeredCard(cornerRadius: 16, padding: 16)
+            .minimalCard(cornerRadius: 12, padding: 0)
 
             if !reviewText.isEmpty {
                 Text(reviewText)
                     .font(.subheadline)
-                    .foregroundStyle(.antirotTextSecondary)
-                    .layeredCard(cornerRadius: 16, padding: 16)
+                    .foregroundStyle(.arTextSecondary)
+                    .minimalCard(cornerRadius: 12, padding: 14)
             }
         }
     }
 
-    private func planButton(_ title: String, _ icon: String, _ message: String) -> some View {
+    // MARK: - State Actions
+
+    private var visibleStateActions: [CoachQuickAction] {
+        CoachQuickAction.primary(for: coach.runtimeState)
+    }
+
+    private func actionRow(_ action: CoachQuickAction) -> some View {
         Button {
-            Task { await coach.send(message, client: client) }
+            Task { await coach.send(action.message, client: client) }
         } label: {
-            VStack(spacing: 9) {
-                Image(systemName: icon)
-                    .font(.title3.weight(.semibold))
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
+            HStack(spacing: 10) {
+                Image(systemName: action.systemImage)
+                    .font(.subheadline)
+                    .foregroundStyle(.arTextSecondary)
+                    .frame(width: 24)
+                Text(action.title)
+                    .font(.subheadline)
+                    .foregroundStyle(.arTextPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.arTextMuted)
             }
-            .foregroundStyle(.antirotTextPrimary)
-            .frame(maxWidth: .infinity, minHeight: 72)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
-        .layeredCard(cornerRadius: 16, padding: 12)
     }
+
+    // MARK: - Review
 
     private func requestDailyReview() async {
         isReviewing = true
@@ -173,6 +138,8 @@ struct PlanView: View {
 
 #Preview {
     PlanView()
+        .padding(.horizontal, 24)
+        .background(Color.arBg)
         .environmentObject(SettingsStore())
         .environmentObject(CoachViewModel())
 }
