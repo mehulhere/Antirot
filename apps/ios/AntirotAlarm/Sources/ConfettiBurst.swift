@@ -43,7 +43,7 @@ struct ConfettiBurst: View {
                     var particleContext = graphics
                     particleContext.opacity = opacity
                     particleContext.translateBy(x: x, y: y)
-                    particleContext.rotate(by: rotation)
+                    particleContext.rotate(by: Angle(radians: rotation))
                     particleContext.fill(path, with: .color(particle.color))
                 }
             }
