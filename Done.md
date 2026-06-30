@@ -34,6 +34,7 @@
 - Run `antirot-backend pair --workspace main --timeout 60`, enter the 6-digit code in the signed-in iOS app, and verify the command prints the paired device while Postgres stores the device/workspace mapping.
 - Configure APNs env vars on the VPS, sign into the iOS app so it registers an APNs token, create a backend alarm for the device, and verify the app wakes/fetches/schedules the pending alarm.
 - Build the iOS app after `xcodegen generate`, verify the login screen shows the animated Antirot branding with ambient gradient and Google sign-in button, then sign in and verify the 3-tab layout (Home/Alarms/Settings) with dark theme, glassmorphism cards, severity-colored alarm cards, permission status dots, developer tools toggle, and dark-themed widget all render correctly.
+- Build and run the iOS coach-room UI on a real iPhone, then verify the animated coach stage, one dominant circular state action, working-state Extend/Break secondary actions, charged Start particles, and draggable glass chat sheet.
 
 ---
 

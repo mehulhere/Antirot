@@ -111,6 +111,21 @@ struct ChatCoachRequest: Codable {
 struct ChatCoachResponse: Codable {
     var ok: Bool
     var reply: String
+    /// Optional "LLM Emotion Contract" fields. Absent on backend builds that
+    /// have not attached them yet, so both decode to nil gracefully and the
+    /// coach falls back to a calm watching pose.
+    var coachEmotion: String? = nil
+    var voicePreface: String? = nil
+
+    /// Resolved emotion used to drive the coach stage, with a safe fallback.
+    var emotion: CoachEmotion { CoachEmotion.from(coachEmotion) }
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case reply
+        case coachEmotion = "coach_emotion"
+        case voicePreface = "voice_preface"
+    }
 }
 
 struct RuntimeStateResponse: Codable {

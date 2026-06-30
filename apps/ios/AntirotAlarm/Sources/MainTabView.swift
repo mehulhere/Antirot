@@ -11,21 +11,20 @@ struct MainTabView: View {
             HomeView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Menu button
+            // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
+            // plan, alarms, and settings out of the primary coach experience.
             Button {
                 showControlSheet = true
             } label: {
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.arTextSecondary)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(Color.arSurface)
-                    )
+                    .frame(width: 38, height: 38)
+                    .glassCapsule()
             }
-            .padding(.trailing, 20)
-            .padding(.top, 8)
+            .buttonStyle(.plain)
+            .padding(.trailing, 16)
+            .padding(.top, 6)
         }
         .sheet(isPresented: $showControlSheet) {
             ControlSheetView()

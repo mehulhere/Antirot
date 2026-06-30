@@ -339,3 +339,61 @@ struct FocusDial: View {
         EmptyView()
     }
 }
+
+// MARK: - Liquid Glass
+
+/// Translucent glass surface in the spirit of the iOS "Liquid Glass" language:
+/// strong background blur, a hairline specular border, and a soft top sheen.
+/// Built on `.ultraThinMaterial` so it works on the iOS 17 deployment target
+/// and keeps the coach scene visible through the chat sheet.
+struct LiquidGlassModifier: ViewModifier {
+    var cornerRadius: CGFloat = 24
+    var borderWidth: CGFloat = 0.5
+    var sheen: Bool = true
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: borderWidth
+                    )
+            )
+            .overlay(alignment: .top) {
+                if sheen {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.10), .clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+extension View {
+    /// Apply the Liquid Glass material treatment to any view.
+    func liquidGlass(cornerRadius: CGFloat = 24, borderWidth: CGFloat = 0.5, sheen: Bool = true) -> some View {
+        modifier(LiquidGlassModifier(cornerRadius: cornerRadius, borderWidth: borderWidth, sheen: sheen))
+    }
+
+    /// Quiet glass capsule used for small secondary controls.
+    func glassCapsule() -> some View {
+        self
+            .liquidGlass(cornerRadius: 22, borderWidth: 0.5, sheen: false)
+    }
+}

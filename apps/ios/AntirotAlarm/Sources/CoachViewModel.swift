@@ -14,10 +14,13 @@ final class CoachViewModel: ObservableObject {
     @Published var isSpeaking = false
     @Published var statusText = "Ready"
     @Published var runtimeState = "unknown"
+    @Published var coachEmotion: CoachEmotion = .watching
+    @Published var showConfetti = false
 
     let recorder = VoiceRecorder()
 
     private var audioPlayer: AVAudioPlayer?
+    private var emotionResetTask: Task<Void, Never>?
     private var pendingChatMessages: [QueuedChatMessage] = []
     private var chatQueueProcessing = false
     private var pendingVoiceSegments: [URL] = []
@@ -69,6 +72,22 @@ final class CoachViewModel: ObservableObject {
         }
     }
 
+    private func applyEmotion(from response: ChatCoachResponse) {
+        coachEmotion = response.emotion
+        scheduleEmotionReset()
+    }
+
+    private func scheduleEmotionReset() {
+        emotionResetTask?.cancel()
+        emotionResetTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 7 * 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            if !self.isSending {
+                self.coachEmotion = .watching
+            }
+        }
+    }
+
     func toggleVoice(client: APIClient) async {
         if recorder.isRecording {
             guard let url = recorder.stop() else { return }
@@ -107,13 +126,19 @@ final class CoachViewModel: ObservableObject {
                 messages.append(CoachMessage(role: .user, text: visibleText))
             }
             isSending = true
+            coachEmotion = .thinking
             statusText = pendingChatMessages.isEmpty ? "Thinking" : "Thinking (\(pendingChatMessages.count) queued)"
 
             do {
                 let response = try await client.chat(message: queued.text)
                 messages.append(CoachMessage(role: .coach, text: response.reply))
                 statusText = "Ready"
-                await speak(response.reply, client: client)
+                applyEmotion(from: response)
+                if let preface = response.voicePreface?.trimmingCharacters(in: .whitespacesAndNewlines), !preface.isEmpty {
+                    await speak(preface, client: client)
+                } else {
+                    await speak(response.reply, client: client)
+                }
             } catch {
                 statusText = "Chat failed"
                 messages.append(CoachMessage(role: .system, text: error.localizedDescription))
