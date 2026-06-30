@@ -20,6 +20,9 @@ use crate::prompt::{
     DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
 };
 
+const EARLY_SESSION_MINIMUM_MINUTES: i64 = 5;
+const EARLY_BREAK_MAX_MINUTES: i64 = 5;
+
 #[derive(Serialize)]
 struct GcpClaims {
     iss: String,
@@ -122,6 +125,14 @@ pub struct LlmToolCall {
 pub struct LlmFunctionCall {
     pub name: String,
     pub arguments: String,
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeStateSnapshot {
+    state: String,
+    entered_at: DateTime<Utc>,
+    source_tool: Option<String>,
+    metadata: String,
 }
 
 pub const FIRST_ONBOARDING_REPLY: &str = "I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you’re planning to get done today.";
@@ -268,8 +279,6 @@ pub async fn chat_with_coach(
             }
         })
         .collect();
-    let _runtime_state = current_runtime_state(&client, user_id).await?;
-
     // 3. Assemble system prompt with current memory context.
     let tools = get_tool_definitions();
     let tool_count = tools.as_array().map(|items| items.len()).unwrap_or(0);
@@ -481,7 +490,6 @@ pub async fn chat_with_coach(
                     )
                     .await?;
             }
-
         } else {
             if let Some(text) = content {
                 final_text = text;
@@ -499,6 +507,12 @@ pub async fn chat_with_coach(
 
 fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &str) -> String {
     if !result_text.starts_with("Success:") {
+        if result_text.starts_with("Rejected:") {
+            return result_text
+                .trim_start_matches("Rejected:")
+                .trim()
+                .to_string();
+        }
         return format!("I hit a backend problem: {}", result_text);
     }
 
@@ -702,8 +716,15 @@ async fn build_prompt_for_user(
     };
     let sleep_metrics = sleep_metrics_report(client, user_id).await?;
     let sleep_metrics_content = serde_json::to_string_pretty(&sleep_metrics).unwrap_or_default();
+    let runtime_snapshot = current_runtime_state(client, user_id).await?;
+    let runtime_status_content = runtime_status_for_prompt(runtime_snapshot.as_ref(), now);
 
     let sections = vec![
+        MemorySection {
+            key: "runtime_status",
+            label: "Current Runtime Status",
+            content: runtime_status_content,
+        },
         memory_section(
             client,
             user_id,
@@ -867,14 +888,85 @@ async fn get_memory_or_init(
 async fn current_runtime_state(
     client: &tokio_postgres::Client,
     user_id: &str,
-) -> AppResult<Option<String>> {
+) -> AppResult<Option<RuntimeStateSnapshot>> {
     Ok(client
         .query_opt(
-            "SELECT state FROM user_runtime_states WHERE user_id = $1",
+            "
+            SELECT state, entered_at, source_tool, metadata::TEXT AS metadata
+            FROM user_runtime_states
+            WHERE user_id = $1
+            ",
             &[&user_id],
         )
         .await?
-        .map(|row| row.get("state")))
+        .map(|row| RuntimeStateSnapshot {
+            state: row.get("state"),
+            entered_at: row.get("entered_at"),
+            source_tool: row.get("source_tool"),
+            metadata: row.get("metadata"),
+        }))
+}
+
+fn runtime_status_for_prompt(
+    snapshot: Option<&RuntimeStateSnapshot>,
+    now: DateTime<Utc>,
+) -> String {
+    let Some(snapshot) = snapshot else {
+        return "No runtime state is currently recorded.".to_string();
+    };
+    let elapsed_minutes = (now - snapshot.entered_at).num_minutes().max(0);
+    let mut lines = vec![
+        format!("Current mode: {}", snapshot.state),
+        format!("Current mode started {} minute(s) ago.", elapsed_minutes),
+        format!(
+            "Source: {}",
+            snapshot.source_tool.as_deref().unwrap_or("unknown")
+        ),
+        format!("Metadata: {}", snapshot.metadata),
+    ];
+    if snapshot.state == "working" {
+        lines.push(format!(
+            "The current work task has been active for {} minute(s). Mention this timing if the user asks for a break, says done, changes task, or sends any message that affects the current task.",
+            elapsed_minutes
+        ));
+        if elapsed_minutes < EARLY_SESSION_MINIMUM_MINUTES {
+            lines.push(format!(
+                "This task is too fresh to stop normally. Argue against stopping, ask why they need the break, push for at least {} minutes of effort, and if they still insist, require them to say: \"I take full responsibility of stopping this task before giving it a fair attempt.\"",
+                EARLY_SESSION_MINIMUM_MINUTES
+            ));
+        }
+    }
+    lines.join("\n")
+}
+
+fn responsibility_acknowledged(value: Option<&str>) -> bool {
+    value
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .contains("i take full responsibility")
+}
+
+fn early_work_session_guard(
+    snapshot: Option<&RuntimeStateSnapshot>,
+    acknowledgement: Option<&str>,
+) -> Result<Option<i64>, String> {
+    let Some(snapshot) = snapshot else {
+        return Ok(None);
+    };
+    if snapshot.state != "working" {
+        return Ok(None);
+    }
+    let elapsed_minutes = (Utc::now() - snapshot.entered_at).num_minutes().max(0);
+    if elapsed_minutes >= EARLY_SESSION_MINIMUM_MINUTES {
+        return Ok(Some(elapsed_minutes));
+    }
+    if responsibility_acknowledged(acknowledgement) {
+        return Ok(Some(elapsed_minutes));
+    }
+    Err(format!(
+        "Rejected: Current work task is too fresh to stop ({} minute(s) since start). Keep the task marked incomplete and do not end it yet. Argue against the break, ask why they need it, push for at least {} minutes of effort, and if they still insist require: \"I take full responsibility of stopping this task before giving it a fair attempt.\"",
+        elapsed_minutes, EARLY_SESSION_MINIMUM_MINUTES
+    ))
 }
 
 fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
@@ -1044,7 +1136,13 @@ async fn transition_user_state(
             VALUES ($1, $2, now(), $3, $4::TEXT::JSONB)
             ON CONFLICT (user_id) DO UPDATE SET
                 state = EXCLUDED.state,
-                entered_at = EXCLUDED.entered_at,
+                entered_at = CASE
+                    WHEN user_runtime_states.state = 'working'
+                        AND EXCLUDED.state = 'working'
+                        AND EXCLUDED.source_tool = 'extend_session'
+                    THEN user_runtime_states.entered_at
+                    ELSE EXCLUDED.entered_at
+                END,
                 source_tool = EXCLUDED.source_tool,
                 metadata = EXCLUDED.metadata
             ",
@@ -1332,6 +1430,18 @@ async fn execute_tool_locally(
         "end_session" => {
             let actual = args["actual_minutes"].as_i64().unwrap_or(0);
             let productivity = args["productive_level"].as_i64().unwrap_or(100);
+            let responsibility_acknowledgement = args["responsibility_acknowledgement"].as_str();
+            let runtime_snapshot = match current_runtime_state(&client, user_id).await {
+                Ok(snapshot) => snapshot,
+                Err(err) => return format!("Error reading runtime state: {}", err),
+            };
+            let early_elapsed_minutes = match early_work_session_guard(
+                runtime_snapshot.as_ref(),
+                responsibility_acknowledgement,
+            ) {
+                Ok(elapsed) => elapsed.filter(|minutes| *minutes < EARLY_SESSION_MINIMUM_MINUTES),
+                Err(message) => return message,
+            };
 
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
@@ -1341,6 +1451,12 @@ async fn execute_tool_locally(
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
+            if let Some(elapsed_minutes) = early_elapsed_minutes {
+                work.push_str(&format!(
+                    "- session_incomplete_override: stopped after {} mins because user accepted responsibility at {}\n",
+                    elapsed_minutes, now
+                ));
+            }
             work.push_str(&format!(
                 "- session_end: {} actual mins, productivity level {}% at {}\n",
                 actual, productivity, now
@@ -1390,7 +1506,24 @@ async fn execute_tool_locally(
             )
         }
         "start_break" => {
-            let duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
+            let requested_duration_minutes = args["duration_minutes"].as_i64().unwrap_or(15);
+            let responsibility_acknowledgement = args["responsibility_acknowledgement"].as_str();
+            let runtime_snapshot = match current_runtime_state(&client, user_id).await {
+                Ok(snapshot) => snapshot,
+                Err(err) => return format!("Error reading runtime state: {}", err),
+            };
+            let early_elapsed_minutes = match early_work_session_guard(
+                runtime_snapshot.as_ref(),
+                responsibility_acknowledgement,
+            ) {
+                Ok(elapsed) => elapsed.filter(|minutes| *minutes < EARLY_SESSION_MINIMUM_MINUTES),
+                Err(message) => return message,
+            };
+            let duration_minutes = if early_elapsed_minutes.is_some() {
+                requested_duration_minutes.clamp(1, EARLY_BREAK_MAX_MINUTES)
+            } else {
+                requested_duration_minutes
+            };
 
             let now = Utc::now().to_rfc3339();
             let today = Utc::now().format("%Y_%m_%d").to_string();
@@ -1400,6 +1533,12 @@ async fn execute_tool_locally(
                 Ok(c) => c,
                 Err(err) => return format!("Error: {}", err),
             };
+            if let Some(elapsed_minutes) = early_elapsed_minutes {
+                work.push_str(&format!(
+                    "- session_incomplete_override: early break after {} mins; task remains incomplete; requested {} mins, capped to {} mins at {}\n",
+                    elapsed_minutes, requested_duration_minutes, duration_minutes, now
+                ));
+            }
             work.push_str(&format!(
                 "- break_start: {} mins at {}\n",
                 duration_minutes, now
@@ -1687,12 +1826,13 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "end_session",
-                "description": "Concludes the current accountability work session.",
+                "description": "Concludes the current accountability work session. If the work task started less than five minutes ago, do not call this unless the user explicitly says they take full responsibility for stopping before a fair attempt; otherwise challenge the stop and ask why they need to quit.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "actual_minutes": { "type": "integer", "description": "Actual duration spent in minutes." },
-                        "productive_level": { "type": "integer", "description": "Productive rating from 0 to 100." }
+                        "productive_level": { "type": "integer", "description": "Productive rating from 0 to 100." },
+                        "responsibility_acknowledgement": { "type": "string", "description": "Only include this when the user explicitly says they take full responsibility for stopping a work task before a fair attempt. Do not invent it." }
                     },
                     "required": ["actual_minutes", "productive_level"]
                 }
@@ -1716,11 +1856,12 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "start_break",
-                "description": "Starts a structured recovery break and schedules alerts to return to work. Use only for deliberate recovery or an explicit, accountable override; challenge entertainment drift in the normal reply instead of starting a break by default.",
+                "description": "Starts a structured recovery break and schedules alerts to return to work. If a work task started less than five minutes ago, do not call this unless the user explicitly says they take full responsibility for stopping before a fair attempt; argue first, ask why the break is needed, and push for the minimum break.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "duration_minutes": { "type": "integer", "description": "Duration of the break in minutes." }
+                        "duration_minutes": { "type": "integer", "description": "Duration of the break in minutes. Use the minimum viable duration for early-task overrides." },
+                        "responsibility_acknowledgement": { "type": "string", "description": "Only include this when the user explicitly says they take full responsibility for stopping a work task before a fair attempt. Do not invent it." }
                     },
                     "required": ["duration_minutes"]
                 }

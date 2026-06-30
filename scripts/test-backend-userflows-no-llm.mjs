@@ -44,6 +44,45 @@ async function main() {
         assertAlarmFamily(result.snapshot, "session_alarm");
         pass("UF-02 start_session enters working");
 
+        result = await runTool(backend.baseUrl, fixture.userId, "start_break", {
+            duration_minutes: 15
+        });
+        assert.equal(result.ok, false, result.result);
+        assert.match(result.result, /too fresh to stop/i);
+        assert.match(result.result, /full responsibility/i);
+        assertState(result.snapshot, "working");
+        assertAlarmFamily(result.snapshot, "session_alarm");
+        pass("UF-02b fresh work session resists immediate break");
+
+        result = await runTool(backend.baseUrl, fixture.userId, "end_session", {
+            actual_minutes: 1,
+            productive_level: 10
+        });
+        assert.equal(result.ok, false, result.result);
+        assert.match(result.result, /too fresh to stop/i);
+        assert.match(result.result, /full responsibility/i);
+        assertState(result.snapshot, "working");
+        assertAlarmFamily(result.snapshot, "session_alarm");
+        pass("UF-02c fresh work session resists immediate done");
+
+        result = await runTool(backend.baseUrl, fixture.userId, "start_break", {
+            duration_minutes: 5,
+            responsibility_acknowledgement: "I take full responsibility of stopping this task before giving it a fair attempt."
+        });
+        assert.equal(result.ok, true, result.result);
+        assertState(result.snapshot, "break");
+        assertAlarmFamily(result.snapshot, "break_alarm");
+        pass("UF-02d explicit responsibility allows minimum early break");
+
+        result = await runTool(backend.baseUrl, fixture.userId, "start_session", {
+            task_id: "Write backend userflow tests",
+            estimated_minutes: 25
+        });
+        assert.equal(result.ok, true, result.result);
+        assertState(result.snapshot, "working");
+        assertAlarmFamily(result.snapshot, "session_alarm");
+        pass("UF-02e start_session resumes after accountable early break");
+
         result = await runTool(backend.baseUrl, fixture.userId, "extend_session", {
             extension_minutes: 10
         });
@@ -54,7 +93,8 @@ async function main() {
 
         result = await runTool(backend.baseUrl, fixture.userId, "end_session", {
             actual_minutes: 25,
-            productive_level: 80
+            productive_level: 80,
+            responsibility_acknowledgement: "I take full responsibility of stopping this task before giving it a fair attempt."
         });
         assert.equal(result.ok, true, result.result);
         assertState(result.snapshot, "idle");
