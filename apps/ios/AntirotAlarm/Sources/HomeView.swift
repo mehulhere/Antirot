@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var showNamePrompt = false
     @State private var sheetHeight: CGFloat = 118
     private let actionClearance: CGFloat = 132
+    private let openChatHeight: CGFloat = 420
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
@@ -43,6 +44,8 @@ struct HomeView: View {
                 onSend: { Task { await sendTapped() } }
             )
         }
+        .contentShape(Rectangle())
+        .simultaneousGesture(homeSwipeUpGesture)
         .confettiOverlay(trigger: $coach.showConfetti)
         .background(Color.arBg.ignoresSafeArea())
         .task {
@@ -114,6 +117,22 @@ private extension HomeView {
     func sendTapped() async {
         await coach.sendDraft(client: client)
         await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+    }
+
+    var homeSwipeUpGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let vertical = value.translation.height
+                let horizontal = abs(value.translation.width)
+                guard vertical < -36, abs(vertical) > horizontal * 1.2 else { return }
+                openChat()
+            }
+    }
+
+    func openChat() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            sheetHeight = max(sheetHeight, openChatHeight)
+        }
     }
 
     func presentNamePromptIfNeeded() {

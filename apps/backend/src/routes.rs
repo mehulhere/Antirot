@@ -36,7 +36,7 @@ use crate::models::{
     SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
     WorkspaceDevicesResponse,
 };
-use crate::prompt::{allowed_memory_key, default_memory_for_key};
+use crate::prompt::{allowed_memory_key, default_memory_for_key, normalize_memory_content};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -1242,10 +1242,12 @@ async fn get_memory(
         .await?;
 
     if let Some(row) = row {
+        let content: String = row.get("content");
+        let content = normalize_memory_content(&key, &content);
         Ok(Json(MemoryResponse {
             ok: true,
             key,
-            content: row.get("content"),
+            content,
             updated_at: row.get("updated_at"),
         }))
     } else {

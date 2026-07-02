@@ -198,14 +198,26 @@ private struct RoutinePlanItem: Equatable {
                 }
 
                 if sawRoutineSections {
-                    guard activeSection == "Default Anchors" || activeSection == "Personalized Categories" else {
+                    guard visibleSection(activeSection) else {
                         return nil
                     }
+                } else if hiddenLegacySection(activeSection) {
+                    return nil
                 }
 
                 return parseLine(line)
             }
         return items.isEmpty ? defaultItems : items
+    }
+
+    private static func visibleSection(_ section: String?) -> Bool {
+        section == "Default Anchors"
+            || section == "Personalized Categories"
+            || section == "Fixed Daily Allocations"
+    }
+
+    private static func hiddenLegacySection(_ section: String?) -> Bool {
+        section == "Rules" || section == "Source"
     }
 
     private static func parseLine(_ line: String) -> RoutinePlanItem? {
