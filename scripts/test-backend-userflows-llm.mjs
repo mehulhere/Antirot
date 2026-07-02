@@ -329,7 +329,7 @@ async function main() {
                 backend.baseUrl,
                 fixture.deviceToken,
                 "routine",
-                "# Routine\n\n## Fixed Daily Allocations\n- Gym: 60 mins\n- Relationship check-in / talking with girlfriend: 45 mins\n"
+                "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n"
             );
         }
 
@@ -474,16 +474,16 @@ async function main() {
             reply = await chat(
                 backend.baseUrl,
                 fixture.deviceToken,
-                "Update routine.md: add reading as a fixed 30 minute daily allocation. Keep gym at 60 minutes and talking with girlfriend at 45 minutes."
+                "My recurring routine has gym for 60 minutes daily, talking with my girlfriend for 45 minutes daily, and reading for 30 minutes daily. Use that as my routine shape."
             );
             rememberTranscript(transcript, 8, "routine", reply);
             assertProductionQuality(reply);
             assertNotActiveSleepCopy(reply);
             assertNoStaleVacationCopy(reply);
             const routine = await getMemory(backend.baseUrl, fixture.deviceToken, "routine");
-            assert.match(routine.content, /Gym: 60 mins|gym is fixed at 60 minutes|gym.*60/isu);
+            assert.match(routine.content, /Gym: .*60 mins|gym.*60/isu);
             assert.match(routine.content, /girlfriend.*45|45 minutes daily/isu);
-            assert.match(routine.content, /reading.*30|30 minute daily allocation/isu);
+            assert.match(routine.content, /reading.*30|30 minutes daily/isu);
             state = await snapshot(backend.baseUrl, fixture.userId, fixture.deviceId);
             assert.equal(alarmCount(state, "idle_alarm"), 61, "routine update should not clear idle accountability");
             pass("LLM-08 routine update", reply.replace(/\s+/gu, " ").slice(0, 220));

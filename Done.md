@@ -85,3 +85,4 @@
 - Run `scripts/restart-backend-vps.sh edge-check` and verify it separates VPS-local backend health from public nginx/network reachability.
 - On a real iPhone, sign in with Google and verify any backend connection failure shows the exact Antirot endpoint URL instead of only "Could not connect to the server."
 - In the frontend lab, use the Google Login Test panel and verify the browser Google JWT posts to `/v1/auth/google`, or configure `GOOGLE_WEB_CLIENT_ID` plus `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` if Google rejects the iOS client ID on web.
+- Open iOS Plan after onboarding and verify routine starts with Work Blocks/Sleep/Vacation, then personalized categories appear only after the coach derives them from the user's recurring day shape.

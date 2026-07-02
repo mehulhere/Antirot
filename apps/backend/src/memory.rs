@@ -485,7 +485,10 @@ fn deterministic_daily_summary(
     let routine_signal = routine
         .lines()
         .find(|line| {
-            line.contains("Gym") || line.contains("girlfriend") || line.contains("Relationship")
+            let trimmed = line.trim_start();
+            trimmed.starts_with("- ")
+                && !trimmed.contains("None yet")
+                && !trimmed.starts_with("- Last updated from:")
         })
         .unwrap_or("No fixed routine signal found.");
 

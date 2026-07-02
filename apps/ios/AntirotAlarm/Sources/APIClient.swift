@@ -165,6 +165,26 @@ struct APIClient {
         }
     }
 
+    func fetchMemory(key: String) async throws -> MemoryResponse {
+        let baseURL = effectiveBaseURL()
+        let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? key
+        var request = URLRequest(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/memory/\(encodedKey)"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = RequestTimeout.standard
+        addAuth(to: &request)
+        logPreparedRequest(request, includeAuth: true)
+        let (data, response) = try await perform(request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
+        }
+        do {
+            return try JSONDecoder.antirot.decode(MemoryResponse.self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
+    }
+
     func transcribeAudio(fileURL: URL) async throws -> SpeechTranscriptionResponse {
         let baseURL = effectiveBaseURL()
         let boundary = "Boundary-\(UUID().uuidString)"

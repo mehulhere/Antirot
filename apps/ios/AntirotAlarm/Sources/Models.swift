@@ -132,6 +132,13 @@ struct RuntimeStateResponse: Codable {
     var runtimeState: RuntimeStatePayload?
 }
 
+struct MemoryResponse: Codable {
+    var ok: Bool
+    var key: String
+    var content: String
+    var updatedAt: Date
+}
+
 struct RuntimeStatePayload: Codable {
     var state: String?
     var sourceTool: String?

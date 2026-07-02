@@ -17,7 +17,7 @@ use crate::memory::{
 use crate::prompt::{
     build_coach_system_prompt, default_memory_for_key, BuiltPrompt, MemorySection,
     PromptBuildReport, PromptContext, DEFAULT_DAILY_SUMMARY, DEFAULT_MISCELLANEOUS_TODO,
-    DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
+    DEFAULT_ROUTINE, DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
 };
 
 const EARLY_SESSION_MINIMUM_MINUTES: i64 = 5;
@@ -42,6 +42,16 @@ struct GcpCredentials {
     private_key: String,
     client_email: String,
     token_uri: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RoutineCategoryInput {
+    name: String,
+    description: String,
+    #[serde(default)]
+    cadence: Option<String>,
+    #[serde(default)]
+    target_minutes: Option<i64>,
 }
 
 async fn get_vertex_access_token() -> Result<(String, String), AppError> {
@@ -530,6 +540,7 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
         "end_vacation" => "Vacation mode is off. Re-entry is a ramp: check energy, pick one 20-minute block or update the plan, then move.".to_string(),
         "log_override" => "Override logged. The tradeoff is now on record.".to_string(),
         "memory_search" => "I checked the relevant history. Use the evidence, then choose the next move.".to_string(),
+        "set_routine_categories" => "Routine shape is clear. Now pick the next concrete task and protect the block.".to_string(),
         _ => "Done.".to_string(),
     }
 }
@@ -1680,8 +1691,87 @@ async fn execute_tool_locally(
                 format!("Success: Relevant memory found.\n{}", rendered)
             }
         }
+        "set_routine_categories" => {
+            let categories_value = args
+                .get("categories")
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new()));
+            let categories: Vec<RoutineCategoryInput> =
+                match serde_json::from_value(categories_value) {
+                    Ok(value) => value,
+                    Err(err) => return format!("Error parsing routine categories: {}", err),
+                };
+            let source = args["source"].as_str().unwrap_or("user response");
+            let content = render_routine_categories(&categories, source);
+            if let Err(err) = save_memory(&client, config, user_id, "routine", &content).await {
+                return format!("Error saving routine categories: {}", err);
+            }
+            format!(
+                "Success: Routine categories updated. {} personalized categories saved.",
+                categories.len()
+            )
+        }
         other => format!("Error: Unknown tool {}", other),
     }
+}
+
+fn render_routine_categories(categories: &[RoutineCategoryInput], source: &str) -> String {
+    let mut output = String::from(DEFAULT_ROUTINE);
+    let personalized_section = if categories.is_empty() {
+        "- None yet. Add only recurring categories the user actually mentions.".to_string()
+    } else {
+        categories
+            .iter()
+            .filter_map(render_routine_category)
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    output = output.replace(
+        "- None yet. Add only recurring categories the user actually mentions.",
+        &personalized_section,
+    );
+    output.push_str("\n## Source\n");
+    output.push_str("- Last updated from: ");
+    output.push_str(&compact_routine_field(source, 220));
+    output.push('\n');
+    output
+}
+
+fn render_routine_category(category: &RoutineCategoryInput) -> Option<String> {
+    let name = compact_routine_field(&category.name, 60);
+    let description = compact_routine_field(&category.description, 180);
+    if name.is_empty() || description.is_empty() {
+        return None;
+    }
+
+    let mut line = format!("- {}: {}", name, description);
+    if let Some(minutes) = category.target_minutes.filter(|minutes| *minutes > 0) {
+        line.push_str(&format!(" Target: {} mins.", minutes));
+    }
+    if let Some(cadence) = category
+        .cadence
+        .as_ref()
+        .map(|value| compact_routine_field(value, 80))
+        .filter(|value| !value.is_empty())
+    {
+        line.push_str(" Cadence: ");
+        line.push_str(&cadence);
+        line.push('.');
+    }
+    Some(line)
+}
+
+fn compact_routine_field(value: &str, max_chars: usize) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(max_chars)
+        .collect::<String>()
+        .trim_matches(|ch: char| ch == '-' || ch == '*' || ch == ':' || ch.is_whitespace())
+        .to_string()
 }
 
 pub async fn run_tool_for_test(
@@ -1846,6 +1936,37 @@ fn get_tool_definitions() -> Value {
         {
             "type": "function",
             "function": {
+                "name": "set_routine_categories",
+                "description": "Creates or replaces personalized routine categories in routine.md from the user's recurring day shape, weekly schedule, maintenance blocks, relationship/family blocks, fitness blocks, study blocks, or other repeated obligations. Use this for recurring categories only, not one-off tasks. Work Blocks, Sleep, and Vacation are defaults and do not need to be included unless the user gives extra details for them.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "categories": {
+                            "type": "array",
+                            "description": "Recurring categories explicitly inferred from the user's response. Exclude Work Blocks, Sleep, and Vacation unless the user gave extra details that change them.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": { "type": "string", "description": "Short display label, e.g. Gym, Relationship, Classes, Commute." },
+                                    "description": { "type": "string", "description": "What this recurring category is for and why it matters to accountability." },
+                                    "cadence": { "type": "string", "description": "Optional recurrence like daily, weekdays, weekly, or evenings." },
+                                    "target_minutes": { "type": "integer", "description": "Optional target minutes per occurrence/day if the user gave one." }
+                                },
+                                "required": ["name", "description"]
+                            }
+                        },
+                        "source": {
+                            "type": "string",
+                            "description": "Brief summary of the user response used to derive these categories."
+                        }
+                    },
+                    "required": ["categories"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "start_vacation",
                 "description": "Starts vacation mode when the user is deliberately off duty.",
                 "parameters": {
@@ -1920,5 +2041,31 @@ mod tests {
             reply,
             "Started: fixing the onboarding loop test. 25 minutes."
         );
+    }
+
+    #[test]
+    fn default_routine_does_not_seed_personalized_categories() {
+        assert!(DEFAULT_ROUTINE.contains("Work Blocks"));
+        assert!(DEFAULT_ROUTINE.contains("Sleep"));
+        assert!(DEFAULT_ROUTINE.contains("Vacation"));
+        assert!(!DEFAULT_ROUTINE.contains("Gym"));
+        assert!(!DEFAULT_ROUTINE.contains("Relationship"));
+    }
+
+    #[test]
+    fn routine_category_tool_renders_personalized_categories() {
+        let rendered = render_routine_categories(
+            &[RoutineCategoryInput {
+                name: "Gym".to_string(),
+                description: "Daily training block.".to_string(),
+                cadence: Some("daily".to_string()),
+                target_minutes: Some(60),
+            }],
+            "User said gym is a recurring daily routine.",
+        );
+
+        assert!(rendered.contains("Work Blocks"));
+        assert!(rendered.contains("Gym: Daily training block. Target: 60 mins. Cadence: daily."));
+        assert!(rendered.contains("Last updated from: User said gym is a recurring daily routine."));
     }
 }

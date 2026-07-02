@@ -5,18 +5,11 @@ struct PlanView: View {
     @EnvironmentObject private var coach: CoachViewModel
     @State private var reviewText = ""
     @State private var isReviewing = false
+    @State private var routineItems = RoutinePlanItem.defaultItems
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
     }
-
-    private let routineItems: [(String, String)] = [
-        ("Work Blocks", "timer"),
-        ("Gym", "figure.strengthtraining.traditional"),
-        ("Relationship", "heart.fill"),
-        ("Sleep", "bed.double.fill"),
-        ("Vacation", "beach.umbrella.fill")
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -37,14 +30,22 @@ struct PlanView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(routineItems.enumerated()), id: \.offset) { index, item in
-                    HStack(spacing: 12) {
-                        Image(systemName: item.1)
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: item.systemImage)
                             .font(.subheadline)
                             .foregroundStyle(.arTextMuted)
                             .frame(width: 24)
-                        Text(item.0)
-                            .font(.subheadline)
-                            .foregroundStyle(.arTextPrimary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.title)
+                                .font(.subheadline)
+                                .foregroundStyle(.arTextPrimary)
+                            if !item.description.isEmpty {
+                                Text(item.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.arTextMuted)
+                                    .lineLimit(2)
+                            }
+                        }
                         Spacer()
                     }
                     .padding(.horizontal, 14)
@@ -87,6 +88,12 @@ struct PlanView: View {
                     .foregroundStyle(.arTextSecondary)
                     .minimalCard(cornerRadius: 12, padding: 14)
             }
+        }
+        .task {
+            await loadRoutine()
+        }
+        .onChange(of: settings.apiToken) { _ in
+            Task { await loadRoutine() }
         }
     }
 
@@ -133,6 +140,104 @@ struct PlanView: View {
         } catch {
             reviewText = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func loadRoutine() async {
+        guard !settings.apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            routineItems = RoutinePlanItem.defaultItems
+            return
+        }
+
+        do {
+            let response = try await client.fetchMemory(key: "routine")
+            let parsed = RoutinePlanItem.parseMarkdown(response.content)
+            routineItems = parsed.isEmpty ? RoutinePlanItem.defaultItems : parsed
+        } catch {
+            routineItems = RoutinePlanItem.defaultItems
+        }
+    }
+}
+
+private struct RoutinePlanItem: Equatable {
+    var title: String
+    var description: String
+    var systemImage: String
+
+    static let defaultItems = [
+        RoutinePlanItem(
+            title: "Work Blocks",
+            description: "Focused accountability sessions for planned tasks.",
+            systemImage: "timer"
+        ),
+        RoutinePlanItem(
+            title: "Sleep",
+            description: "Protected sleep and wake rhythm.",
+            systemImage: "bed.double.fill"
+        ),
+        RoutinePlanItem(
+            title: "Vacation",
+            description: "Deliberate off-duty mode with a re-entry plan.",
+            systemImage: "beach.umbrella.fill"
+        )
+    ]
+
+    static func parseMarkdown(_ content: String) -> [RoutinePlanItem] {
+        var activeSection: String?
+        var sawRoutineSections = false
+        let items = content
+            .split(separator: "\n")
+            .compactMap { rawLine -> RoutinePlanItem? in
+                let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+                if line.hasPrefix("## ") {
+                    activeSection = String(line.dropFirst(3))
+                    if activeSection == "Default Anchors" || activeSection == "Personalized Categories" {
+                        sawRoutineSections = true
+                    }
+                    return nil
+                }
+
+                if sawRoutineSections {
+                    guard activeSection == "Default Anchors" || activeSection == "Personalized Categories" else {
+                        return nil
+                    }
+                }
+
+                return parseLine(line)
+            }
+        return items.isEmpty ? defaultItems : items
+    }
+
+    private static func parseLine(_ line: String) -> RoutinePlanItem? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("- ") else { return nil }
+        guard !trimmed.contains("None yet") else { return nil }
+        guard !trimmed.hasPrefix("- Last updated from:") else { return nil }
+        let body = String(trimmed.dropFirst(2))
+        let parts = body.split(separator: ":", maxSplits: 1).map(String.init)
+        let title = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        let description = parts.count > 1
+            ? parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        return RoutinePlanItem(
+            title: title,
+            description: description,
+            systemImage: icon(for: title)
+        )
+    }
+
+    private static func icon(for title: String) -> String {
+        let lower = title.lowercased()
+        if lower.contains("work") { return "timer" }
+        if lower.contains("sleep") { return "bed.double.fill" }
+        if lower.contains("vacation") || lower.contains("off") { return "beach.umbrella.fill" }
+        if lower.contains("gym") || lower.contains("fitness") || lower.contains("workout") { return "figure.strengthtraining.traditional" }
+        if lower.contains("relationship") || lower.contains("girlfriend") || lower.contains("family") { return "heart.fill" }
+        if lower.contains("study") || lower.contains("class") || lower.contains("learn") { return "book.closed.fill" }
+        if lower.contains("commute") || lower.contains("travel") { return "tram.fill" }
+        if lower.contains("meal") || lower.contains("food") { return "fork.knife" }
+        return "circle.grid.2x2.fill"
     }
 }
 

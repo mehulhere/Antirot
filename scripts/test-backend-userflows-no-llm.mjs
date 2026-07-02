@@ -137,19 +137,28 @@ async function main() {
         pass("UF-11 grouped alarm ack clears alarm family");
 
         const routine = await getMemory(backend.baseUrl, fixture.deviceToken, "routine");
-        assert.match(routine.content, /Gym: 60 mins/u);
-        assert.match(routine.content, /girlfriend: 45 mins/u);
-        result = await runTool(backend.baseUrl, fixture.userId, "patch_file", {
-            file_path: "routine.md",
-            patch: "<<<<<<< SEARCH\n\n=======\n- Reading: 30 mins\n>>>>>>> REPLACE"
+        assert.match(routine.content, /Work Blocks/u);
+        assert.match(routine.content, /Sleep/u);
+        assert.match(routine.content, /Vacation/u);
+        assert.doesNotMatch(routine.content, /Gym|Relationship|girlfriend/iu);
+        result = await runTool(backend.baseUrl, fixture.userId, "set_routine_categories", {
+            categories: [
+                {
+                    name: "Reading",
+                    description: "Fixed daily reading block.",
+                    cadence: "daily",
+                    target_minutes: 30
+                }
+            ],
+            source: "User asked for reading as a fixed 30 minute daily allocation."
         });
         assert.equal(result.ok, true, result.result);
         const updatedRoutine = await getMemory(backend.baseUrl, fixture.deviceToken, "routine");
-        assert.match(updatedRoutine.content, /Reading: 30 mins/u);
+        assert.match(updatedRoutine.content, /Reading: Fixed daily reading block.*30 mins/isu);
         state = await snapshot(backend.baseUrl, fixture.userId, fixture.deviceId);
         assertState(state, "idle");
         assert.equal(alarmCount(state, "idle_alarm"), 0, "routine patch should not create alarms");
-        pass("UF-12 routine.md patches without state churn");
+        pass("UF-12 routine categories update without state churn");
 
         const personality = await getMemory(backend.baseUrl, fixture.deviceToken, "personality");
         assert.match(personality.content, /Strict but intelligent sports coach/u);
