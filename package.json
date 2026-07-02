@@ -21,8 +21,10 @@
         "test:misc-task-capture-llm": "node scripts/test-misc-task-capture-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
         "test:action-buttons": "node scripts/test-action-button-maps.mjs",
+        "test:testflight-upload-check": "node scripts/test-testflight-upload-check.mjs",
         "scenario": "node scripts/run-antirot-scenario.mjs",
         "check:env": "node scripts/check-env.mjs",
+        "check:testflight-upload": "node scripts/check-testflight-upload.mjs",
         "test:backend-integrations": "node scripts/test-backend-integrations.mjs"
     },
     "keywords": [

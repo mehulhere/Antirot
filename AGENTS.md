@@ -18,6 +18,10 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - Use Context7 MCP and Google knowledge MCP when current external behavior matters
 - If a port is busy, use another port
 - If `.brain/KNOWLEDGE.md` exists, record project-specific gotchas there
+- When all requested tasks are done, ring a local notification sound before the final response with:
+```bash
+canberra-gtk-play -i complete -d "Codex task complete"
+```
 - In setup/deployment instructions, whenever using placeholders like `YOUR_REPO_URL`, `CHANGE_DB_PASSWORD`, or `api.yourdomain.com`, mention exactly what each placeholder means directly below the instruction or command block.
 - For VPS-level work that requires sudo access the agent cannot use directly, give the user exact copy/paste commands and ask them to paste the output back before continuing.
 
@@ -48,6 +52,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - Document manual checks in the PR when UI, auth, ingestion, or AI flows change
 - For small UI-only changes, do not run `npm run build` after every edit; prefer targeted manual verification, then run the full build at a meaningful checkpoint or before handoff
 - For lint or type hygiene work, prefer `npx eslint <changed-files>` plus `npx tsc --noEmit` during iteration instead of repeatedly running the full build
+- After a TestFlight-triggering iOS commit, run `npm run check:testflight-upload -- --json`; the command waits until the upload action returns `status: "succeeded"` or `status: "error"`, and includes the script's clipped error excerpt when it errors. Use `--no-wait` only for quick diagnostics.
 
 ## 💬 Response Format
 - Keep completion summaries crisp
