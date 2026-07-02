@@ -43,11 +43,11 @@ struct CoachStage: View {
 
                 Ellipse()
                     .fill(Color.black.opacity(0.54))
-                    .frame(width: size.width * 0.92, height: size.height * 0.16)
+                    .frame(width: size.width * 0.62, height: size.height * 0.10)
                     .blur(radius: 26)
-                    .offset(y: size.height * 0.20)
+                    .offset(y: size.height * 0.12)
 
-                coachBust(size: size, pose: pose)
+                coachMark(size: size, pose: pose)
 
                 VStack {
                     HStack {
@@ -82,6 +82,55 @@ struct CoachStage: View {
                 breathPhase = 1
             }
         }
+    }
+
+    // MARK: - Coach Mark
+
+    @ViewBuilder
+    private func coachMark(size: CGSize, pose: Pose) -> some View {
+        let markSize = min(size.width * 0.76, size.height * 0.38)
+        let breath = 1.0 + 0.018 * breathPhase
+
+        ZStack {
+            Circle()
+                .stroke(emotion.accentColor.opacity(0.22), lineWidth: 1)
+                .frame(width: markSize * 1.34, height: markSize * 1.34)
+                .blur(radius: 0.2)
+
+            Circle()
+                .fill(emotion.accentColor.opacity(0.13 * pose.halo + 0.05))
+                .frame(width: markSize * 1.22, height: markSize * 1.22)
+                .blur(radius: 34)
+
+            Image("AntirotCoachMark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: markSize, height: markSize)
+                .clipShape(RoundedRectangle(cornerRadius: markSize * 0.22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: markSize * 0.22, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.24), emotion.accentColor.opacity(0.14), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: emotion.accentColor.opacity(0.28), radius: 30, y: 10)
+                .shadow(color: .black.opacity(0.58), radius: 26, y: 16)
+
+            Image(systemName: "clock")
+                .font(.system(size: markSize * 0.12, weight: .semibold))
+                .foregroundStyle(emotion.accentColor)
+                .opacity(pose.clock)
+                .offset(x: markSize * 0.52, y: -markSize * 0.56)
+        }
+        .scaleEffect(breath)
+        .rotationEffect(.degrees(pose.headTilt * 180 / .pi))
+        .offset(y: -size.height * 0.12)
+        .accessibilityLabel("Antirot coach")
     }
 
     // MARK: - Pose
