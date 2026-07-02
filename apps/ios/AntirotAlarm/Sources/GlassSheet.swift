@@ -63,7 +63,7 @@ struct GlassSheet: View {
         let isCollapsed = resolved <= collapsedHeight + 14
 
         VStack(spacing: 0) {
-            dragHandle
+            dragHandle(half: half)
 
             if isCollapsed {
                 collapsedContent
@@ -72,7 +72,7 @@ struct GlassSheet: View {
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .simultaneousGesture(sheetDragGesture(half: half, full: full))
+        .highPriorityGesture(sheetDragGesture(half: half, full: full))
         .liquidGlass(cornerRadius: 30, borderWidth: 0.7)
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
@@ -98,7 +98,7 @@ struct GlassSheet: View {
             }
     }
 
-    private var dragHandle: some View {
+    private func dragHandle(half: CGFloat) -> some View {
         VStack(spacing: 6) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -114,7 +114,13 @@ struct GlassSheet: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                height = height <= collapsedHeight + 14 ? half : collapsedHeight
+            }
+        }
     }
     // MARK: - Collapsed
 
