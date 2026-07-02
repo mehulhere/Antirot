@@ -14,7 +14,7 @@ struct HomeView: View {
 
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
-    @State private var sheetHeight: CGFloat = 108
+    @State private var sheetHeight: CGFloat = 118
     private let actionClearance: CGFloat = 132
 
     private var client: APIClient {

@@ -87,19 +87,19 @@ enum CoachStateActions {
             return Set(
                 primary: CoachStateButton(
                     id: "begin",
-                    title: "Talk",
-                    systemImage: "bubble.left.fill",
-                    message: "Let's begin. Walk me through today and what I'm getting done."
+                    title: "Begin",
+                    systemImage: "bolt.fill",
+                    message: "Begin onboarding. Ask me for the baseline you need, then keep me moving."
                 ),
                 secondary: []
             )
         case "unknown":
             return Set(
                 primary: CoachStateButton(
-                    id: "talk",
-                    title: "Talk",
-                    systemImage: "bubble.left.fill",
-                    message: "Let's talk. Help me figure out the next honest move."
+                    id: "reconnect",
+                    title: "Reconnect",
+                    systemImage: "arrow.clockwise",
+                    message: "Reconnect and resync my current state."
                 ),
                 secondary: []
             )

@@ -24,17 +24,47 @@ struct CoachStage: View {
             let pose = resolvedPose
 
             ZStack {
-                // Cinematic backdrop: warm near-black with an emotion-tinted halo.
-                Color.arBg
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.012, green: 0.011, blue: 0.014),
+                        Color.arBg,
+                        Color(red: 0.025, green: 0.016, blue: 0.020)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
 
                 Circle()
                     .fill(emotion.accentColor)
-                    .frame(width: min(size.width, size.height) * 1.35, height: min(size.width, size.height) * 1.35)
-                    .opacity(0.16 * pose.halo + 0.03)
-                    .blur(radius: 70)
-                    .offset(y: -size.height * 0.14)
+                    .frame(width: min(size.width, size.height) * 1.65, height: min(size.width, size.height) * 1.65)
+                    .opacity(0.20 * pose.halo + 0.04)
+                    .blur(radius: 82)
+                    .offset(y: -size.height * 0.18)
+
+                Ellipse()
+                    .fill(Color.black.opacity(0.54))
+                    .frame(width: size.width * 0.92, height: size.height * 0.16)
+                    .blur(radius: 26)
+                    .offset(y: size.height * 0.20)
 
                 coachBust(size: size, pose: pose)
+
+                VStack {
+                    HStack {
+                        StageStatusPill(emotion: emotion, isThinking: isThinking)
+                        Spacer()
+                    }
+                    .padding(.top, 60)
+                    .padding(.horizontal, 24)
+                    Spacer()
+                }
+
+                LinearGradient(
+                    colors: [Color.clear, Color.arBg.opacity(0.78)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
             }
         }
         .ignoresSafeArea()
@@ -99,17 +129,63 @@ struct CoachStage: View {
 
     @ViewBuilder
     private func coachBust(size: CGSize, pose: Pose) -> some View {
-        let headRadius = min(size.width, size.height) * 0.13
-        let shoulderWidth = min(size.width, size.height) * 0.62
+        let headRadius = min(size.width, size.height) * 0.19
+        let shoulderWidth = min(size.width, size.height) * 0.92
         let breath = 1.0 + 0.012 * breathPhase
 
         ZStack {
             VStack(spacing: 0) {
-                Spacer().frame(height: size.height * 0.30)
+                Spacer().frame(height: size.height * 0.24)
 
                 ZStack {
+                    // Shoulders
+                    RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.165, green: 0.165, blue: 0.180),
+                                    Color.arElevated,
+                                    Color.arSurface,
+                                    Color.black.opacity(0.95)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: shoulderWidth, height: shoulderWidth * 0.54)
+                        .overlay(alignment: .top) {
+                            RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.16), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    )
+                                )
+                                .frame(height: shoulderWidth * 0.18)
+                        }
+                        .overlay(alignment: .top) {
+                            Capsule(style: .continuous)
+                                .fill(emotion.accentColor.opacity(0.68))
+                                .frame(width: shoulderWidth * 0.34, height: 3)
+                                .blur(radius: 0.2)
+                                .offset(y: 12)
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.02)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.8
+                                )
+                        )
+                        .shadow(color: .black.opacity(0.55), radius: 30, y: 18)
+
                     // Neck
-                    RoundedRectangle(cornerRadius: headRadius * 0.5, style: .continuous)
+                    RoundedRectangle(cornerRadius: headRadius * 0.24, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [Color.arElevated, Color.arSurface],
@@ -117,34 +193,12 @@ struct CoachStage: View {
                                 endPoint: .bottom
                             )
                         )
-                        .frame(width: headRadius * 0.7, height: headRadius * 0.9)
-                        .offset(y: -headRadius * 0.35)
-
-                    // Shoulders
-                    RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.arElevated, Color.arSurface, Color.arBg],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: shoulderWidth, height: shoulderWidth * 0.46)
-                        .overlay(alignment: .top) {
-                            RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.white.opacity(0.10), .clear],
-                                        startPoint: .top,
-                                        endPoint: .center
-                                    )
-                                )
-                                .frame(height: shoulderWidth * 0.16)
-                        }
+                        .frame(width: headRadius * 0.58, height: headRadius * 1.12)
                         .overlay(
-                            RoundedRectangle(cornerRadius: shoulderWidth * 0.28, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+                            RoundedRectangle(cornerRadius: headRadius * 0.24, style: .continuous)
+                                .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
                         )
+                        .offset(y: -headRadius * 0.72)
                 }
 
                 Spacer()
@@ -170,13 +224,29 @@ struct CoachStage: View {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [Color.arSurface, Color.arElevated],
+                        colors: [
+                            Color(red: 0.150, green: 0.150, blue: 0.162),
+                            Color.arSurface,
+                            Color.black.opacity(0.88)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .frame(width: headRadius * 2, height: headRadius * 2.05)
-                .overlay(Circle().stroke(Color.white.opacity(0.07), lineWidth: 0.5))
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.20), emotion.accentColor.opacity(0.16), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.8
+                        )
+                )
+                .shadow(color: emotion.accentColor.opacity(0.22), radius: 28, y: 10)
+                .shadow(color: .black.opacity(0.58), radius: 22, y: 12)
 
             VStack(spacing: headRadius * 0.34) {
                 gazeRow(headRadius: headRadius, eyeBase: eyeBase, pose: pose)
@@ -212,7 +282,8 @@ struct CoachStage: View {
         ZStack {
             Capsule(style: .continuous)
                 .fill(Color.arTextPrimary.opacity(0.92))
-                .frame(width: length, height: 3.2)
+                .frame(width: length, height: 4.2)
+                .shadow(color: emotion.accentColor.opacity(0.45), radius: 5)
 
             // Brow — a thin angled line above the eye for sharpness.
             Capsule(style: .continuous)
@@ -233,6 +304,62 @@ struct CoachStage: View {
             return .arAccent.opacity(0.8)
         default:
             return Color.arTextSecondary.opacity(0.8)
+        }
+    }
+}
+
+private struct StageStatusPill: View {
+    let emotion: CoachEmotion
+    let isThinking: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(isThinking ? Color.arWarning : emotion.accentColor)
+                .frame(width: 7, height: 7)
+                .shadow(color: (isThinking ? Color.arWarning : emotion.accentColor).opacity(0.65), radius: 7)
+
+            Text(isThinking ? "THINKING" : emotion.stageLabel)
+                .font(.caption2.weight(.bold))
+                .tracking(1.1)
+                .foregroundStyle(.arTextSecondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.24))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+        )
+    }
+}
+
+private extension CoachEmotion {
+    var stageLabel: String {
+        switch self {
+        case .watching, .neutralWatch:
+            return "WATCHING"
+        case .checkingClock:
+            return "CLOCK"
+        case .thinking, .thinkingDone:
+            return "THINKING"
+        case .focused:
+            return "FOCUSED"
+        case .strict:
+            return "STRICT"
+        case .impatient:
+            return "WAITING"
+        case .approving:
+            return "APPROVING"
+        case .disappointed:
+            return "DISAPPOINTED"
+        case .celebrating:
+            return "CLEAN"
+        case .silentWaiting:
+            return "SILENT"
         }
     }
 }

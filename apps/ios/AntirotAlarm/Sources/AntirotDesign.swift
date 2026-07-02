@@ -357,11 +357,15 @@ struct LiquidGlassModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.black.opacity(0.24))
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.20), Color.white.opacity(0.04)],
+                            colors: [Color.white.opacity(0.24), Color.white.opacity(0.05)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -373,7 +377,7 @@ struct LiquidGlassModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.10), .clear],
+                                colors: [Color.white.opacity(0.12), Color.clear],
                                 startPoint: .top,
                                 endPoint: .center
                             )

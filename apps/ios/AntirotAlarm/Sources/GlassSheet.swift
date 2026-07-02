@@ -21,7 +21,7 @@ struct GlassSheet: View {
 
     @State private var dragStartHeight: CGFloat = 0
 
-    private let collapsedHeight: CGFloat = 108
+    private let collapsedHeight: CGFloat = 118
     private let halfFraction: CGFloat = 0.5
     private let fullFraction: CGFloat = 0.9
 
@@ -71,7 +71,8 @@ struct GlassSheet: View {
                 expandedContent
             }
         }
-        .liquidGlass(cornerRadius: 30)
+        .liquidGlass(cornerRadius: 30, borderWidth: 0.7)
+        .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
     private func dragHandle(half: CGFloat, full: CGFloat) -> some View {
@@ -113,18 +114,26 @@ struct GlassSheet: View {
 
     private var collapsedContent: some View {
         HStack(spacing: 12) {
-            Text(latestOneLiner)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.arTextPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Coach")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.0)
+                    .foregroundStyle(.arTextSecondary)
 
-            Spacer()
+                Text(latestOneLiner)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.arTextPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            micButton(size: 46)
+            Spacer(minLength: 8)
+
+            micButton(size: 48)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -180,7 +189,7 @@ struct GlassSheet: View {
         let hasDraft = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         return HStack(spacing: 10) {
-            micButton(size: 50)
+            micButton(size: 52)
 
             TextField("Type...", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
@@ -188,10 +197,14 @@ struct GlassSheet: View {
                 .font(.body)
                 .foregroundStyle(.arTextPrimary)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 11)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.black.opacity(0.22))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
                 )
 
             if hasDraft {
@@ -199,7 +212,7 @@ struct GlassSheet: View {
                     Image(systemName: "arrow.up")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 42, height: 42)
                         .background(Circle().fill(Color.arAccent))
                 }
                 .buttonStyle(.plain)
