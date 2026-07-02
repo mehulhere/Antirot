@@ -63,7 +63,7 @@ struct GlassSheet: View {
         let isCollapsed = resolved <= collapsedHeight + 14
 
         VStack(spacing: 0) {
-            dragHandle(half: half, full: full)
+            dragHandle
 
             if isCollapsed {
                 collapsedContent
@@ -71,11 +71,34 @@ struct GlassSheet: View {
                 expandedContent
             }
         }
+        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .simultaneousGesture(sheetDragGesture(half: half, full: full))
         .liquidGlass(cornerRadius: 30, borderWidth: 0.7)
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func dragHandle(half: CGFloat, full: CGFloat) -> some View {
+    private func sheetDragGesture(half: CGFloat, full: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                if dragStartHeight == 0 {
+                    dragStartHeight = height
+                }
+                let next = dragStartHeight - value.translation.height
+                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.84)) {
+                    height = min(max(next, collapsedHeight), full)
+                }
+            }
+            .onEnded { value in
+                let start = dragStartHeight == 0 ? height : dragStartHeight
+                let projected = start - value.predictedEndTranslation.height * 0.18
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                    height = nearestDetent(to: projected, half: half, full: full)
+                }
+                dragStartHeight = 0
+            }
+    }
+
+    private var dragHandle: some View {
         VStack(spacing: 6) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -92,23 +115,6 @@ struct GlassSheet: View {
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 2)
-                .onChanged { value in
-                    let next = dragStartHeight - value.translation.height
-                    withAnimation(.spring()) {
-                        height = min(max(next, collapsedHeight), full)
-                    }
-                }
-                .onEnded { value in
-                    let projected = height - value.predictedEndTranslation.height * 0.18
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                        height = nearestDetent(to: projected, half: half, full: full)
-                    }
-                }
-        )
-        .onAppear { dragStartHeight = height }
-        .onChange(of: height) { _, newValue in dragStartHeight = newValue }
     }
     // MARK: - Collapsed
 
