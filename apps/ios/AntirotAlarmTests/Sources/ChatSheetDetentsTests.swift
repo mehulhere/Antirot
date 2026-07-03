@@ -47,52 +47,32 @@ final class ChatSheetDetentsTests: XCTestCase {
         XCTAssertTrue(
             ChatSheetDetents.showsCollapsedContent(
                 committedHeight: ChatSheetDetents.collapsedHeight,
-                dragTranslationY: 0
-            )
-        )
-        XCTAssertTrue(
-            ChatSheetDetents.showsCollapsedContent(
-                committedHeight: ChatSheetDetents.collapsedHeight,
-                dragTranslationY: 24
-            )
-        )
-        XCTAssertFalse(
-            ChatSheetDetents.showsCollapsedContent(
-                committedHeight: ChatSheetDetents.collapsedHeight,
-                dragTranslationY: -1
+                isDragging: false,
+                dragBeganCollapsed: false
             )
         )
         XCTAssertFalse(
             ChatSheetDetents.showsCollapsedContent(
                 committedHeight: 700,
-                dragTranslationY: 200
+                isDragging: false,
+                dragBeganCollapsed: true
             )
         )
     }
 
-    func testSmallTranslationsAreTreatedAsTapLikeGestures() {
+    func testCollapsedContentFreezesToDragStartingState() {
         XCTAssertTrue(
-            ChatSheetDetents.isTapLikeGesture(
-                translationWidth: 0,
-                translationHeight: 0
-            )
-        )
-        XCTAssertTrue(
-            ChatSheetDetents.isTapLikeGesture(
-                translationWidth: 3,
-                translationHeight: -7
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: 700,
+                isDragging: true,
+                dragBeganCollapsed: true
             )
         )
         XCTAssertFalse(
-            ChatSheetDetents.isTapLikeGesture(
-                translationWidth: 0,
-                translationHeight: 8
-            )
-        )
-        XCTAssertFalse(
-            ChatSheetDetents.isTapLikeGesture(
-                translationWidth: 9,
-                translationHeight: 0
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: ChatSheetDetents.collapsedHeight,
+                isDragging: true,
+                dragBeganCollapsed: false
             )
         )
     }
@@ -139,48 +119,27 @@ final class ChatSheetDetentsTests: XCTestCase {
         )
     }
 
-    func testTransientDragTranslationControlsVisibleHeightWithoutChangingDetents() {
-        let availableHeight: CGFloat = 800
-
-        XCTAssertEqual(
-            ChatSheetDetents.visibleHeight(
-                committedHeight: ChatSheetDetents.collapsedHeight,
-                dragTranslationY: -240,
-                availableHeight: availableHeight
-            ),
-            ChatSheetDetents.collapsedHeight + 240,
-            accuracy: 0.1
-        )
-        XCTAssertEqual(
-            ChatSheetDetents.visibleHeight(
-                committedHeight: ChatSheetDetents.fullHeight(availableHeight: availableHeight),
-                dragTranslationY: 320,
-                availableHeight: availableHeight
-            ),
-            ChatSheetDetents.fullHeight(availableHeight: availableHeight) - 320,
-            accuracy: 0.1
-        )
-    }
-
-    func testDragEndSnapsDownToCollapsedOrUpToFull() {
+    func testUIKitPanEndSnapsUsingTranslationAndVelocity() {
         let availableHeight: CGFloat = 800
 
         XCTAssertEqual(
             ChatSheetDetents.finalHeight(
-                from: 400,
-                predictedEndTranslationY: 1_600,
-                availableHeight: availableHeight
-            ),
-            ChatSheetDetents.collapsedHeight,
-            accuracy: 0.1
-        )
-        XCTAssertEqual(
-            ChatSheetDetents.finalHeight(
-                from: 400,
-                predictedEndTranslationY: -1_600,
+                from: ChatSheetDetents.collapsedHeight,
+                translationY: -40,
+                velocityY: 0,
                 availableHeight: availableHeight
             ),
             ChatSheetDetents.fullHeight(availableHeight: availableHeight),
+            accuracy: 0.1
+        )
+        XCTAssertEqual(
+            ChatSheetDetents.finalHeight(
+                from: ChatSheetDetents.fullHeight(availableHeight: availableHeight),
+                translationY: 0,
+                velocityY: 120,
+                availableHeight: availableHeight
+            ),
+            ChatSheetDetents.collapsedHeight,
             accuracy: 0.1
         )
     }
@@ -191,7 +150,8 @@ final class ChatSheetDetentsTests: XCTestCase {
         XCTAssertEqual(
             ChatSheetDetents.finalHeight(
                 from: ChatSheetDetents.collapsedHeight,
-                predictedEndTranslationY: -80,
+                translationY: -80,
+                velocityY: 0,
                 availableHeight: availableHeight
             ),
             ChatSheetDetents.fullHeight(availableHeight: availableHeight),

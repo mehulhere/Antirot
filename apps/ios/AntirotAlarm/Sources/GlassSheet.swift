@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum ChatSheetDetents {
     static let collapsedHeight: CGFloat = 118
@@ -40,44 +41,36 @@ enum ChatSheetDetents {
         return min(max(next, collapsedHeight), full)
     }
 
-    static func visibleHeight(
-        committedHeight: CGFloat,
-        dragTranslationY: CGFloat,
-        availableHeight: CGFloat
-    ) -> CGFloat {
-        liveHeight(
-            from: committedHeight,
-            translationY: dragTranslationY,
-            availableHeight: availableHeight
-        )
-    }
-
     static func finalHeight(
         from start: CGFloat,
-        predictedEndTranslationY: CGFloat,
+        translationY: CGFloat,
+        velocityY: CGFloat,
         availableHeight: CGFloat
     ) -> CGFloat {
-        if predictedEndTranslationY < -12 {
+        if velocityY < -80 || translationY < -12 {
             return fullHeight(availableHeight: availableHeight)
         }
-        if predictedEndTranslationY > 12 {
+        if velocityY > 80 || translationY > 12 {
             return collapsedHeight
         }
-        let projected = start - predictedEndTranslationY * 0.18
-        return nearestHeight(to: projected, availableHeight: availableHeight)
+        return nearestHeight(to: start - translationY, availableHeight: availableHeight)
     }
 
     static func isCollapsed(_ height: CGFloat) -> Bool {
         height <= collapsedHeight + 14
     }
 
-    static func showsCollapsedContent(committedHeight: CGFloat, dragTranslationY: CGFloat) -> Bool {
-        isCollapsed(committedHeight) && dragTranslationY >= 0
+    static func showsCollapsedContent(
+        committedHeight: CGFloat,
+        isDragging: Bool,
+        dragBeganCollapsed: Bool
+    ) -> Bool {
+        if isDragging {
+            return dragBeganCollapsed
+        }
+        return isCollapsed(committedHeight)
     }
 
-    static func isTapLikeGesture(translationWidth: CGFloat, translationHeight: CGFloat) -> Bool {
-        max(abs(translationWidth), abs(translationHeight)) < 8
-    }
 }
 
 // MARK: - Glass Chat Sheet
@@ -100,22 +93,19 @@ struct GlassSheet: View {
     var onSend: () -> Void
     var onPlayVoiceMessage: (URL) -> Void
 
-    @GestureState private var dragTranslationY: CGFloat = 0
+    @State private var isHandleDragging = false
+    @State private var handleDragBeganCollapsed = false
     @FocusState private var isDraftFocused: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let available = proxy.size.height
             let full = ChatSheetDetents.fullHeight(availableHeight: available)
-            let committed = min(max(height, ChatSheetDetents.collapsedHeight), full)
-            let resolved = ChatSheetDetents.visibleHeight(
-                committedHeight: committed,
-                dragTranslationY: dragTranslationY,
-                availableHeight: available
-            )
+            let resolved = min(max(height, ChatSheetDetents.collapsedHeight), full)
             let showCollapsedContent = ChatSheetDetents.showsCollapsedContent(
-                committedHeight: committed,
-                dragTranslationY: dragTranslationY
+                committedHeight: resolved,
+                isDragging: isHandleDragging,
+                dragBeganCollapsed: handleDragBeganCollapsed
             )
 
             VStack(spacing: 0) {
@@ -156,46 +146,43 @@ struct GlassSheet: View {
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func sheetDragGesture(availableHeight: CGFloat, full: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .updating($dragTranslationY) { value, state, transaction in
-                transaction.disablesAnimations = true
-                transaction.animation = nil
-                state = ChatSheetDetents.isTapLikeGesture(
-                    translationWidth: value.translation.width,
-                    translationHeight: value.translation.height
-                ) ? 0 : value.translation.height
-            }
-            .onEnded { value in
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-                    if ChatSheetDetents.isTapLikeGesture(
-                        translationWidth: value.translation.width,
-                        translationHeight: value.translation.height
-                    ) {
-                        height = ChatSheetDetents.isCollapsed(height)
-                            ? full
-                            : ChatSheetDetents.collapsedHeight
-                    } else {
-                        height = ChatSheetDetents.finalHeight(
-                            from: height,
-                            predictedEndTranslationY: value.predictedEndTranslation.height,
-                            availableHeight: availableHeight
-                        )
-                    }
-                }
-            }
-    }
-
     private func dragHandle(full: CGFloat, available: CGFloat) -> some View {
-        VStack(spacing: 0) {
+        ZStack {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
                 .frame(width: 38, height: 5)
+                .allowsHitTesting(false)
+
+            ChatSheetHandleInput(
+                currentHeight: $height,
+                availableHeight: available,
+                fullHeight: full,
+                onBegan: {
+                    isHandleDragging = true
+                    handleDragBeganCollapsed = ChatSheetDetents.isCollapsed(height)
+                },
+                onChanged: { nextHeight in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    transaction.animation = nil
+                    withTransaction(transaction) {
+                        height = nextHeight
+                    }
+                },
+                onEnded: { nextHeight in
+                    isHandleDragging = false
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                        height = nextHeight
+                    }
+                },
+                onCancelled: {
+                    isHandleDragging = false
+                }
+            )
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .gesture(sheetDragGesture(availableHeight: available, full: full))
         .accessibilityLabel("Coach chat")
         .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
     }
@@ -349,6 +336,107 @@ struct GlassSheet: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - UIKit Handle Input
+
+private struct ChatSheetHandleInput: UIViewRepresentable {
+    @Binding var currentHeight: CGFloat
+
+    var availableHeight: CGFloat
+    var fullHeight: CGFloat
+    var onBegan: () -> Void
+    var onChanged: (CGFloat) -> Void
+    var onEnded: (CGFloat) -> Void
+    var onCancelled: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        view.isMultipleTouchEnabled = false
+
+        let pan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePan(_:))
+        )
+        pan.maximumNumberOfTouches = 1
+        pan.cancelsTouchesInView = true
+        pan.delegate = context.coordinator
+
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.cancelsTouchesInView = true
+        tap.delegate = context.coordinator
+        tap.require(toFail: pan)
+
+        view.addGestureRecognizer(pan)
+        view.addGestureRecognizer(tap)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: ChatSheetHandleInput
+        private var startHeight: CGFloat = ChatSheetDetents.collapsedHeight
+
+        init(_ parent: ChatSheetHandleInput) {
+            self.parent = parent
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            let nextHeight = ChatSheetDetents.isCollapsed(parent.currentHeight)
+                ? parent.fullHeight
+                : ChatSheetDetents.collapsedHeight
+            parent.onEnded(nextHeight)
+        }
+
+        @objc func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            switch recognizer.state {
+            case .began:
+                startHeight = parent.currentHeight
+                parent.onBegan()
+            case .changed:
+                let translation = recognizer.translation(in: recognizer.view)
+                let nextHeight = ChatSheetDetents.liveHeight(
+                    from: startHeight,
+                    translationY: translation.y,
+                    availableHeight: parent.availableHeight
+                )
+                parent.onChanged(nextHeight)
+            case .ended:
+                let translation = recognizer.translation(in: recognizer.view)
+                let velocity = recognizer.velocity(in: recognizer.view)
+                let nextHeight = ChatSheetDetents.finalHeight(
+                    from: startHeight,
+                    translationY: translation.y,
+                    velocityY: velocity.y,
+                    availableHeight: parent.availableHeight
+                )
+                parent.onEnded(nextHeight)
+            case .cancelled, .failed:
+                parent.onCancelled()
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
     }
 }
 // MARK: - Glass Chat Row
