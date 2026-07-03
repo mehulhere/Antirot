@@ -64,7 +64,7 @@ struct SnoozeAntirotAlarmIntent: LiveActivityIntent {
 enum AlarmKitCenter {
     static func authorizationLabel() -> String {
         #if canImport(AlarmKit)
-        if #available(iOS 26.1, *) {
+        if #available(iOS 26.0, *) {
             return String(describing: AlarmManager.shared.authorizationState)
         }
         #endif
@@ -87,7 +87,7 @@ enum AlarmKitCenter {
 
     static func schedule(_ alarm: AlarmJob, soundName: String?) async throws -> Bool {
         #if canImport(AlarmKit)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.1, *) {
             let authorization = AlarmManager.shared.authorizationState
             guard authorization == .authorized else {
                 return false
