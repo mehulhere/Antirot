@@ -1,6 +1,7 @@
 import XCTest
 @testable import Antirot
 
+@MainActor
 final class SettingsStoreTests: XCTestCase {
     final class MemoryTokenStore: SecureTokenStoring, @unchecked Sendable {
         var token = ""
