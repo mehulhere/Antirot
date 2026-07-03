@@ -181,10 +181,10 @@ struct GlassSheet: View {
                     isHandleDragging = false
                 }
             )
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, height: 44)
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 44)
+        .frame(height: 44)
         .accessibilityLabel("Coach chat")
         .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
     }
