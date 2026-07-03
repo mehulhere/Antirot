@@ -181,7 +181,8 @@ struct GlassSheet: View {
                     isHandleDragging = false
                 }
             )
-            .frame(maxWidth: .infinity, height: 44)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 44)
