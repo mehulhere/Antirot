@@ -40,12 +40,6 @@ enum ChatSheetDetents {
         return min(max(next, collapsedHeight), full)
     }
 
-    static func offsetY(for visibleHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        let full = fullHeight(availableHeight: availableHeight)
-        let resolved = min(max(visibleHeight, collapsedHeight), full)
-        return full - resolved
-    }
-
     static func visibleHeight(
         committedHeight: CGFloat,
         dragTranslationY: CGFloat,
@@ -115,10 +109,6 @@ struct GlassSheet: View {
                 dragTranslationY: dragTranslationY,
                 availableHeight: available
             )
-            let offsetY = ChatSheetDetents.offsetY(
-                for: resolved,
-                availableHeight: available
-            )
             let showCollapsedContent = ChatSheetDetents.showsCollapsedContent(
                 committedHeight: committed,
                 dragTranslationY: dragTranslationY
@@ -130,10 +120,9 @@ struct GlassSheet: View {
                     full: full,
                     showCollapsedContent: showCollapsedContent
                 )
-                    .frame(height: full)
+                    .frame(height: resolved)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
-                    .offset(y: offsetY)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
