@@ -2,6 +2,22 @@ import XCTest
 @testable import Antirot
 
 final class SettingsStoreTests: XCTestCase {
+    final class MemoryTokenStore: SecureTokenStoring, @unchecked Sendable {
+        var token = ""
+
+        func load() throws -> String {
+            token
+        }
+
+        func save(_ token: String) throws {
+            self.token = token
+        }
+
+        func clear() throws {
+            token = ""
+        }
+    }
+
     func testGeneratedDeviceIdPersistsAcrossStoreInstances() {
         let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -33,5 +49,34 @@ final class SettingsStoreTests: XCTestCase {
             SettingsStore.normalizedServerURL("https://api.antirot.org:8443/debug"),
             "https://api.antirot.org:8443"
         )
+    }
+
+    func testLegacyUserDefaultsTokenMigratesToSecureStore() {
+        let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let tokenStore = MemoryTokenStore()
+        defaults.set("legacy-device-token", forKey: "apiToken")
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SettingsStore(defaults: defaults, tokenStore: tokenStore)
+
+        XCTAssertEqual(store.apiToken, "legacy-device-token")
+        XCTAssertEqual(tokenStore.token, "legacy-device-token")
+        XCTAssertNil(defaults.string(forKey: "apiToken"))
+    }
+
+    func testApiTokenUpdatesAndLogoutUseSecureStore() {
+        let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let tokenStore = MemoryTokenStore()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = SettingsStore(defaults: defaults, tokenStore: tokenStore)
+
+        store.apiToken = "new-device-token"
+        XCTAssertEqual(tokenStore.token, "new-device-token")
+        XCTAssertNil(defaults.string(forKey: "apiToken"))
+
+        store.resetBackendSession()
+        XCTAssertEqual(tokenStore.token, "")
     }
 }

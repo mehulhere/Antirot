@@ -106,6 +106,21 @@ jobs:
             CURRENT_PROJECT_VERSION="${{ env.BUILD_VERSION }}" \
             build
 
+      - name: Compile unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Antirot.xcodeproj \
+            -scheme Antirot \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/TestDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build-for-testing
+
       - name: Install Apple Certificate
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}

@@ -28,9 +28,9 @@ struct StopAntirotAlarmIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         let defaults = UserDefaults.standard
         let serverURL = defaults.string(forKey: "serverURL").flatMap(URL.init(string:))
-        let apiToken = defaults.string(forKey: "apiToken") ?? ""
+        let apiToken = try SecureTokenStore().load()
         let deviceId = defaults.string(forKey: "deviceId") ?? "unknown-device"
-        try? await APIClient(baseURL: serverURL, apiToken: apiToken)
+        try await APIClient(baseURL: serverURL, apiToken: apiToken)
             .acknowledge(alarmId: alarmID, deviceId: deviceId, action: "ack")
         return .result()
     }
@@ -52,9 +52,9 @@ struct SnoozeAntirotAlarmIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         let defaults = UserDefaults.standard
         let serverURL = defaults.string(forKey: "serverURL").flatMap(URL.init(string:))
-        let apiToken = defaults.string(forKey: "apiToken") ?? ""
+        let apiToken = try SecureTokenStore().load()
         let deviceId = defaults.string(forKey: "deviceId") ?? "unknown-device"
-        try? await APIClient(baseURL: serverURL, apiToken: apiToken)
+        try await APIClient(baseURL: serverURL, apiToken: apiToken)
             .acknowledge(alarmId: alarmID, deviceId: deviceId, action: "snooze", minutes: 9)
         return .result()
     }
@@ -87,14 +87,10 @@ enum AlarmKitCenter {
 
     static func schedule(_ alarm: AlarmJob, soundName: String?) async throws -> Bool {
         #if canImport(AlarmKit)
-        if #available(iOS 26.1, *) {
+        if #available(iOS 26.0, *) {
             let authorization = AlarmManager.shared.authorizationState
             guard authorization == .authorized else {
-                let state = try await AlarmManager.shared.requestAuthorization()
-                guard state == .authorized else {
-                    return false
-                }
-                return try await scheduleAuthorized(alarm, soundName: soundName)
+                return false
             }
             return try await scheduleAuthorized(alarm, soundName: soundName)
         }
@@ -103,7 +99,7 @@ enum AlarmKitCenter {
     }
 
     #if canImport(AlarmKit)
-    @available(iOS 26.1, *)
+    @available(iOS 26.0, *)
     private static func scheduleAuthorized(_ alarm: AlarmJob, soundName: String?) async throws -> Bool {
         let alert = AlarmPresentation.Alert(
             title: LocalizedStringResource(stringLiteral: alarm.title),

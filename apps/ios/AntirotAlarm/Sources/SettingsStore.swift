@@ -9,7 +9,14 @@ final class SettingsStore: ObservableObject {
     }
 
     @Published var apiToken: String {
-        didSet { defaults.set(apiToken, forKey: Keys.apiToken) }
+        didSet {
+            do {
+                try tokenStore.save(apiToken)
+                defaults.removeObject(forKey: Keys.apiToken)
+            } catch {
+                print("🔴 FALLBACK: secure token write failed - Reason: \(error.localizedDescription) - Impact: authentication may not persist after app restart")
+            }
+        }
     }
 
     @Published var deviceId: String {
@@ -47,13 +54,26 @@ final class SettingsStore: ObservableObject {
     @Published var statusMessage: String = "Not registered"
 
     private let defaults: UserDefaults
+    private let tokenStore: any SecureTokenStoring
     private var pushTokenObserver: NSObjectProtocol?
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        tokenStore: any SecureTokenStoring = SecureTokenStore()
+    ) {
         self.defaults = defaults
+        self.tokenStore = tokenStore
         let storedDeviceId = defaults.string(forKey: Keys.deviceId) ?? UUID().uuidString
+        let legacyToken = defaults.string(forKey: Keys.apiToken) ?? ""
+        let secureToken: String
+        do {
+            secureToken = try tokenStore.load()
+        } catch {
+            secureToken = ""
+            print("🔴 FALLBACK: secure token read failed - Reason: \(error.localizedDescription) - Impact: the user may need to sign in again")
+        }
         self.serverURL = Self.normalizedServerURL(defaults.string(forKey: Keys.serverURL))
-        self.apiToken = defaults.string(forKey: Keys.apiToken) ?? ""
+        self.apiToken = secureToken.isEmpty ? legacyToken : secureToken
         self.deviceId = storedDeviceId
         self.userId = defaults.string(forKey: Keys.userId) ?? "admin"
         self.registered = defaults.bool(forKey: Keys.registered)
@@ -65,6 +85,16 @@ final class SettingsStore: ObservableObject {
             || !(defaults.string(forKey: Keys.onboardingName) ?? "").isEmpty
         if defaults.string(forKey: Keys.deviceId) == nil {
             defaults.set(storedDeviceId, forKey: Keys.deviceId)
+        }
+        if secureToken.isEmpty, !legacyToken.isEmpty {
+            do {
+                try tokenStore.save(legacyToken)
+                defaults.removeObject(forKey: Keys.apiToken)
+            } catch {
+                print("🔴 FALLBACK: legacy token migration failed - Reason: \(error.localizedDescription) - Impact: authentication remains in UserDefaults until migration succeeds")
+            }
+        } else {
+            defaults.removeObject(forKey: Keys.apiToken)
         }
         self.pushTokenObserver = NotificationCenter.default.addObserver(
             forName: .antirotPushTokenDidChange,

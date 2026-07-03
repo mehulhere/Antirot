@@ -23,6 +23,7 @@ struct MainTabView: View {
                     .glassCapsule()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Open controls")
             .padding(.trailing, 16)
             .padding(.top, 6)
         }

@@ -52,10 +52,8 @@ public enum SharedTaskStore {
             return false
         }
         defaults.set(data, forKey: currentTaskKey)
-        defaults.synchronize()
         if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadTimelines(ofKind: "AntirotCurrentTaskWidget")
-            WidgetCenter.shared.reloadAllTimelines()
         }
         return true
     }

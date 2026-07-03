@@ -35,7 +35,13 @@ enum AlarmNotificationActions {
 
         let defaults = UserDefaults.standard
         let serverURL = defaults.string(forKey: "serverURL").flatMap(URL.init(string:))
-        let apiToken = defaults.string(forKey: "apiToken") ?? ""
+        let apiToken: String
+        do {
+            apiToken = try SecureTokenStore().load()
+        } catch {
+            print("🔴 FALLBACK: alarm token read failed - Reason: \(error.localizedDescription) - Impact: backend may not receive this notification action")
+            return
+        }
         let deviceId = defaults.string(forKey: "deviceId") ?? "unknown-device"
         let client = APIClient(baseURL: serverURL, apiToken: apiToken)
         let action = response.actionIdentifier == UNNotificationDefaultActionIdentifier ? "ack" : response.actionIdentifier

@@ -54,8 +54,6 @@ struct GlassSheet: View {
     var onMic: () -> Void
     var onSend: () -> Void
 
-    @State private var dragStartHeight: CGFloat = 0
-
     var body: some View {
         GeometryReader { proxy in
             let available = proxy.size.height
@@ -85,7 +83,7 @@ struct GlassSheet: View {
         let isFull = resolved >= full - 8
 
         VStack(spacing: 0) {
-            dragHandle(half: half, full: full)
+            dragHandle(half: half)
 
             if isCollapsed {
                 collapsedContent
@@ -98,31 +96,7 @@ struct GlassSheet: View {
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func sheetDragGesture(full: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                if dragStartHeight == 0 {
-                    dragStartHeight = height
-                }
-                let next = dragStartHeight - value.translation.height
-                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.84)) {
-                    height = min(max(next, ChatSheetDetents.collapsedHeight), full)
-                }
-            }
-            .onEnded { value in
-                let start = dragStartHeight == 0 ? height : dragStartHeight
-                let projected = start - value.predictedEndTranslation.height * 0.18
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                    height = ChatSheetDetents.nearestHeight(
-                        to: projected,
-                        availableHeight: full / ChatSheetDetents.fullFraction
-                    )
-                }
-                dragStartHeight = 0
-            }
-    }
-
-    private func dragHandle(half: CGFloat, full: CGFloat) -> some View {
+    private func dragHandle(half: CGFloat) -> some View {
         VStack(spacing: 6) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -140,7 +114,6 @@ struct GlassSheet: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
-        .highPriorityGesture(sheetDragGesture(full: full))
         .onTapGesture {
             withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                 height = height <= ChatSheetDetents.collapsedHeight + 14
@@ -148,6 +121,8 @@ struct GlassSheet: View {
                     : ChatSheetDetents.collapsedHeight
             }
         }
+        .accessibilityLabel("Coach chat")
+        .accessibilityHint("Tap to expand or collapse")
     }
     // MARK: - Collapsed
 

@@ -250,11 +250,11 @@ struct APIClient {
         guard statusCode < 300 else {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
         }
-        if ResponseBody.self == EmptyResponse.self {
-            return EmptyResponse() as! ResponseBody
-        }
+        let responseData = ResponseBody.self == EmptyResponse.self && data.isEmpty
+            ? Data("{}".utf8)
+            : data
         do {
-            return try JSONDecoder.antirot.decode(ResponseBody.self, from: data)
+            return try JSONDecoder.antirot.decode(ResponseBody.self, from: responseData)
         } catch {
             throw APIError.decodeFailed(body: responseBody(data))
         }

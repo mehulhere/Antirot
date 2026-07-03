@@ -81,12 +81,14 @@ struct AlarmsView: View {
         .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
             switch result {
             case let .success(url):
-                do {
-                    settings.alarmSoundName = try SoundLibrary.importAlarmSound(from: url)
-                    settings.alarmSoundMode = AlarmSoundMode.custom.rawValue
-                    alarmCenter.lastMessage = "Selected alarm sound: \(settings.alarmSoundName)"
-                } catch {
-                    alarmCenter.lastMessage = "Sound import failed: \(error.localizedDescription)"
+                Task {
+                    do {
+                        settings.alarmSoundName = try await SoundLibrary.importAlarmSound(from: url)
+                        settings.alarmSoundMode = AlarmSoundMode.custom.rawValue
+                        alarmCenter.lastMessage = "Selected alarm sound: \(settings.alarmSoundName)"
+                    } catch {
+                        alarmCenter.lastMessage = "Sound import failed: \(error.localizedDescription)"
+                    }
                 }
             case let .failure(error):
                 alarmCenter.lastMessage = "Sound selection failed: \(error.localizedDescription)"

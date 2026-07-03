@@ -93,7 +93,7 @@ struct PlanView: View {
         .task {
             await loadRoutine()
         }
-        .onChange(of: settings.apiToken) { _ in
+        .onChange(of: settings.apiToken) {
             Task { await loadRoutine() }
         }
     }

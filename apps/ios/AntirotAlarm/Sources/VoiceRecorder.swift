@@ -45,15 +45,19 @@ final class VoiceRecorder: NSObject, ObservableObject {
             let recorder = try AVAudioRecorder(url: url, settings: settings)
             recorder.isMeteringEnabled = true
             recorder.prepareToRecord()
-            recorder.record()
+            guard recorder.record() else {
+                throw VoiceRecorderError.recordingDidNotStart
+            }
+            let start = Date()
             self.recorder = recorder
             self.currentURL = url
-            self.startedAt = Date()
-            self.lastVoiceAt = Date()
+            self.startedAt = start
+            self.lastVoiceAt = start
             self.onSegmentReady = onSegmentReady
             self.isRecording = true
             startGentleVadTimer()
         } catch {
+            deactivateAudioSession()
             lastError = error.localizedDescription
             isRecording = false
         }
@@ -69,7 +73,10 @@ final class VoiceRecorder: NSObject, ObservableObject {
         startedAt = nil
         lastVoiceAt = nil
         onSegmentReady = nil
-        return currentURL
+        let finishedURL = currentURL
+        currentURL = nil
+        deactivateAudioSession()
+        return finishedURL
     }
 
     private func startGentleVadTimer() {
@@ -116,10 +123,25 @@ final class VoiceRecorder: NSObject, ObservableObject {
     }
 
     private func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                continuation.resume(returning: granted)
-            }
+        await AVAudioApplication.requestRecordPermission()
+    }
+
+    private func deactivateAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(
+                false,
+                options: [.notifyOthersOnDeactivation]
+            )
+        } catch {
+            print("🔴 FALLBACK: audio session deactivation failed - Reason: \(error.localizedDescription) - Impact: other audio may resume later than expected")
         }
+    }
+}
+
+private enum VoiceRecorderError: LocalizedError {
+    case recordingDidNotStart
+
+    var errorDescription: String? {
+        "The microphone recorder could not start."
     }
 }

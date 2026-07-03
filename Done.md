@@ -87,4 +87,5 @@
 - In the frontend lab, use the Google Login Test panel and verify the browser Google JWT posts to `/v1/auth/google`, or configure `GOOGLE_WEB_CLIENT_ID` plus `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` if Google rejects the iOS client ID on web.
 - Open iOS Plan after onboarding and verify Routine is hidden until the coach derives user-specific recurring categories; Sleep and Vacation must never appear inside Routine.
 - On iOS Home, swipe up once anywhere to open chat halfway, swipe up again to open it full-screen, then verify the full chat scrolls with a visible scrollbar.
+- On the latest TestFlight build, verify Google login survives an app restart, AlarmKit permission appears only after tapping its permission control, custom alarm import rejects MP3/M4A or sounds at least 30 seconds long, recording releases other device audio after stopping, and chat expands without skipping detents.
 - On iOS Home, swipe upward anywhere on the coach screen and verify the glass chat opens; open the Plan sheet and verify routine rules are not shown as routine rows.
