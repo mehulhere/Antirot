@@ -106,6 +106,11 @@ private extension HomeView {
     }
 
     func sendStateButton(_ button: CoachStateButton) async {
+        coach.recordDiagnosticEvent(
+            kind: "button.\(button.id)",
+            summary: "\(button.title) pressed.",
+            detail: button.message
+        )
         if button.triggersConfetti {
             coach.showConfetti = true
         }

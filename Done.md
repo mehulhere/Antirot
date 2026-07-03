@@ -94,3 +94,4 @@
 - On iOS Home, record a voice message, then tap the resulting Voice message pill and verify the local audio plays through the phone speaker.
 - On iOS Home, open the full chat sheet and verify the handle/status header are pinned near the top, messages start near the top, and chat text is compact enough to avoid a blank gray wall.
 - On iOS Home, focus the chat Type field, then tap the message list or status header above the composer and verify the keyboard dismisses without sending or recording.
+- On iOS Developer settings, open Memory Files and verify markdown loads; press Copy Diagnostics and verify the last 3 exchanges report appears and is copied to the iPhone clipboard.

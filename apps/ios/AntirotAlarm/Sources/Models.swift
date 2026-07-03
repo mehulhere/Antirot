@@ -139,6 +139,28 @@ struct MemoryResponse: Codable {
     var updatedAt: Date
 }
 
+struct ReportEventPayload: Codable, Equatable {
+    var at: Date
+    var kind: String
+    var summary: String
+    var detail: String?
+}
+
+struct CreateReportRequest: Codable {
+    var deviceId: String?
+    var title: String
+    var windowStart: Date
+    var windowEnd: Date
+    var reportMarkdown: String
+    var events: [ReportEventPayload]
+}
+
+struct CreateReportResponse: Codable {
+    var ok: Bool
+    var reportId: String
+    var savedAt: Date
+}
+
 struct RuntimeStatePayload: Codable {
     var state: String?
     var sourceTool: String?

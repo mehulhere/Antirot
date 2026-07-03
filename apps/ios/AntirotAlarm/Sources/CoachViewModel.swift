@@ -16,6 +16,7 @@ final class CoachViewModel: ObservableObject {
     @Published var runtimeState = "unknown"
     @Published var coachEmotion: CoachEmotion = .watching
     @Published var showConfetti = false
+    @Published private(set) var diagnosticEvents: [ReportEventPayload] = []
 
     let recorder = VoiceRecorder()
 
@@ -44,6 +45,7 @@ final class CoachViewModel: ObservableObject {
                 text: "Conversation reset."
             )
         ]
+        recordDiagnosticEvent(kind: "conversation.reset", summary: "Conversation reset.")
     }
 
     func handleQuickAction(_ action: CoachQuickAction, client: APIClient) async {
@@ -64,11 +66,26 @@ final class CoachViewModel: ObservableObject {
     }
 
     func refreshRuntimeState(client: APIClient, deviceId: String) async {
+        let previous = runtimeState
         do {
             let response = try await client.fetchRuntimeState(deviceId: deviceId)
             runtimeState = response.runtimeState?.state ?? "unknown"
+            if runtimeState != previous {
+                recordDiagnosticEvent(
+                    kind: "state.changed",
+                    summary: "\(previous) -> \(runtimeState)",
+                    detail: "source=runtime refresh"
+                )
+            }
         } catch {
             runtimeState = "unknown"
+            if runtimeState != previous {
+                recordDiagnosticEvent(
+                    kind: "state.changed",
+                    summary: "\(previous) -> unknown",
+                    detail: "runtime refresh failed"
+                )
+            }
         }
     }
 
@@ -91,6 +108,7 @@ final class CoachViewModel: ObservableObject {
     func toggleVoice(client: APIClient) async {
         if recorder.isRecording {
             guard let url = recorder.stop() else { return }
+            recordDiagnosticEvent(kind: "voice.stop", summary: "Voice recording stopped.")
             await enqueueVoiceSegment(url: url, client: client)
         } else {
             await recorder.start { [weak self] url in
@@ -99,6 +117,10 @@ final class CoachViewModel: ObservableObject {
                 }
             }
             statusText = recorder.isRecording ? "Listening: gentle VAD waits for a useful clip" : (recorder.lastError ?? "Mic unavailable")
+            recordDiagnosticEvent(
+                kind: recorder.isRecording ? "voice.start" : "voice.failed",
+                summary: statusText
+            )
         }
     }
 
@@ -145,6 +167,11 @@ final class CoachViewModel: ObservableObject {
             visibleText = trimmed
         }
         pendingChatMessages.append(QueuedChatMessage(text: trimmed, visibleText: visibleText))
+        recordDiagnosticEvent(
+            kind: "chat.enqueued",
+            summary: "Queued user message.",
+            detail: visibleText ?? trimmed
+        )
         await processChatQueue(client: client)
     }
 
@@ -165,6 +192,7 @@ final class CoachViewModel: ObservableObject {
                 let response = try await client.chat(message: queued.text)
                 messages.append(CoachMessage(role: .coach, text: response.reply))
                 statusText = "Ready"
+                recordDiagnosticEvent(kind: "chat.reply", summary: "Coach reply received.", detail: response.reply)
                 applyEmotion(from: response)
                 if let preface = response.voicePreface?.trimmingCharacters(in: .whitespacesAndNewlines), !preface.isEmpty {
                     await speak(preface, client: client)
@@ -174,6 +202,7 @@ final class CoachViewModel: ObservableObject {
             } catch {
                 statusText = "Chat failed"
                 messages.append(CoachMessage(role: .system, text: error.localizedDescription))
+                recordDiagnosticEvent(kind: "chat.failed", summary: "Chat failed.", detail: error.localizedDescription)
             }
         }
 
@@ -201,6 +230,7 @@ final class CoachViewModel: ObservableObject {
             do {
                 let response = try await client.transcribeAudio(fileURL: url)
                 messages.append(CoachMessage(role: .user, text: "Voice message", audioFileURL: url))
+                recordDiagnosticEvent(kind: "voice.transcribed", summary: "Voice segment transcribed.", detail: response.text)
                 await send(response.text, visibleText: "", client: client)
             } catch {
                 statusText = "Voice failed"
@@ -208,6 +238,7 @@ final class CoachViewModel: ObservableObject {
                     role: .system,
                     text: "Voice transcription failed: \(error.localizedDescription)"
                 ))
+                recordDiagnosticEvent(kind: "voice.failed", summary: "Voice transcription failed.", detail: error.localizedDescription)
             }
         }
 
@@ -239,6 +270,19 @@ final class CoachViewModel: ObservableObject {
         }
 
         isSpeaking = false
+    }
+
+    func recordDiagnosticEvent(kind: String, summary: String, detail: String? = nil) {
+        diagnosticEvents.append(ReportEventPayload(
+            at: Date(),
+            kind: kind,
+            summary: summary,
+            detail: detail
+        ))
+
+        if diagnosticEvents.count > 120 {
+            diagnosticEvents.removeFirst(diagnosticEvents.count - 120)
+        }
     }
 }
 

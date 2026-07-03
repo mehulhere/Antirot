@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
+    @EnvironmentObject private var coach: CoachViewModel
 
     @State private var showControlSheet = false
 
@@ -31,6 +32,7 @@ struct MainTabView: View {
             ControlSheetView()
                 .environmentObject(settings)
                 .environmentObject(alarmCenter)
+                .environmentObject(coach)
         }
     }
 }
@@ -40,27 +42,32 @@ struct MainTabView: View {
 private struct ControlSheetView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
+    @EnvironmentObject private var coach: CoachViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                PlanView()
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    PlanView()
 
-                SectionDivider()
-                    .padding(.vertical, 20)
+                    SectionDivider()
+                        .padding(.vertical, 20)
 
-                AlarmsView()
+                    AlarmsView()
 
-                SectionDivider()
-                    .padding(.vertical, 20)
+                    SectionDivider()
+                        .padding(.vertical, 20)
 
-                SettingsView()
+                    SettingsView()
+                        .environmentObject(coach)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .padding(.bottom, 32)
+            .background(Color.arBg)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .background(Color.arBg)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

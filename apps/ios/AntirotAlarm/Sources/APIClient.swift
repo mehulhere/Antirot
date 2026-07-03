@@ -185,6 +185,15 @@ struct APIClient {
         }
     }
 
+    func createReport(_ request: CreateReportRequest) async throws -> CreateReportResponse {
+        try await send(
+            path: "/v1/reports",
+            method: "POST",
+            body: request,
+            response: CreateReportResponse.self
+        )
+    }
+
     func transcribeAudio(fileURL: URL) async throws -> SpeechTranscriptionResponse {
         let baseURL = effectiveBaseURL()
         let boundary = "Boundary-\(UUID().uuidString)"
