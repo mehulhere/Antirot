@@ -2,12 +2,7 @@ import SwiftUI
 
 enum ChatSheetDetents {
     static let collapsedHeight: CGFloat = 118
-    static let halfFraction: CGFloat = 0.5
     static let fullFraction: CGFloat = 0.96
-
-    static func halfHeight(availableHeight: CGFloat) -> CGFloat {
-        availableHeight * halfFraction
-    }
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
         availableHeight * fullFraction
@@ -16,7 +11,6 @@ enum ChatSheetDetents {
     static func heights(availableHeight: CGFloat) -> [CGFloat] {
         [
             collapsedHeight,
-            halfHeight(availableHeight: availableHeight),
             fullHeight(availableHeight: availableHeight)
         ]
     }
@@ -28,15 +22,12 @@ enum ChatSheetDetents {
             .min(by: { abs($0 - clamped) < abs($1 - clamped) }) ?? collapsedHeight
     }
 
-    static func nextExpandedHeight(from current: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        let half = halfHeight(availableHeight: availableHeight)
-        let full = fullHeight(availableHeight: availableHeight)
-        return current < half - 8 ? half : full
+    static func nextExpandedHeight(from _: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        fullHeight(availableHeight: availableHeight)
     }
 
-    static func nextCollapsedHeight(from current: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        let half = halfHeight(availableHeight: availableHeight)
-        return current > half + 8 ? half : collapsedHeight
+    static func nextCollapsedHeight(from _: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        collapsedHeight
     }
 
     static func liveHeight(
@@ -54,6 +45,12 @@ enum ChatSheetDetents {
         predictedEndTranslationY: CGFloat,
         availableHeight: CGFloat
     ) -> CGFloat {
+        if predictedEndTranslationY < -12 {
+            return fullHeight(availableHeight: availableHeight)
+        }
+        if predictedEndTranslationY > 12 {
+            return collapsedHeight
+        }
         let projected = start - predictedEndTranslationY * 0.18
         return nearestHeight(to: projected, availableHeight: availableHeight)
     }
@@ -61,8 +58,8 @@ enum ChatSheetDetents {
 
 // MARK: - Glass Chat Sheet
 
-/// A bottom-anchored, draggable, translucent glass chat sheet with three snap
-/// points (collapsed, half, full). The strong blur keeps the coach scene
+/// A bottom-anchored, draggable, translucent glass chat sheet with two snap
+/// points (collapsed and full). The strong blur keeps the coach scene
 /// visible behind it while text stays readable. Voice-first composer at the
 /// bottom; the latest coach one-liner is shown when collapsed.
 struct GlassSheet: View {
@@ -85,13 +82,12 @@ struct GlassSheet: View {
     var body: some View {
         GeometryReader { proxy in
             let available = proxy.size.height
-            let half = ChatSheetDetents.halfHeight(availableHeight: available)
             let full = ChatSheetDetents.fullHeight(availableHeight: available)
             let resolved = min(max(height, ChatSheetDetents.collapsedHeight), full)
 
             VStack(spacing: 0) {
                 Spacer()
-                sheetContent(half: half, full: full, resolved: resolved)
+                sheetContent(full: full, resolved: resolved)
                     .frame(height: resolved)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
@@ -106,12 +102,12 @@ struct GlassSheet: View {
     // MARK: - Sheet Content
 
     @ViewBuilder
-    private func sheetContent(half: CGFloat, full: CGFloat, resolved: CGFloat) -> some View {
+    private func sheetContent(full: CGFloat, resolved: CGFloat) -> some View {
         let isCollapsed = resolved <= ChatSheetDetents.collapsedHeight + 14
         let isFull = resolved >= full - 8
 
         VStack(spacing: 0) {
-            dragHandle(half: half, available: full / ChatSheetDetents.fullFraction)
+            dragHandle(full: full, available: full / ChatSheetDetents.fullFraction)
 
             if isCollapsed {
                 collapsedContent(available: full / ChatSheetDetents.fullFraction)
@@ -130,17 +126,15 @@ struct GlassSheet: View {
                 if dragStartHeight == 0 {
                     dragStartHeight = height
                 }
-                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.84)) {
-                    height = ChatSheetDetents.liveHeight(
-                        from: dragStartHeight,
-                        translationY: value.translation.height,
-                        availableHeight: availableHeight
-                    )
-                }
+                height = ChatSheetDetents.liveHeight(
+                    from: dragStartHeight,
+                    translationY: value.translation.height,
+                    availableHeight: availableHeight
+                )
             }
             .onEnded { value in
                 let start = dragStartHeight == 0 ? height : dragStartHeight
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
                     height = ChatSheetDetents.finalHeight(
                         from: start,
                         predictedEndTranslationY: value.predictedEndTranslation.height,
@@ -151,7 +145,7 @@ struct GlassSheet: View {
             }
     }
 
-    private func dragHandle(half: CGFloat, available: CGFloat) -> some View {
+    private func dragHandle(full: CGFloat, available: CGFloat) -> some View {
         VStack(spacing: 6) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -171,9 +165,9 @@ struct GlassSheet: View {
         .contentShape(Rectangle())
         .simultaneousGesture(sheetDragGesture(availableHeight: available))
         .onTapGesture {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
                 height = height <= ChatSheetDetents.collapsedHeight + 14
-                    ? half
+                    ? full
                     : ChatSheetDetents.collapsedHeight
             }
         }
@@ -199,8 +193,8 @@ struct GlassSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                    height = max(height, ChatSheetDetents.halfHeight(availableHeight: available))
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                    height = ChatSheetDetents.fullHeight(availableHeight: available)
                 }
             }
 

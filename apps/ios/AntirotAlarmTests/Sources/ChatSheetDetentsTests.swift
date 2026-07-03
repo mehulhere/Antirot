@@ -3,36 +3,38 @@ import XCTest
 @testable import Antirot
 
 final class ChatSheetDetentsTests: XCTestCase {
-    func testUpwardSwipesAdvanceFromCollapsedToHalfThenFull() {
+    func testUpwardSwipeOpensDirectlyToFull() {
         let availableHeight: CGFloat = 800
 
-        let half = ChatSheetDetents.nextExpandedHeight(
+        let full = ChatSheetDetents.nextExpandedHeight(
             from: ChatSheetDetents.collapsedHeight,
             availableHeight: availableHeight
         )
-        let full = ChatSheetDetents.nextExpandedHeight(
-            from: half,
-            availableHeight: availableHeight
-        )
 
-        XCTAssertEqual(half, 400, accuracy: 0.1)
         XCTAssertEqual(full, 768, accuracy: 0.1)
     }
 
-    func testDownwardSwipesCollapseFromFullToHalfThenCollapsed() {
+    func testDownwardSwipeCollapsesDirectly() {
         let availableHeight: CGFloat = 800
 
-        let half = ChatSheetDetents.nextCollapsedHeight(
+        let collapsed = ChatSheetDetents.nextCollapsedHeight(
             from: ChatSheetDetents.fullHeight(availableHeight: availableHeight),
             availableHeight: availableHeight
         )
-        let collapsed = ChatSheetDetents.nextCollapsedHeight(
-            from: half,
-            availableHeight: availableHeight
-        )
 
-        XCTAssertEqual(half, 400, accuracy: 0.1)
         XCTAssertEqual(collapsed, ChatSheetDetents.collapsedHeight, accuracy: 0.1)
+    }
+
+    func testNoHalfDetentExists() {
+        let availableHeight: CGFloat = 800
+
+        XCTAssertEqual(
+            ChatSheetDetents.heights(availableHeight: availableHeight),
+            [
+                ChatSheetDetents.collapsedHeight,
+                ChatSheetDetents.fullHeight(availableHeight: availableHeight)
+            ]
+        )
     }
 
     func testNearestDetentCanReturnFullHeight() {
@@ -93,6 +95,20 @@ final class ChatSheetDetentsTests: XCTestCase {
             ChatSheetDetents.finalHeight(
                 from: 400,
                 predictedEndTranslationY: -1_600,
+                availableHeight: availableHeight
+            ),
+            ChatSheetDetents.fullHeight(availableHeight: availableHeight),
+            accuracy: 0.1
+        )
+    }
+
+    func testSmallUpwardReleaseStillFinishesFullSize() {
+        let availableHeight: CGFloat = 800
+
+        XCTAssertEqual(
+            ChatSheetDetents.finalHeight(
+                from: ChatSheetDetents.collapsedHeight,
+                predictedEndTranslationY: -80,
                 availableHeight: availableHeight
             ),
             ChatSheetDetents.fullHeight(availableHeight: availableHeight),

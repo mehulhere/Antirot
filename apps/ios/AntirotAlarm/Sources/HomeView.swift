@@ -135,7 +135,7 @@ private extension HomeView {
     }
 
     func openChat(availableHeight: CGFloat) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
             sheetHeight = ChatSheetDetents.nextExpandedHeight(
                 from: sheetHeight,
                 availableHeight: availableHeight
@@ -144,7 +144,7 @@ private extension HomeView {
     }
 
     func closeChat(availableHeight: CGFloat) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
             sheetHeight = ChatSheetDetents.nextCollapsedHeight(
                 from: sheetHeight,
                 availableHeight: availableHeight
