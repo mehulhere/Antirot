@@ -37,6 +37,12 @@ final class ChatSheetDetentsTests: XCTestCase {
         )
     }
 
+    func testCollapsedDetectionAllowsSmallFingerJitterNearRestingHeight() {
+        XCTAssertTrue(ChatSheetDetents.isCollapsed(ChatSheetDetents.collapsedHeight))
+        XCTAssertTrue(ChatSheetDetents.isCollapsed(ChatSheetDetents.collapsedHeight + 14))
+        XCTAssertFalse(ChatSheetDetents.isCollapsed(ChatSheetDetents.collapsedHeight + 15))
+    }
+
     func testNearestDetentCanReturnFullHeight() {
         let availableHeight: CGFloat = 800
 
