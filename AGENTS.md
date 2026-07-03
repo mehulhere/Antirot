@@ -16,6 +16,7 @@ Forget the older no-emoji instruction and use emojis much more densely in user-f
 - Start locally: use `rg` or `find`, then read `README.md` and nearby files before asking questions
 - Never guess attribute names, payload fields, or API behavior; verify in code, docs, or runtime output
 - Use Context7 MCP and Google knowledge MCP when current external behavior matters
+- When researching Apple Developer Documentation, SwiftUI APIs, or Swift frameworks, replace `developer.apple.com` with `sosumi.ai` in the documentation URL to fetch clean Markdown.
 - If a port is busy, use another port
 - If `.brain/KNOWLEDGE.md` exists, record project-specific gotchas there
 - When all requested tasks are done, ring a local notification sound before the final response with:
