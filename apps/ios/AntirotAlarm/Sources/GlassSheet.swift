@@ -76,6 +76,10 @@ enum ChatSheetDetents {
     static func isCollapsed(_ height: CGFloat) -> Bool {
         height <= collapsedHeight + 14
     }
+
+    static func showsCollapsedContent(committedHeight: CGFloat, dragTranslationY: CGFloat) -> Bool {
+        isCollapsed(committedHeight) && dragTranslationY >= 0
+    }
 }
 
 // MARK: - Glass Chat Sheet
@@ -115,14 +119,16 @@ struct GlassSheet: View {
                 for: resolved,
                 availableHeight: available
             )
-            let showCollapsedContent = ChatSheetDetents.isCollapsed(committed) && dragTranslationY >= 0
+            let showCollapsedContent = ChatSheetDetents.showsCollapsedContent(
+                committedHeight: committed,
+                dragTranslationY: dragTranslationY
+            )
 
             VStack(spacing: 0) {
                 Spacer()
                 sheetContent(
                     full: full,
-                    showCollapsedContent: showCollapsedContent,
-                    isFull: resolved >= full - 8
+                    showCollapsedContent: showCollapsedContent
                 )
                     .frame(height: full)
                     .padding(.horizontal, 10)
@@ -139,14 +145,17 @@ struct GlassSheet: View {
     // MARK: - Sheet Content
 
     @ViewBuilder
-    private func sheetContent(full: CGFloat, showCollapsedContent: Bool, isFull: Bool) -> some View {
+    private func sheetContent(full: CGFloat, showCollapsedContent: Bool) -> some View {
         VStack(spacing: 0) {
-            dragHandle(available: full / ChatSheetDetents.fullFraction)
+            dragHandle(
+                full: full,
+                available: full / ChatSheetDetents.fullFraction
+            )
 
             if showCollapsedContent {
                 collapsedContent(available: full / ChatSheetDetents.fullFraction)
             } else {
-                expandedContent(isFull: isFull)
+                expandedContent
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
@@ -172,7 +181,7 @@ struct GlassSheet: View {
             }
     }
 
-    private func dragHandle(available: CGFloat) -> some View {
+    private func dragHandle(full: CGFloat, available: CGFloat) -> some View {
         VStack(spacing: 0) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -182,8 +191,17 @@ struct GlassSheet: View {
         .frame(minHeight: 44)
         .contentShape(Rectangle())
         .gesture(sheetDragGesture(availableHeight: available))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                    height = ChatSheetDetents.isCollapsed(height)
+                        ? full
+                        : ChatSheetDetents.collapsedHeight
+                }
+            }
+        )
         .accessibilityLabel("Coach chat")
-        .accessibilityHint("Drag up to open or drag down to collapse")
+        .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
     }
     // MARK: - Collapsed
 
@@ -220,16 +238,16 @@ struct GlassSheet: View {
 
     // MARK: - Expanded
 
-    private func expandedContent(isFull: Bool) -> some View {
+    private var expandedContent: some View {
         VStack(spacing: 0) {
-            chatList(isFull: isFull)
+            chatList
             composer
         }
     }
 
-    private func chatList(isFull: Bool) -> some View {
+    private var chatList: some View {
         ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: isFull) {
+            ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(spacing: 10) {
                     ForEach(messages) { message in
                         GlassChatRow(
@@ -257,7 +275,6 @@ struct GlassSheet: View {
                 .padding(.top, 10)
                 .padding(.bottom, 16)
             }
-            .scrollDisabled(!isFull)
             .onChange(of: messages.count) { _, _ in
                 if let last = messages.last?.id {
                     withAnimation(.easeOut(duration: 0.25)) {

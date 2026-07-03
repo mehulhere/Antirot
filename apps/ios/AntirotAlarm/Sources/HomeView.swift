@@ -26,6 +26,11 @@ struct HomeView: View {
                 CoachStage(emotion: coach.coachEmotion, isThinking: coach.isSending)
                     .ignoresSafeArea()
 
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .gesture(homeSwipeUpGesture(availableHeight: proxy.size.height))
+
                 actionStack
                     .padding(.bottom, min(sheetHeight, actionClearance) + 22)
                     .padding(.horizontal, 24)
@@ -44,8 +49,6 @@ struct HomeView: View {
                     onPlayVoiceMessage: { url in coach.playVoiceMessage(url) }
                 )
             }
-            .contentShape(Rectangle())
-            .simultaneousGesture(homeSwipeUpGesture(availableHeight: proxy.size.height))
         }
         .confettiOverlay(trigger: $coach.showConfetti)
         .background(Color.arBg.ignoresSafeArea())

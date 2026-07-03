@@ -43,6 +43,33 @@ final class ChatSheetDetentsTests: XCTestCase {
         XCTAssertFalse(ChatSheetDetents.isCollapsed(ChatSheetDetents.collapsedHeight + 15))
     }
 
+    func testCollapsedContentOnlyShowsWhenRestingCollapsedAndNotDraggingUp() {
+        XCTAssertTrue(
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: ChatSheetDetents.collapsedHeight,
+                dragTranslationY: 0
+            )
+        )
+        XCTAssertTrue(
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: ChatSheetDetents.collapsedHeight,
+                dragTranslationY: 24
+            )
+        )
+        XCTAssertFalse(
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: ChatSheetDetents.collapsedHeight,
+                dragTranslationY: -1
+            )
+        )
+        XCTAssertFalse(
+            ChatSheetDetents.showsCollapsedContent(
+                committedHeight: 700,
+                dragTranslationY: 200
+            )
+        )
+    }
+
     func testNearestDetentCanReturnFullHeight() {
         let availableHeight: CGFloat = 800
 
