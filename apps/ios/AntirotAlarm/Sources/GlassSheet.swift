@@ -248,6 +248,8 @@ struct GlassSheet: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 6)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: dismissDraftKeyboard)
     }
 
     private var chatList: some View {
@@ -282,6 +284,8 @@ struct GlassSheet: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: dismissDraftKeyboard)
             .onChange(of: messages.count) { _, _ in
                 if let last = messages.last?.id {
                     withAnimation(.easeOut(duration: 0.25)) {
@@ -360,6 +364,10 @@ struct GlassSheet: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private func dismissDraftKeyboard() {
+        isDraftFocused = false
     }
 }
 

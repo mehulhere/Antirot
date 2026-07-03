@@ -93,3 +93,4 @@
 - On iOS Home, hold the chat handle while slowly dragging up and down, and verify the handle does not flicker or flash while it follows the finger.
 - On iOS Home, record a voice message, then tap the resulting Voice message pill and verify the local audio plays through the phone speaker.
 - On iOS Home, open the full chat sheet and verify the handle/status header are pinned near the top, messages start near the top, and chat text is compact enough to avoid a blank gray wall.
+- On iOS Home, focus the chat Type field, then tap the message list or status header above the composer and verify the keyboard dismisses without sending or recording.
