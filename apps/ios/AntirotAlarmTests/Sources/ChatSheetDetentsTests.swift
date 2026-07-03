@@ -85,6 +85,51 @@ final class ChatSheetDetentsTests: XCTestCase {
         )
     }
 
+    func testOffsetMovesFullSheetInsteadOfResizingIt() {
+        let availableHeight: CGFloat = 800
+        let fullHeight = ChatSheetDetents.fullHeight(availableHeight: availableHeight)
+
+        XCTAssertEqual(
+            ChatSheetDetents.offsetY(
+                for: ChatSheetDetents.collapsedHeight,
+                availableHeight: availableHeight
+            ),
+            fullHeight - ChatSheetDetents.collapsedHeight,
+            accuracy: 0.1
+        )
+        XCTAssertEqual(
+            ChatSheetDetents.offsetY(
+                for: fullHeight,
+                availableHeight: availableHeight
+            ),
+            0,
+            accuracy: 0.1
+        )
+    }
+
+    func testTransientDragTranslationControlsVisibleHeightWithoutChangingDetents() {
+        let availableHeight: CGFloat = 800
+
+        XCTAssertEqual(
+            ChatSheetDetents.visibleHeight(
+                committedHeight: ChatSheetDetents.collapsedHeight,
+                dragTranslationY: -240,
+                availableHeight: availableHeight
+            ),
+            ChatSheetDetents.collapsedHeight + 240,
+            accuracy: 0.1
+        )
+        XCTAssertEqual(
+            ChatSheetDetents.visibleHeight(
+                committedHeight: ChatSheetDetents.fullHeight(availableHeight: availableHeight),
+                dragTranslationY: 320,
+                availableHeight: availableHeight
+            ),
+            ChatSheetDetents.fullHeight(availableHeight: availableHeight) - 320,
+            accuracy: 0.1
+        )
+    }
+
     func testDragEndSnapsDownToCollapsedOrUpToFull() {
         let availableHeight: CGFloat = 800
 

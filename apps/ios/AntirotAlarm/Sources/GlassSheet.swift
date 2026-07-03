@@ -40,6 +40,24 @@ enum ChatSheetDetents {
         return min(max(next, collapsedHeight), full)
     }
 
+    static func offsetY(for visibleHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        let full = fullHeight(availableHeight: availableHeight)
+        let resolved = min(max(visibleHeight, collapsedHeight), full)
+        return full - resolved
+    }
+
+    static func visibleHeight(
+        committedHeight: CGFloat,
+        dragTranslationY: CGFloat,
+        availableHeight: CGFloat
+    ) -> CGFloat {
+        liveHeight(
+            from: committedHeight,
+            translationY: dragTranslationY,
+            availableHeight: availableHeight
+        )
+    }
+
     static func finalHeight(
         from start: CGFloat,
         predictedEndTranslationY: CGFloat,
@@ -80,21 +98,36 @@ struct GlassSheet: View {
     var onSend: () -> Void
     var onPlayVoiceMessage: (URL) -> Void
 
-    @State private var dragStartHeight: CGFloat = 0
+    @GestureState private var dragTranslationY: CGFloat = 0
     @FocusState private var isDraftFocused: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let available = proxy.size.height
             let full = ChatSheetDetents.fullHeight(availableHeight: available)
-            let resolved = min(max(height, ChatSheetDetents.collapsedHeight), full)
+            let committed = min(max(height, ChatSheetDetents.collapsedHeight), full)
+            let resolved = ChatSheetDetents.visibleHeight(
+                committedHeight: committed,
+                dragTranslationY: dragTranslationY,
+                availableHeight: available
+            )
+            let offsetY = ChatSheetDetents.offsetY(
+                for: resolved,
+                availableHeight: available
+            )
+            let showCollapsedContent = ChatSheetDetents.isCollapsed(committed) && dragTranslationY >= 0
 
             VStack(spacing: 0) {
                 Spacer()
-                sheetContent(full: full, resolved: resolved)
-                    .frame(height: resolved)
+                sheetContent(
+                    full: full,
+                    showCollapsedContent: showCollapsedContent,
+                    isFull: resolved >= full - 8
+                )
+                    .frame(height: full)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
+                    .offset(y: offsetY)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
@@ -106,14 +139,11 @@ struct GlassSheet: View {
     // MARK: - Sheet Content
 
     @ViewBuilder
-    private func sheetContent(full: CGFloat, resolved: CGFloat) -> some View {
-        let isCollapsed = ChatSheetDetents.isCollapsed(resolved)
-        let isFull = resolved >= full - 8
-
+    private func sheetContent(full: CGFloat, showCollapsedContent: Bool, isFull: Bool) -> some View {
         VStack(spacing: 0) {
-            dragHandle(full: full, available: full / ChatSheetDetents.fullFraction)
+            dragHandle(available: full / ChatSheetDetents.fullFraction)
 
-            if isCollapsed {
+            if showCollapsedContent {
                 collapsedContent(available: full / ChatSheetDetents.fullFraction)
             } else {
                 expandedContent(isFull: isFull)
@@ -126,35 +156,23 @@ struct GlassSheet: View {
 
     private func sheetDragGesture(availableHeight: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                if dragStartHeight == 0 {
-                    dragStartHeight = height
-                }
-                var transaction = Transaction()
+            .updating($dragTranslationY) { value, state, transaction in
                 transaction.disablesAnimations = true
                 transaction.animation = nil
-                withTransaction(transaction) {
-                    height = ChatSheetDetents.liveHeight(
-                        from: dragStartHeight,
-                        translationY: value.translation.height,
-                        availableHeight: availableHeight
-                    )
-                }
+                state = value.translation.height
             }
             .onEnded { value in
-                let start = dragStartHeight == 0 ? height : dragStartHeight
                 withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
                     height = ChatSheetDetents.finalHeight(
-                        from: start,
+                        from: height,
                         predictedEndTranslationY: value.predictedEndTranslation.height,
                         availableHeight: availableHeight
                     )
                 }
-                dragStartHeight = 0
             }
     }
 
-    private func dragHandle(full: CGFloat, available: CGFloat) -> some View {
+    private func dragHandle(available: CGFloat) -> some View {
         VStack(spacing: 0) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -163,16 +181,9 @@ struct GlassSheet: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
-        .simultaneousGesture(sheetDragGesture(availableHeight: available))
-        .onTapGesture {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-                height = ChatSheetDetents.isCollapsed(height)
-                    ? full
-                    : ChatSheetDetents.collapsedHeight
-            }
-        }
+        .gesture(sheetDragGesture(availableHeight: available))
         .accessibilityLabel("Coach chat")
-        .accessibilityHint("Tap to expand or collapse")
+        .accessibilityHint("Drag up to open or drag down to collapse")
     }
     // MARK: - Collapsed
 
