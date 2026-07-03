@@ -74,6 +74,10 @@ enum ChatSheetDetents {
     static func showsCollapsedContent(committedHeight: CGFloat, dragTranslationY: CGFloat) -> Bool {
         isCollapsed(committedHeight) && dragTranslationY >= 0
     }
+
+    static func isTapLikeGesture(translationWidth: CGFloat, translationHeight: CGFloat) -> Bool {
+        max(abs(translationWidth), abs(translationHeight)) < 8
+    }
 }
 
 // MARK: - Glass Chat Sheet
@@ -152,20 +156,32 @@ struct GlassSheet: View {
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func sheetDragGesture(availableHeight: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8)
+    private func sheetDragGesture(availableHeight: CGFloat, full: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
             .updating($dragTranslationY) { value, state, transaction in
                 transaction.disablesAnimations = true
                 transaction.animation = nil
-                state = value.translation.height
+                state = ChatSheetDetents.isTapLikeGesture(
+                    translationWidth: value.translation.width,
+                    translationHeight: value.translation.height
+                ) ? 0 : value.translation.height
             }
             .onEnded { value in
                 withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-                    height = ChatSheetDetents.finalHeight(
-                        from: height,
-                        predictedEndTranslationY: value.predictedEndTranslation.height,
-                        availableHeight: availableHeight
-                    )
+                    if ChatSheetDetents.isTapLikeGesture(
+                        translationWidth: value.translation.width,
+                        translationHeight: value.translation.height
+                    ) {
+                        height = ChatSheetDetents.isCollapsed(height)
+                            ? full
+                            : ChatSheetDetents.collapsedHeight
+                    } else {
+                        height = ChatSheetDetents.finalHeight(
+                            from: height,
+                            predictedEndTranslationY: value.predictedEndTranslation.height,
+                            availableHeight: availableHeight
+                        )
+                    }
                 }
             }
     }
@@ -179,16 +195,7 @@ struct GlassSheet: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
-        .gesture(sheetDragGesture(availableHeight: available))
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-                    height = ChatSheetDetents.isCollapsed(height)
-                        ? full
-                        : ChatSheetDetents.collapsedHeight
-                }
-            }
-        )
+        .gesture(sheetDragGesture(availableHeight: available, full: full))
         .accessibilityLabel("Coach chat")
         .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
     }

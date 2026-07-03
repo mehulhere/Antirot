@@ -70,6 +70,33 @@ final class ChatSheetDetentsTests: XCTestCase {
         )
     }
 
+    func testSmallTranslationsAreTreatedAsTapLikeGestures() {
+        XCTAssertTrue(
+            ChatSheetDetents.isTapLikeGesture(
+                translationWidth: 0,
+                translationHeight: 0
+            )
+        )
+        XCTAssertTrue(
+            ChatSheetDetents.isTapLikeGesture(
+                translationWidth: 3,
+                translationHeight: -7
+            )
+        )
+        XCTAssertFalse(
+            ChatSheetDetents.isTapLikeGesture(
+                translationWidth: 0,
+                translationHeight: 8
+            )
+        )
+        XCTAssertFalse(
+            ChatSheetDetents.isTapLikeGesture(
+                translationWidth: 9,
+                translationHeight: 0
+            )
+        )
+    }
+
     func testNearestDetentCanReturnFullHeight() {
         let availableHeight: CGFloat = 800
 
