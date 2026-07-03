@@ -77,6 +77,7 @@ struct GlassSheet: View {
 
     var onMic: () -> Void
     var onSend: () -> Void
+    var onPlayVoiceMessage: (URL) -> Void
 
     @State private var dragStartHeight: CGFloat = 0
     @FocusState private var isDraftFocused: Bool
@@ -226,7 +227,10 @@ struct GlassSheet: View {
             ScrollView(.vertical, showsIndicators: isFull) {
                 LazyVStack(spacing: 10) {
                     ForEach(messages) { message in
-                        GlassChatRow(message: message)
+                        GlassChatRow(
+                            message: message,
+                            onPlayVoiceMessage: onPlayVoiceMessage
+                        )
                             .id(message.id)
                     }
 
@@ -333,6 +337,7 @@ struct GlassSheet: View {
 
 private struct GlassChatRow: View {
     let message: CoachMessage
+    var onPlayVoiceMessage: (URL) -> Void
 
     var body: some View {
         if message.role == .system {
@@ -354,10 +359,18 @@ private struct GlassChatRow: View {
             if isUser { Spacer(minLength: 48) }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                if message.audioFileURL != nil {
-                    Label("Voice message", systemImage: "play.circle.fill")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.arTextPrimary)
+                if let audioFileURL = message.audioFileURL {
+                    Button {
+                        onPlayVoiceMessage(audioFileURL)
+                    } label: {
+                        Label("Voice message", systemImage: "play.circle.fill")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.arTextPrimary)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Play voice message")
+                    .accessibilityHint("Plays the recorded voice check-in")
                 } else {
                     Text(message.text)
                         .font(.body)
@@ -395,7 +408,8 @@ private struct GlassChatRow: View {
             statusText: "Ready",
             latestOneLiner: "Watching.",
             onMic: {},
-            onSend: {}
+            onSend: {},
+            onPlayVoiceMessage: { _ in }
         )
     }
 }

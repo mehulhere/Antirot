@@ -102,6 +102,38 @@ final class CoachViewModel: ObservableObject {
         }
     }
 
+    func playVoiceMessage(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            statusText = "Voice file missing"
+            messages.append(CoachMessage(
+                role: .system,
+                text: "Voice playback failed: the local audio file is no longer available."
+            ))
+            return
+        }
+
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try session.setActive(true)
+
+            audioPlayer?.stop()
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.prepareToPlay()
+            guard player.play() else {
+                throw VoicePlaybackError.playbackDidNotStart
+            }
+            audioPlayer = player
+            statusText = "Playing voice message"
+        } catch {
+            statusText = "Voice playback failed"
+            messages.append(CoachMessage(
+                role: .system,
+                text: "Voice playback failed: \(error.localizedDescription)"
+            ))
+        }
+    }
+
     func send(_ text: String, visibleText: String? = nil, client: APIClient) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -213,4 +245,12 @@ final class CoachViewModel: ObservableObject {
 private struct QueuedChatMessage {
     var text: String
     var visibleText: String?
+}
+
+private enum VoicePlaybackError: LocalizedError {
+    case playbackDidNotStart
+
+    var errorDescription: String? {
+        "The voice message could not start playing."
+    }
 }

@@ -176,6 +176,10 @@ struct CoachMessage: Identifiable, Equatable {
     var text: String
     var createdAt: Date = Date()
     var audioFileURL: URL?
+
+    var isPlayableVoiceMessage: Bool {
+        audioFileURL != nil
+    }
 }
 
 struct CoachQuickAction: Identifiable, Equatable {

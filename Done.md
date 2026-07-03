@@ -90,3 +90,4 @@
 - On the latest TestFlight build, verify Google login survives an app restart, AlarmKit permission appears only after tapping its permission control, custom alarm import rejects MP3/M4A or sounds at least 30 seconds long, recording releases other device audio after stopping, and chat expands without skipping detents.
 - On iOS Home, swipe upward anywhere on the coach screen and verify the glass chat opens; open the Plan sheet and verify routine rules are not shown as routine rows.
 - On iOS Home, verify the chat handle drags up and down between collapsed/half/full, tapping the collapsed preview opens chat, the Type field focuses, and the mic starts or stops voice recording even while a request is slow.
+- On iOS Home, record a voice message, then tap the resulting Voice message pill and verify the local audio plays through the phone speaker.

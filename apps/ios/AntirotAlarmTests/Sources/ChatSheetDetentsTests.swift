@@ -100,6 +100,15 @@ final class ChatSheetDetentsTests: XCTestCase {
         )
     }
 
+    func testCoachMessageMarksLocalAudioAsPlayableVoiceMessage() {
+        let audioURL = URL(fileURLWithPath: "/tmp/antirot-voice-test.m4a")
+        let voiceMessage = CoachMessage(role: .user, text: "Voice message", audioFileURL: audioURL)
+        let textMessage = CoachMessage(role: .user, text: "Typed message")
+
+        XCTAssertTrue(voiceMessage.isPlayableVoiceMessage)
+        XCTAssertFalse(textMessage.isPlayableVoiceMessage)
+    }
+
     func testRoutineParserDoesNotInventDefaultCategories() {
         let content = """
         # Routine

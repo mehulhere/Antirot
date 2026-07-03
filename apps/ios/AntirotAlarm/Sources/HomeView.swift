@@ -40,7 +40,8 @@ struct HomeView: View {
                     statusText: coach.statusText,
                     latestOneLiner: latestOneLiner,
                     onMic: { Task { await micTapped() } },
-                    onSend: { Task { await sendTapped() } }
+                    onSend: { Task { await sendTapped() } },
+                    onPlayVoiceMessage: { url in coach.playVoiceMessage(url) }
                 )
             }
             .contentShape(Rectangle())
