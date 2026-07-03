@@ -114,7 +114,7 @@ struct GlassSheet: View {
                     full: full,
                     showCollapsedContent: showCollapsedContent
                 )
-                    .frame(height: resolved)
+                    .frame(maxWidth: .infinity, height: resolved, alignment: .top)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
             }
@@ -141,6 +141,7 @@ struct GlassSheet: View {
                 expandedContent
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .liquidGlass(cornerRadius: 30, borderWidth: 0.7)
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
@@ -223,9 +224,28 @@ struct GlassSheet: View {
 
     private var expandedContent: some View {
         VStack(spacing: 0) {
+            expandedHeader
             chatList
             composer
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var expandedHeader: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(Color.white.opacity(0.36))
+                .frame(width: 7, height: 7)
+
+            Text(statusText)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.arTextSecondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
     }
 
     private var chatList: some View {
@@ -255,9 +275,11 @@ struct GlassSheet: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 6)
                 .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .onChange(of: messages.count) { _, _ in
                 if let last = messages.last?.id {
                     withAnimation(.easeOut(duration: 0.25)) {
@@ -470,7 +492,7 @@ private struct GlassChatRow: View {
                         onPlayVoiceMessage(audioFileURL)
                     } label: {
                         Label("Voice message", systemImage: "play.circle.fill")
-                            .font(.body.weight(.medium))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.arTextPrimary)
                     }
                     .buttonStyle(.plain)
@@ -479,14 +501,14 @@ private struct GlassChatRow: View {
                     .accessibilityHint("Plays the recorded voice check-in")
                 } else {
                     Text(message.text)
-                        .font(.body)
+                        .font(.system(size: 16, weight: .regular))
                         .foregroundStyle(.arTextPrimary)
-                        .lineSpacing(3)
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(isUser ? Color.arAccent.opacity(0.20) : Color.white.opacity(0.08))

@@ -92,3 +92,4 @@
 - On iOS Home, verify the chat handle tracks the finger directly between collapsed and full, release snaps to full or collapsed with no half stop, tapping the chat handle or collapsed preview opens chat, the Type field focuses, and the mic starts or stops voice recording even while a request is slow.
 - On iOS Home, hold the chat handle while slowly dragging up and down, and verify the handle does not flicker or flash while it follows the finger.
 - On iOS Home, record a voice message, then tap the resulting Voice message pill and verify the local audio plays through the phone speaker.
+- On iOS Home, open the full chat sheet and verify the handle/status header are pinned near the top, messages start near the top, and chat text is compact enough to avoid a blank gray wall.
