@@ -114,7 +114,8 @@ struct GlassSheet: View {
                     full: full,
                     showCollapsedContent: showCollapsedContent
                 )
-                    .frame(maxWidth: .infinity, height: resolved, alignment: .top)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .frame(height: resolved, alignment: .top)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
             }
