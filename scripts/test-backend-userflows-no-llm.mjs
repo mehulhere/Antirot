@@ -137,10 +137,10 @@ async function main() {
         pass("UF-11 grouped alarm ack clears alarm family");
 
         const routine = await getMemory(backend.baseUrl, fixture.deviceToken, "routine");
-        assert.match(routine.content, /Work Blocks/u);
-        assert.match(routine.content, /Sleep/u);
-        assert.match(routine.content, /Vacation/u);
-        assert.doesNotMatch(routine.content, /Gym|Relationship|girlfriend/iu);
+        assert.doesNotMatch(
+            routine.content,
+            /Work Blocks|Sleep|Vacation|Gym|Relationship|girlfriend/iu
+        );
         result = await runTool(backend.baseUrl, fixture.userId, "set_routine_categories", {
             categories: [
                 {

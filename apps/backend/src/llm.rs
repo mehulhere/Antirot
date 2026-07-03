@@ -1937,13 +1937,13 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "set_routine_categories",
-                "description": "Creates or replaces personalized routine categories in routine.md from the user's recurring day shape, weekly schedule, maintenance blocks, relationship/family blocks, fitness blocks, study blocks, or other repeated obligations. Use this for recurring categories only, not one-off tasks. Work Blocks, Sleep, and Vacation are defaults and do not need to be included unless the user gives extra details for them.",
+                "description": "Creates or replaces personalized routine categories in routine.md from the user's recurring day shape, weekly schedule, maintenance blocks, relationship/family blocks, fitness blocks, study blocks, or other repeated obligations. Use this for recurring user-specific categories only, not work sessions, sleep, vacation, or one-off tasks.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "categories": {
                             "type": "array",
-                            "description": "Recurring categories explicitly inferred from the user's response. Exclude Work Blocks, Sleep, and Vacation unless the user gave extra details that change them.",
+                            "description": "Recurring user-specific categories explicitly inferred from the user's response. Always exclude Work Blocks, Sleep, and Vacation.",
                             "items": {
                                 "type": "object",
                                 "properties": {
@@ -2045,9 +2045,9 @@ mod tests {
 
     #[test]
     fn default_routine_does_not_seed_personalized_categories() {
-        assert!(DEFAULT_ROUTINE.contains("Work Blocks"));
-        assert!(DEFAULT_ROUTINE.contains("Sleep"));
-        assert!(DEFAULT_ROUTINE.contains("Vacation"));
+        assert!(!DEFAULT_ROUTINE.contains("Work Blocks"));
+        assert!(!DEFAULT_ROUTINE.contains("Sleep"));
+        assert!(!DEFAULT_ROUTINE.contains("Vacation"));
         assert!(!DEFAULT_ROUTINE.contains("Gym"));
         assert!(!DEFAULT_ROUTINE.contains("Relationship"));
     }
@@ -2064,7 +2064,9 @@ mod tests {
             "User said gym is a recurring daily routine.",
         );
 
-        assert!(rendered.contains("Work Blocks"));
+        assert!(!rendered.contains("Work Blocks"));
+        assert!(!rendered.contains("Sleep"));
+        assert!(!rendered.contains("Vacation"));
         assert!(rendered.contains("Gym: Daily training block. Target: 60 mins. Cadence: daily."));
         assert!(rendered.contains("Last updated from: User said gym is a recurring daily routine."));
     }

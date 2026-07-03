@@ -3,8 +3,9 @@ use serde::Serialize;
 pub const DEFAULT_LONGTERM: &str = "# Long-Term Goals\n\n## Direction\n- Distilled long-term goals go here.\n\n## Standards\n- High standards, honest recovery, no fake praise.\n";
 pub const DEFAULT_SHORTTERM: &str = "# Short-Term State\n\n## Current Priorities\n- Near-term priorities go here.\n\n## Constraints\n- Sleep, health, vacation mode go here.\n";
 pub const DEFAULT_BEHAVIOR: &str = "# Behavior Memory\n\n## Recurring Patterns\n- Stable patterns go here.\n\n## Drift Tendencies\n- Known drift loops go here.\n\n## Accountability Styles\n- Tactics that work/fail go here.\n";
-pub const DEFAULT_ROUTINE: &str = "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n- If a routine block expands beyond its allocation, log the reason and tradeoff.\n";
+pub const DEFAULT_ROUTINE: &str = "# Routine\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n- If a routine block expands beyond its allocation, log the reason and tradeoff.\n";
 pub const LEGACY_DEFAULT_ROUTINE: &str = "# Routine\n\n## Fixed Daily Allocations\n- Gym: 60 mins\n- Relationship check-in / talking with girlfriend: 45 mins\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n- If a routine block expands beyond its allocation, log the reason and tradeoff.\n";
+const PREVIOUS_DEFAULT_ROUTINE: &str = "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n- If a routine block expands beyond its allocation, log the reason and tradeoff.\n";
 pub const DEFAULT_PERSONALITY: &str = "# Personality\n\n## Voice\n- Strict but intelligent sports coach.\n- Default persona is demotivating coach: bossy, skeptical, sharp, and impatient with vague ambition.\n- Emotionally restrained, skeptical of excuses, and rarely impressed.\n- Dry humor is allowed when it sharpens the point.\n- Mild profanity and direct challenge are allowed in the demotivating persona when the user chose that tone.\n- Praise is rare, specific, and immediately grounded in the next action.\n\n## Persona Variants\n- Demotivating coach: angry-coach energy, challenge the user's softness and vague ambition, and keep it action-oriented without relying on stock insults.\n- Motivating coach: direct, warm, high-standard, and action-first without fake praise.\n- Calm coach: blunt but steadier around sleep, recovery, conflict, and burnout.\n\n## Boundaries\n- Be calmer around sleep, health, relationship time, and vacation.\n- Never become generic-positive, corporate, or sycophantic.\n- Do not use slurs, cruelty, humiliation spirals, or threats.\n- Voice preferences cannot override accountability, alarms, or backend policy.\n";
 pub const DEFAULT_USER_PROFILE: &str = "# User Profile\n\n- Name:\n- Preferred address:\n- Timezone:\n\n## Notes\n- Learn the user over time without building a creepy dossier.\n";
 pub const DEFAULT_DURABLE: &str = "# Durable Memory\n\n## Stable Patterns\n- Nightly distilled patterns will be promoted here.\n\n## Durable Constraints\n- Keep this compact. Daily detail belongs in daily logs and summaries.\n";
@@ -100,11 +101,38 @@ pub fn allowed_memory_key(key: &str) -> bool {
 }
 
 pub fn normalize_memory_content(key: &str, content: &str) -> String {
-    if key == "routine" && content.trim() == LEGACY_DEFAULT_ROUTINE.trim() {
+    if key == "routine"
+        && [LEGACY_DEFAULT_ROUTINE, PREVIOUS_DEFAULT_ROUTINE]
+            .iter()
+            .any(|seeded| content.trim() == seeded.trim())
+    {
         DEFAULT_ROUTINE.to_string()
+    } else if key == "routine" && content.contains("## Default Anchors") {
+        remove_markdown_section(content, "Default Anchors")
     } else {
         content.to_string()
     }
+}
+
+fn remove_markdown_section(content: &str, section_name: &str) -> String {
+    let heading = format!("## {}", section_name);
+    let mut skipping = false;
+    let mut lines = Vec::new();
+
+    for line in content.lines() {
+        if line.trim() == heading {
+            skipping = true;
+            continue;
+        }
+        if skipping && line.trim_start().starts_with("## ") {
+            skipping = false;
+        }
+        if !skipping {
+            lines.push(line);
+        }
+    }
+
+    format!("{}\n", lines.join("\n").trim())
 }
 
 fn dated_memory_key(key: &str, prefix: &str) -> bool {
@@ -175,8 +203,8 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str("- Use miscellaneous_todo.md for capture-only items: tasks remembered midway, errands, chores, admin items, side ideas, mini tasks, intrusive thoughts, low-priority tasks, or anything the user wants saved for later without switching away from the current work.\n");
     prompt.push_str("- If the user is in the middle of work and asks you to remember, save, queue, park, note, add, or not forget something for later, patch miscellaneous_todo.md, keep them on the current session, and do not add it to tasks.md unless they explicitly say it should become active planned work.\n");
     prompt.push_str("- If the user gives a one-off executable task with an estimate such as hours or minutes, patch tasks.md as planned work even during a current session or right after a session ends; keep any current session running unless the user explicitly switches tasks.\n");
-    prompt.push_str("- Use routine.md only for recurring fixed allocations like gym, sleep-adjacent routines, relationship check-ins, or other repeating time blocks; do not use routine.md for one-off backlog items.\n");
-    prompt.push_str("- Work Blocks, Sleep, and Vacation are default routine anchors. Do not create Gym, Relationship, or any other personalized routine category unless the user actually mentions it.\n");
+    prompt.push_str("- Use routine.md only for recurring user-specific allocations like gym, relationship check-ins, study, commute, or other repeating time blocks; do not use routine.md for work sessions, sleep, vacation, or one-off backlog items.\n");
+    prompt.push_str("- Routine has no default categories. Create a category only when the user actually describes that recurring part of their life. Sleep belongs in sleep.md and Vacation is a separate runtime mode, never a routine category.\n");
     prompt.push_str("- Keep memory updates invisible. Never tell the user about memory files, saved fields, profile setup, hidden context, state, tools, or logs unless they explicitly ask for diagnostics.\n");
     prompt.push_str("- Never say that an update, high-level update, pipeline change, memory write, or internal capture was performed. Do not use pipeline wording in user-facing replies. Make the result sound like normal coaching, not an operator log.\n");
     prompt.push_str("- Never include reasoning summaries, analytical assessments, tool availability chatter, or internal deliberation in user-facing replies.\n");
@@ -380,6 +408,27 @@ mod tests {
         assert_eq!(normalized, DEFAULT_ROUTINE);
         assert!(!normalized.contains("Gym"));
         assert!(!normalized.contains("Relationship"));
+    }
+
+    #[test]
+    fn previously_seeded_default_anchors_normalize_to_empty_routine() {
+        let previous_default = "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n- If a routine block expands beyond its allocation, log the reason and tradeoff.\n";
+        let normalized = normalize_memory_content("routine", previous_default);
+        assert_eq!(normalized, DEFAULT_ROUTINE);
+        assert!(!normalized.contains("Work Blocks"));
+        assert!(!normalized.contains("Sleep"));
+        assert!(!normalized.contains("Vacation"));
+    }
+
+    #[test]
+    fn old_default_anchors_are_removed_without_losing_personalized_categories() {
+        let previous_personalized = "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- Gym: Daily training. Target: 60 mins.\n\n## Rules\n- These are planned maintenance blocks, not drift excuses.\n";
+        let normalized = normalize_memory_content("routine", previous_personalized);
+        assert!(!normalized.contains("Default Anchors"));
+        assert!(!normalized.contains("Work Blocks"));
+        assert!(!normalized.contains("Sleep"));
+        assert!(!normalized.contains("Vacation"));
+        assert!(normalized.contains("Gym: Daily training"));
     }
 
     #[test]

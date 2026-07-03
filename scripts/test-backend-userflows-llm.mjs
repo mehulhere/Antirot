@@ -329,7 +329,7 @@ async function main() {
                 backend.baseUrl,
                 fixture.deviceToken,
                 "routine",
-                "# Routine\n\n## Default Anchors\n- Work Blocks: focused accountability sessions for planned tasks.\n- Sleep: protected sleep and wake rhythm.\n- Vacation: deliberate off-duty mode with a re-entry plan.\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n"
+                "# Routine\n\n## Personalized Categories\n- None yet. Add only recurring categories the user actually mentions.\n"
             );
         }
 

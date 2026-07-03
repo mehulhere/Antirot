@@ -25,39 +25,40 @@ struct PlanView: View {
                 .minimalCard(cornerRadius: 12, padding: 0)
             }
 
-            // Routine
-            AntirotSectionHeader(title: "Routine")
+            if !routineItems.isEmpty {
+                AntirotSectionHeader(title: "Routine")
 
-            VStack(spacing: 0) {
-                ForEach(Array(routineItems.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: item.systemImage)
-                            .font(.subheadline)
-                            .foregroundStyle(.arTextMuted)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title)
+                VStack(spacing: 0) {
+                    ForEach(Array(routineItems.enumerated()), id: \.offset) { index, item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: item.systemImage)
                                 .font(.subheadline)
-                                .foregroundStyle(.arTextPrimary)
-                            if !item.description.isEmpty {
-                                Text(item.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.arTextMuted)
-                                    .lineLimit(2)
+                                .foregroundStyle(.arTextMuted)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.arTextPrimary)
+                                if !item.description.isEmpty {
+                                    Text(item.description)
+                                        .font(.caption)
+                                        .foregroundStyle(.arTextMuted)
+                                        .lineLimit(2)
+                                }
                             }
+                            Spacer()
                         }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
 
-                    if index < routineItems.count - 1 {
-                        SectionDivider()
-                            .padding(.leading, 50)
+                        if index < routineItems.count - 1 {
+                            SectionDivider()
+                                .padding(.leading, 50)
+                        }
                     }
                 }
+                .minimalCard(cornerRadius: 12, padding: 0)
             }
-            .minimalCard(cornerRadius: 12, padding: 0)
 
             // Review
             Button {
@@ -159,28 +160,12 @@ struct PlanView: View {
     }
 }
 
-private struct RoutinePlanItem: Equatable {
+struct RoutinePlanItem: Equatable {
     var title: String
     var description: String
     var systemImage: String
 
-    static let defaultItems = [
-        RoutinePlanItem(
-            title: "Work Blocks",
-            description: "Focused accountability sessions for planned tasks.",
-            systemImage: "timer"
-        ),
-        RoutinePlanItem(
-            title: "Sleep",
-            description: "Protected sleep and wake rhythm.",
-            systemImage: "bed.double.fill"
-        ),
-        RoutinePlanItem(
-            title: "Vacation",
-            description: "Deliberate off-duty mode with a re-entry plan.",
-            systemImage: "beach.umbrella.fill"
-        )
-    ]
+    static let defaultItems: [RoutinePlanItem] = []
 
     static func parseMarkdown(_ content: String) -> [RoutinePlanItem] {
         var activeSection: String?
@@ -191,7 +176,7 @@ private struct RoutinePlanItem: Equatable {
                 let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
                 if line.hasPrefix("## ") {
                     activeSection = String(line.dropFirst(3))
-                    if activeSection == "Default Anchors" || activeSection == "Personalized Categories" {
+                    if activeSection == "Personalized Categories" {
                         sawRoutineSections = true
                     }
                     return nil
@@ -207,12 +192,11 @@ private struct RoutinePlanItem: Equatable {
 
                 return parseLine(line)
             }
-        return items.isEmpty ? defaultItems : items
+        return items
     }
 
     private static func visibleSection(_ section: String?) -> Bool {
-        section == "Default Anchors"
-            || section == "Personalized Categories"
+        section == "Personalized Categories"
             || section == "Fixed Daily Allocations"
     }
 
