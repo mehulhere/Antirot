@@ -371,6 +371,7 @@ struct LiquidGlassModifier: ViewModifier {
                         ),
                         lineWidth: borderWidth
                     )
+                    .allowsHitTesting(false)
             )
             .overlay(alignment: .top) {
                 if sheen {
@@ -383,6 +384,7 @@ struct LiquidGlassModifier: ViewModifier {
                             )
                         )
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .allowsHitTesting(false)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

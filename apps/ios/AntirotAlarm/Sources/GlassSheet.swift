@@ -33,6 +33,30 @@ enum ChatSheetDetents {
         let full = fullHeight(availableHeight: availableHeight)
         return current < half - 8 ? half : full
     }
+
+    static func nextCollapsedHeight(from current: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        let half = halfHeight(availableHeight: availableHeight)
+        return current > half + 8 ? half : collapsedHeight
+    }
+
+    static func liveHeight(
+        from start: CGFloat,
+        translationY: CGFloat,
+        availableHeight: CGFloat
+    ) -> CGFloat {
+        let full = fullHeight(availableHeight: availableHeight)
+        let next = start - translationY
+        return min(max(next, collapsedHeight), full)
+    }
+
+    static func finalHeight(
+        from start: CGFloat,
+        predictedEndTranslationY: CGFloat,
+        availableHeight: CGFloat
+    ) -> CGFloat {
+        let projected = start - predictedEndTranslationY * 0.18
+        return nearestHeight(to: projected, availableHeight: availableHeight)
+    }
 }
 
 // MARK: - Glass Chat Sheet
@@ -53,6 +77,9 @@ struct GlassSheet: View {
 
     var onMic: () -> Void
     var onSend: () -> Void
+
+    @State private var dragStartHeight: CGFloat = 0
+    @FocusState private var isDraftFocused: Bool
 
     var body: some View {
         GeometryReader { proxy in
@@ -83,10 +110,10 @@ struct GlassSheet: View {
         let isFull = resolved >= full - 8
 
         VStack(spacing: 0) {
-            dragHandle(half: half)
+            dragHandle(half: half, available: full / ChatSheetDetents.fullFraction)
 
             if isCollapsed {
-                collapsedContent
+                collapsedContent(available: full / ChatSheetDetents.fullFraction)
             } else {
                 expandedContent(isFull: isFull)
             }
@@ -96,7 +123,34 @@ struct GlassSheet: View {
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func dragHandle(half: CGFloat) -> some View {
+    private func sheetDragGesture(availableHeight: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                if dragStartHeight == 0 {
+                    dragStartHeight = height
+                }
+                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.84)) {
+                    height = ChatSheetDetents.liveHeight(
+                        from: dragStartHeight,
+                        translationY: value.translation.height,
+                        availableHeight: availableHeight
+                    )
+                }
+            }
+            .onEnded { value in
+                let start = dragStartHeight == 0 ? height : dragStartHeight
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                    height = ChatSheetDetents.finalHeight(
+                        from: start,
+                        predictedEndTranslationY: value.predictedEndTranslation.height,
+                        availableHeight: availableHeight
+                    )
+                }
+                dragStartHeight = 0
+            }
+    }
+
+    private func dragHandle(half: CGFloat, available: CGFloat) -> some View {
         VStack(spacing: 6) {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -114,6 +168,7 @@ struct GlassSheet: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
+        .simultaneousGesture(sheetDragGesture(availableHeight: available))
         .onTapGesture {
             withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                 height = height <= ChatSheetDetents.collapsedHeight + 14
@@ -126,7 +181,7 @@ struct GlassSheet: View {
     }
     // MARK: - Collapsed
 
-    private var collapsedContent: some View {
+    private func collapsedContent(available: CGFloat) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Coach")
@@ -141,6 +196,12 @@ struct GlassSheet: View {
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                    height = max(height, ChatSheetDetents.halfHeight(availableHeight: available))
+                }
+            }
 
             Spacer(minLength: 8)
 
@@ -207,6 +268,7 @@ struct GlassSheet: View {
             micButton(size: 52)
 
             TextField("Type...", text: $draft, axis: .vertical)
+                .focused($isDraftFocused)
                 .lineLimit(1...4)
                 .textInputAutocapitalization(.sentences)
                 .font(.body)
@@ -221,6 +283,11 @@ struct GlassSheet: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
                 )
+                .onTapGesture {
+                    isDraftFocused = true
+                }
+                .submitLabel(.send)
+                .onSubmit(onSend)
 
             if hasDraft {
                 Button(action: onSend) {
@@ -239,6 +306,7 @@ struct GlassSheet: View {
         .padding(.top, 8)
         .padding(.bottom, 14)
         .animation(.spring(duration: 0.3), value: hasDraft)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -259,7 +327,6 @@ struct GlassSheet: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(isSending)
     }
 }
 // MARK: - Glass Chat Row

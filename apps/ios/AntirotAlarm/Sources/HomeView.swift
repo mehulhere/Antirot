@@ -124,14 +124,27 @@ private extension HomeView {
             .onEnded { value in
                 let vertical = value.translation.height
                 let horizontal = abs(value.translation.width)
-                guard vertical < -36, abs(vertical) > horizontal * 1.2 else { return }
-                openChat(availableHeight: availableHeight)
+                guard abs(vertical) > horizontal * 1.2 else { return }
+                if vertical < -36 {
+                    openChat(availableHeight: availableHeight)
+                } else if vertical > 36 {
+                    closeChat(availableHeight: availableHeight)
+                }
             }
     }
 
     func openChat(availableHeight: CGFloat) {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
             sheetHeight = ChatSheetDetents.nextExpandedHeight(
+                from: sheetHeight,
+                availableHeight: availableHeight
+            )
+        }
+    }
+
+    func closeChat(availableHeight: CGFloat) {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            sheetHeight = ChatSheetDetents.nextCollapsedHeight(
                 from: sheetHeight,
                 availableHeight: availableHeight
             )
