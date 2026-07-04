@@ -153,7 +153,7 @@ struct GlassSheet: View {
     private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
         let handleHeight: CGFloat = isCompact ? 28 : 44
 
-        ZStack {
+        return ZStack {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
                 .frame(width: 38, height: 5)
