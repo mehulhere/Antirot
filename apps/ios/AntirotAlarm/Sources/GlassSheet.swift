@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum ChatSheetDetents {
-    static let collapsedHeight: CGFloat = 118
+    static let collapsedHeight: CGFloat = 104
     static let fullFraction: CGFloat = 0.96
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
@@ -134,7 +134,8 @@ struct GlassSheet: View {
         VStack(spacing: 0) {
             dragHandle(
                 full: full,
-                available: full / ChatSheetDetents.fullFraction
+                available: full / ChatSheetDetents.fullFraction,
+                isCompact: showCollapsedContent
             )
 
             if showCollapsedContent {
@@ -149,7 +150,9 @@ struct GlassSheet: View {
         .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
     }
 
-    private func dragHandle(full: CGFloat, available: CGFloat) -> some View {
+    private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
+        let handleHeight: CGFloat = isCompact ? 28 : 44
+
         ZStack {
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.28))
@@ -183,10 +186,10 @@ struct GlassSheet: View {
                 }
             )
             .frame(maxWidth: .infinity)
-            .frame(height: 44)
+            .frame(height: handleHeight)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 44)
+        .frame(height: handleHeight)
         .accessibilityLabel("Coach chat")
         .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
     }
@@ -536,7 +539,7 @@ private struct GlassChatRow: View {
     ZStack {
         Color.arBg.ignoresSafeArea()
         GlassSheet(
-            height: .constant(108),
+            height: .constant(ChatSheetDetents.collapsedHeight),
             messages: [
                 CoachMessage(role: .coach, text: "I'm watching. What's the move?"),
                 CoachMessage(role: .user, text: "Starting now.")

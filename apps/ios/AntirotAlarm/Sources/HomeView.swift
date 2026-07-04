@@ -14,7 +14,7 @@ struct HomeView: View {
 
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
-    @State private var sheetHeight: CGFloat = 118
+    @State private var sheetHeight: CGFloat = ChatSheetDetents.collapsedHeight
     private let actionClearance: CGFloat = 132
     private let chatBottomClearance = AppBottomBarMetrics.coachChatClearance
     private var client: APIClient {

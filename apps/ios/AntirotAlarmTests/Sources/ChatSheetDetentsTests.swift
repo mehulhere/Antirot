@@ -3,6 +3,10 @@ import XCTest
 @testable import Antirot
 
 final class ChatSheetDetentsTests: XCTestCase {
+    func testCollapsedSheetUsesCompactPreviewHeight() {
+        XCTAssertEqual(ChatSheetDetents.collapsedHeight, 104, accuracy: 0.1)
+    }
+
     func testUpwardSwipeOpensDirectlyToFull() {
         let availableHeight: CGFloat = 800
 
@@ -96,7 +100,7 @@ final class ChatSheetDetentsTests: XCTestCase {
                 translationY: -500,
                 availableHeight: availableHeight
             ),
-            618,
+            604,
             accuracy: 0.1
         )
         XCTAssertEqual(
