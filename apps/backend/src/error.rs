@@ -19,6 +19,8 @@ pub enum AppError {
     Reqwest(#[from] reqwest::Error),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("invalid header value: {0}")]
     InvalidHeaderValue(#[from] axum::http::header::InvalidHeaderValue),
 }
@@ -49,6 +51,10 @@ impl IntoResponse for AppError {
             }
             AppError::Io(err) => {
                 tracing::error!(error = %err, "Internal IO error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            AppError::Json(err) => {
+                tracing::error!(error = %err, "Internal JSON error");
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             AppError::InvalidHeaderValue(err) => {

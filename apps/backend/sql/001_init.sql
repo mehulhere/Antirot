@@ -171,6 +171,20 @@ CREATE TABLE IF NOT EXISTS user_reports (
 CREATE INDEX IF NOT EXISTS user_reports_user_created_idx
     ON user_reports (user_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS memory_snapshots (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_id TEXT,
+    title TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    memory_payload JSONB NOT NULL,
+    runtime_state JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS memory_snapshots_user_created_idx
+    ON memory_snapshots (user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS user_runtime_states (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     state TEXT NOT NULL CHECK (state IN ('onboarding', 'idle', 'working', 'sleeping', 'break', 'vacation')),

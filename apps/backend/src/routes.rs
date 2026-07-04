@@ -25,16 +25,23 @@ use crate::error::{AppError, AppResult};
 use crate::llm::{
     build_context_report, build_context_report_for_test, chat_with_coach, run_tool_for_test,
 };
+use crate::memory::{
+    create_memory_snapshot as create_memory_snapshot_record, list_memory_snapshots,
+    restore_memory_snapshot as restore_memory_snapshot_record, MemorySnapshotSummary,
+    MEMORY_SNAPSHOT_LIMIT,
+};
 use crate::memory::{save_memory_indexed, sleep_metrics_report};
 use crate::models::{
     AlarmActionRequest, AlarmActionResponse, AlarmJob, AuthMeResponse, ChatHistoryMessage,
     ChatHistoryResponse, ChatRequest, ChatResponse, CreateAlarmRequest, CreateAlarmResponse,
-    CreateReportRequest, CreateReportResponse, DeliveryState, DeviceRegistrationRequest,
-    DeviceRegistrationResponse, GoogleAuthRequest, GoogleAuthResponse, HealthResponse,
-    MemoryResponse, PairingClaimRequest, PairingClaimResponse, SessionRequest, SessionResponse,
-    SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechTranscriptionResponse,
-    SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
-    WorkspaceDevicesResponse,
+    CreateMemorySnapshotRequest, CreateMemorySnapshotResponse, CreateReportRequest,
+    CreateReportResponse, DeliveryState, DeviceRegistrationRequest, DeviceRegistrationResponse,
+    GoogleAuthRequest, GoogleAuthResponse, HealthResponse, ListMemorySnapshotsResponse,
+    MemoryResponse, MemorySnapshotSummaryResponse, PairingClaimRequest, PairingClaimResponse,
+    RestoreMemorySnapshotRequest, RestoreMemorySnapshotResponse, RuntimeStateResponse,
+    RuntimeStateResponsePayload, SessionRequest, SessionResponse, SpeechSynthesisRequest,
+    SpeechSynthesisResponse, SpeechTranscriptionResponse, SubscriptionResponse,
+    SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key, normalize_memory_content};
 use crate::AppState;
@@ -67,10 +74,19 @@ pub fn router() -> Router<AppState> {
             "/subscription",
             get(get_subscription).post(update_subscription),
         )
+        .route(
+            "/memory/snapshots",
+            get(get_memory_snapshots).post(create_memory_snapshot),
+        )
+        .route(
+            "/memory/snapshots/{snapshot_id}/restore",
+            post(restore_memory_snapshot),
+        )
         .route("/memory/{key}", get(get_memory).put(update_memory))
         .route("/admin/context", get(admin_context))
         .route("/chat", post(chat_coach))
         .route("/chat/history", get(chat_history))
+        .route("/state", get(get_runtime_state))
         .route("/reports", post(create_report))
         .route("/speech/transcribe", post(transcribe_speech))
         .route("/speech/synthesize", post(synthesize_speech))
@@ -99,10 +115,19 @@ pub fn router() -> Router<AppState> {
             "/v1/subscription",
             get(get_subscription).post(update_subscription),
         )
+        .route(
+            "/v1/memory/snapshots",
+            get(get_memory_snapshots).post(create_memory_snapshot),
+        )
+        .route(
+            "/v1/memory/snapshots/{snapshot_id}/restore",
+            post(restore_memory_snapshot),
+        )
         .route("/v1/memory/{key}", get(get_memory).put(update_memory))
         .route("/v1/admin/context", get(admin_context))
         .route("/v1/chat", post(chat_coach))
         .route("/v1/chat/history", get(chat_history))
+        .route("/v1/state", get(get_runtime_state))
         .route("/v1/reports", post(create_report))
         .route("/v1/speech/transcribe", post(transcribe_speech))
         .route("/v1/speech/synthesize", post(synthesize_speech))
@@ -1284,6 +1309,89 @@ async fn update_memory(
     }))
 }
 
+async fn create_memory_snapshot(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<CreateMemorySnapshotRequest>,
+) -> AppResult<Json<CreateMemorySnapshotResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let title = req
+        .title
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "Manual memory snapshot".to_string());
+    let reason = req
+        .reason
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "manual".to_string());
+    let client = state.pool.get().await?;
+    let outcome =
+        create_memory_snapshot_record(&client, &user_id, req.device_id.as_deref(), &title, &reason)
+            .await?;
+
+    Ok(Json(CreateMemorySnapshotResponse {
+        ok: true,
+        snapshot: snapshot_summary_response(outcome.snapshot),
+        retained_count: outcome.retained_count,
+        retention_limit: MEMORY_SNAPSHOT_LIMIT,
+    }))
+}
+
+async fn get_memory_snapshots(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<ListMemorySnapshotsResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    let snapshots = list_memory_snapshots(&client, &user_id)
+        .await?
+        .into_iter()
+        .map(snapshot_summary_response)
+        .collect();
+
+    Ok(Json(ListMemorySnapshotsResponse {
+        ok: true,
+        snapshots,
+        retention_limit: MEMORY_SNAPSHOT_LIMIT,
+    }))
+}
+
+async fn restore_memory_snapshot(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(snapshot_id): Path<String>,
+    Json(req): Json<RestoreMemorySnapshotRequest>,
+) -> AppResult<Json<RestoreMemorySnapshotResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    let outcome = restore_memory_snapshot_record(
+        &client,
+        &state.config,
+        &user_id,
+        &snapshot_id,
+        req.restore_runtime_state.unwrap_or(true),
+    )
+    .await?;
+
+    Ok(Json(RestoreMemorySnapshotResponse {
+        ok: true,
+        snapshot: snapshot_summary_response(outcome.snapshot),
+        restored_memory_keys: outcome.restored_memory_keys,
+        restored_runtime_state: outcome.restored_runtime_state,
+    }))
+}
+
+fn snapshot_summary_response(snapshot: MemorySnapshotSummary) -> MemorySnapshotSummaryResponse {
+    MemorySnapshotSummaryResponse {
+        id: snapshot.id,
+        device_id: snapshot.device_id,
+        title: snapshot.title,
+        reason: snapshot.reason,
+        memory_keys: snapshot.memory_keys,
+        runtime_state: snapshot.runtime_state,
+        created_at: snapshot.created_at,
+    }
+}
+
 async fn chat_coach(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1291,7 +1399,13 @@ async fn chat_coach(
 ) -> AppResult<Json<ChatResponse>> {
     let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
     let reply = chat_with_coach(&state.pool, &state.config, &user_id, &req.message).await?;
-    Ok(Json(ChatResponse { ok: true, reply }))
+    let client = state.pool.get().await?;
+    let runtime_state = runtime_state_response_payload(&client, &user_id).await?;
+    Ok(Json(ChatResponse {
+        ok: true,
+        reply,
+        runtime_state,
+    }))
 }
 
 async fn chat_history(
@@ -1325,6 +1439,18 @@ async fn chat_history(
         })
         .collect();
     Ok(Json(ChatHistoryResponse { ok: true, messages }))
+}
+
+async fn get_runtime_state(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<RuntimeStateResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    Ok(Json(RuntimeStateResponse {
+        ok: true,
+        runtime_state: runtime_state_response_payload(&client, &user_id).await?,
+    }))
 }
 
 async fn create_report(
@@ -1998,6 +2124,27 @@ async fn runtime_state_row(
         )
         .await?
         .map(|row| TestStateRow {
+            state: row.get("state"),
+            source_tool: row.get("source_tool"),
+            metadata: row.get("metadata"),
+        }))
+}
+
+async fn runtime_state_response_payload(
+    client: &tokio_postgres::Client,
+    user_id: &str,
+) -> AppResult<Option<RuntimeStateResponsePayload>> {
+    Ok(client
+        .query_opt(
+            "
+            SELECT state, source_tool, metadata::TEXT AS metadata
+            FROM user_runtime_states
+            WHERE user_id = $1
+            ",
+            &[&user_id],
+        )
+        .await?
+        .map(|row| RuntimeStateResponsePayload {
             state: row.get("state"),
             source_tool: row.get("source_tool"),
             metadata: row.get("metadata"),

@@ -76,13 +76,13 @@ struct SecondaryActionButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.bold))
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .font(.caption.weight(.semibold))
             }
             .foregroundStyle(.arTextSecondary)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 11)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .glassCapsule()
         }
         .buttonStyle(.plain)

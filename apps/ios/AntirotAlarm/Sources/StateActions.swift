@@ -38,7 +38,20 @@ enum CoachStateActions {
                     message: "I am ready to work. Start the task we just picked.",
                     triggersConfetti: true
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "plan",
+                        title: "Plan",
+                        systemImage: "list.bullet.clipboard",
+                        message: "Help me choose the next concrete task before starting."
+                    ),
+                    CoachStateButton(
+                        id: "checkin",
+                        title: "Check In",
+                        systemImage: "message",
+                        message: "Quick check-in. Ask what I am doing and redirect me."
+                    )
+                ]
             )
         case "working":
             return Set(
@@ -71,7 +84,20 @@ enum CoachStateActions {
                     systemImage: "play.fill",
                     message: "I'm back. Resume the work block."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "extend_break",
+                        title: "Extend",
+                        systemImage: "plus.circle",
+                        message: "I need a longer break. Challenge me, then help me set the smallest honest extension."
+                    ),
+                    CoachStateButton(
+                        id: "end_break",
+                        title: "End",
+                        systemImage: "xmark.circle",
+                        message: "End this break and help me decide the next move."
+                    )
+                ]
             )
         case "sleeping":
             return Set(
@@ -81,7 +107,20 @@ enum CoachStateActions {
                     systemImage: "sun.max.fill",
                     message: "I am awake. Log it and tell me the first specific move."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "snooze",
+                        title: "Snooze",
+                        systemImage: "moon.zzz",
+                        message: "I need more sleep. Ask for the honest reason and set the smallest wake extension."
+                    ),
+                    CoachStateButton(
+                        id: "rough_sleep",
+                        title: "Rough",
+                        systemImage: "cloud.rain",
+                        message: "I woke up rough. Adjust the first move without letting me drift."
+                    )
+                ]
             )
         case "onboarding":
             return Set(
@@ -91,37 +130,115 @@ enum CoachStateActions {
                     systemImage: "bolt.fill",
                     message: "Begin onboarding. Ask me for the baseline you need, then keep me moving."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "voice",
+                        title: "Voice",
+                        systemImage: "mic",
+                        message: "I want to answer onboarding by voice. Ask the next thing simply."
+                    ),
+                    CoachStateButton(
+                        id: "skip",
+                        title: "Skip",
+                        systemImage: "forward",
+                        message: "Skip the long setup and get me into one concrete task."
+                    )
+                ]
+            )
+        case "vacation":
+            return Set(
+                primary: CoachStateButton(
+                    id: "return",
+                    title: "Return",
+                    systemImage: "arrow.uturn.backward",
+                    message: "End vacation mode and help me re-enter with one concrete move."
+                ),
+                secondary: [
+                    CoachStateButton(
+                        id: "extend_vacation",
+                        title: "Extend",
+                        systemImage: "plus.circle",
+                        message: "Extend vacation mode. Ask for the reason and re-entry plan."
+                    ),
+                    CoachStateButton(
+                        id: "review",
+                        title: "Review",
+                        systemImage: "sparkles",
+                        message: "Review my current plan and help me decide whether vacation should continue."
+                    )
+                ]
             )
         case "unknown":
             return Set(
                 primary: CoachStateButton(
                     id: "reconnect",
-                    title: "Reconnect",
+                    title: "Refresh",
                     systemImage: "arrow.clockwise",
                     message: "Reconnect and resync my current state."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "start",
+                        title: "Start",
+                        systemImage: "play.fill",
+                        message: "I am ready to work. Start the task we just picked.",
+                        triggersConfetti: true
+                    ),
+                    CoachStateButton(
+                        id: "checkin",
+                        title: "Check In",
+                        systemImage: "message",
+                        message: "Quick check-in. Ask what I am doing and redirect me."
+                    )
+                ]
             )
         case "offline":
             return Set(
                 primary: CoachStateButton(
                     id: "reconnect",
-                    title: "Reconnect",
+                    title: "Refresh",
                     systemImage: "arrow.clockwise",
                     message: "Reconnect and resync my current state."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "start",
+                        title: "Start",
+                        systemImage: "play.fill",
+                        message: "I am ready to work. Start the task we just picked.",
+                        triggersConfetti: true
+                    ),
+                    CoachStateButton(
+                        id: "checkin",
+                        title: "Check In",
+                        systemImage: "message",
+                        message: "Quick check-in. Ask what I am doing and redirect me."
+                    )
+                ]
             )
         default:
             return Set(
                 primary: CoachStateButton(
                     id: "reconnect",
-                    title: "Reconnect",
+                    title: "Refresh",
                     systemImage: "arrow.clockwise",
                     message: "Reconnect and resync my current state."
                 ),
-                secondary: []
+                secondary: [
+                    CoachStateButton(
+                        id: "start",
+                        title: "Start",
+                        systemImage: "play.fill",
+                        message: "I am ready to work. Start the task we just picked.",
+                        triggersConfetti: true
+                    ),
+                    CoachStateButton(
+                        id: "checkin",
+                        title: "Check In",
+                        systemImage: "message",
+                        message: "Quick check-in. Ask what I am doing and redirect me."
+                    )
+                ]
             )
         }
     }

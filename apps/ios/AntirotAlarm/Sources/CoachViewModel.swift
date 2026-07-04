@@ -69,7 +69,9 @@ final class CoachViewModel: ObservableObject {
         let previous = runtimeState
         do {
             let response = try await client.fetchRuntimeState(deviceId: deviceId)
-            runtimeState = response.runtimeState?.state ?? "unknown"
+            if let nextState = response.runtimeState?.state, !nextState.isEmpty {
+                runtimeState = nextState
+            }
             if runtimeState != previous {
                 recordDiagnosticEvent(
                     kind: "state.changed",
@@ -78,14 +80,24 @@ final class CoachViewModel: ObservableObject {
                 )
             }
         } catch {
-            runtimeState = "unknown"
-            if runtimeState != previous {
-                recordDiagnosticEvent(
-                    kind: "state.changed",
-                    summary: "\(previous) -> unknown",
-                    detail: "runtime refresh failed"
-                )
-            }
+            recordDiagnosticEvent(
+                kind: "state.refresh_failed",
+                summary: "Runtime refresh failed; keeping \(runtimeState).",
+                detail: error.localizedDescription
+            )
+        }
+    }
+
+    private func applyRuntimeState(from response: ChatCoachResponse) {
+        guard let nextState = response.runtimeState?.state, !nextState.isEmpty else { return }
+        let previous = runtimeState
+        runtimeState = nextState
+        if runtimeState != previous {
+            recordDiagnosticEvent(
+                kind: "state.changed",
+                summary: "\(previous) -> \(runtimeState)",
+                detail: "source=chat response"
+            )
         }
     }
 
@@ -193,6 +205,7 @@ final class CoachViewModel: ObservableObject {
                 messages.append(CoachMessage(role: .coach, text: response.reply))
                 statusText = "Ready"
                 recordDiagnosticEvent(kind: "chat.reply", summary: "Coach reply received.", detail: response.reply)
+                applyRuntimeState(from: response)
                 applyEmotion(from: response)
                 if let preface = response.voicePreface?.trimmingCharacters(in: .whitespacesAndNewlines), !preface.isEmpty {
                     await speak(preface, client: client)

@@ -134,6 +134,35 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
 
+                        NavigationLink {
+                            MemorySnapshotsView()
+                                .environmentObject(settings)
+                                .environmentObject(coach)
+                        } label: {
+                            developerRow(
+                                title: "Memory Snapshots",
+                                subtitle: "Save and restore the coach state",
+                                icon: "clock.arrow.circlepath",
+                                trailing: "Open"
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        Toggle(isOn: $settings.autoSnapshotOnStop) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Snapshot on Stop")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.arTextPrimary)
+                                Text("Beta safety net. Keeps only the last 10 snapshots.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.arTextMuted)
+                            }
+                        }
+                        .tint(.arAccent)
+                        .padding(12)
+                        .background(Color.arElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
                         Button {
                             Task { await copyDiagnostics() }
                         } label: {

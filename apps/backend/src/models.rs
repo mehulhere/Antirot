@@ -233,6 +233,58 @@ pub struct MemoryResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateMemorySnapshotRequest {
+    pub device_id: Option<String>,
+    pub title: Option<String>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySnapshotSummaryResponse {
+    pub id: String,
+    pub device_id: Option<String>,
+    pub title: String,
+    pub reason: String,
+    pub memory_keys: Vec<String>,
+    pub runtime_state: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMemorySnapshotResponse {
+    pub ok: bool,
+    pub snapshot: MemorySnapshotSummaryResponse,
+    pub retained_count: i64,
+    pub retention_limit: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMemorySnapshotsResponse {
+    pub ok: bool,
+    pub snapshots: Vec<MemorySnapshotSummaryResponse>,
+    pub retention_limit: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreMemorySnapshotRequest {
+    pub restore_runtime_state: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreMemorySnapshotResponse {
+    pub ok: bool,
+    pub snapshot: MemorySnapshotSummaryResponse,
+    pub restored_memory_keys: Vec<String>,
+    pub restored_runtime_state: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatRequest {
     pub message: String,
 }
@@ -242,6 +294,22 @@ pub struct ChatRequest {
 pub struct ChatResponse {
     pub ok: bool,
     pub reply: String,
+    pub runtime_state: Option<RuntimeStateResponsePayload>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeStateResponsePayload {
+    pub state: String,
+    pub source_tool: Option<String>,
+    pub metadata: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeStateResponse {
+    pub ok: bool,
+    pub runtime_state: Option<RuntimeStateResponsePayload>,
 }
 
 #[derive(Debug, Serialize)]

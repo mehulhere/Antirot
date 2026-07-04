@@ -52,6 +52,19 @@ final class SettingsStoreTests: XCTestCase {
         )
     }
 
+    func testAutoSnapshotOnStopDefaultsOnAndPersists() {
+        let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let firstStore = SettingsStore(defaults: defaults)
+        XCTAssertTrue(firstStore.autoSnapshotOnStop)
+
+        firstStore.autoSnapshotOnStop = false
+        let secondStore = SettingsStore(defaults: defaults)
+        XCTAssertFalse(secondStore.autoSnapshotOnStop)
+    }
+
     func testLegacyUserDefaultsTokenMigratesToSecureStore() {
         let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

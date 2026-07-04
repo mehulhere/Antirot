@@ -1,4 +1,6 @@
-use chrono::{NaiveDate, Timelike, Utc};
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
 use deadpool_postgres::Pool;
 use reqwest::Client;
 use serde::Serialize;
@@ -10,10 +12,53 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::AppResult;
+use crate::prompt::allowed_memory_key;
 use crate::prompt::{default_memory_for_key, DEFAULT_DAILY_SUMMARY};
 
 const MEMORY_SEARCH_MIN_CHARS: usize = 4_000;
 const MEMORY_CHUNK_CHARS: usize = 1_200;
+pub const MEMORY_SNAPSHOT_LIMIT: i64 = 10;
+const BASE_SNAPSHOT_KEYS: [&str; 12] = [
+    "personality",
+    "user_profile",
+    "durable",
+    "longterm",
+    "shortterm",
+    "behavior",
+    "tasks",
+    "routine",
+    "sleep",
+    "achievements",
+    "miscellaneous_todo",
+    "work",
+];
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySnapshotSummary {
+    pub id: String,
+    pub device_id: Option<String>,
+    pub title: String,
+    pub reason: String,
+    pub memory_keys: Vec<String>,
+    pub runtime_state: Option<Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySnapshotOutcome {
+    pub snapshot: MemorySnapshotSummary,
+    pub retained_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySnapshotRestoreOutcome {
+    pub snapshot: MemorySnapshotSummary,
+    pub restored_memory_keys: Vec<String>,
+    pub restored_runtime_state: bool,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +114,317 @@ pub async fn save_memory_indexed(
         .await?;
     index_memory_key(client, config, user_id, key, content).await?;
     Ok(())
+}
+
+pub async fn create_memory_snapshot(
+    client: &PgClient,
+    user_id: &str,
+    device_id: Option<&str>,
+    title: &str,
+    reason: &str,
+) -> AppResult<MemorySnapshotOutcome> {
+    let snapshot_id = Uuid::new_v4().to_string();
+    let memory_payload = collect_memory_payload(client, user_id).await?;
+    let runtime_state = runtime_state_payload(client, user_id).await?;
+    let memory_payload_text = serde_json::to_string(&memory_payload)?;
+    let runtime_state_text = match &runtime_state {
+        Some(value) => Some(serde_json::to_string(value)?),
+        None => None,
+    };
+
+    client
+        .execute(
+            "
+            INSERT INTO memory_snapshots (
+                id,
+                user_id,
+                device_id,
+                title,
+                reason,
+                memory_payload,
+                runtime_state
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::TEXT::JSONB, $7::TEXT::JSONB)
+            ",
+            &[
+                &snapshot_id,
+                &user_id,
+                &device_id,
+                &title,
+                &reason,
+                &memory_payload_text,
+                &runtime_state_text,
+            ],
+        )
+        .await?;
+
+    prune_memory_snapshots(client, user_id).await?;
+    let snapshot = memory_snapshot_summary(client, user_id, &snapshot_id).await?;
+    let retained_count = memory_snapshot_count(client, user_id).await?;
+    Ok(MemorySnapshotOutcome {
+        snapshot,
+        retained_count,
+    })
+}
+
+pub async fn list_memory_snapshots(
+    client: &PgClient,
+    user_id: &str,
+) -> AppResult<Vec<MemorySnapshotSummary>> {
+    let rows = client
+        .query(
+            "
+            SELECT
+                id,
+                device_id,
+                title,
+                reason,
+                memory_payload::TEXT AS memory_payload,
+                runtime_state::TEXT AS runtime_state,
+                created_at
+            FROM memory_snapshots
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT 10
+            ",
+            &[&user_id],
+        )
+        .await?;
+
+    rows.into_iter()
+        .map(memory_snapshot_summary_from_row)
+        .collect()
+}
+
+pub async fn restore_memory_snapshot(
+    client: &PgClient,
+    config: &Config,
+    user_id: &str,
+    snapshot_id: &str,
+    restore_runtime_state: bool,
+) -> AppResult<MemorySnapshotRestoreOutcome> {
+    let row = client
+        .query_opt(
+            "
+            SELECT
+                id,
+                device_id,
+                title,
+                reason,
+                memory_payload::TEXT AS memory_payload,
+                runtime_state::TEXT AS runtime_state,
+                created_at
+            FROM memory_snapshots
+            WHERE user_id = $1 AND id = $2
+            ",
+            &[&user_id, &snapshot_id],
+        )
+        .await?;
+    let Some(row) = row else {
+        return Err(crate::error::AppError::BadRequest(
+            "Memory snapshot not found".to_string(),
+        ));
+    };
+
+    let snapshot = memory_snapshot_summary_from_row(row)?;
+    let payload = memory_payload_from_summary_source(client, user_id, snapshot_id).await?;
+    client
+        .execute("DELETE FROM user_memories WHERE user_id = $1", &[&user_id])
+        .await?;
+    for (key, content) in &payload {
+        save_memory_indexed(client, config, user_id, key, content).await?;
+    }
+
+    let mut restored_runtime_state = false;
+    if restore_runtime_state {
+        if let Some(runtime_state) = snapshot.runtime_state.as_ref() {
+            if let Some(state_name) = runtime_state.get("state").and_then(Value::as_str) {
+                let source_tool = runtime_state
+                    .get("sourceTool")
+                    .and_then(Value::as_str)
+                    .unwrap_or("memory_snapshot_restore");
+                let metadata = runtime_state
+                    .get("metadata")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                let metadata_text = serde_json::to_string(&metadata)?;
+                client
+                    .execute(
+                        "
+                        INSERT INTO user_runtime_states (user_id, state, entered_at, source_tool, metadata)
+                        VALUES ($1, $2, now(), $3, $4::TEXT::JSONB)
+                        ON CONFLICT (user_id) DO UPDATE SET
+                            state = EXCLUDED.state,
+                            entered_at = EXCLUDED.entered_at,
+                            source_tool = EXCLUDED.source_tool,
+                            metadata = EXCLUDED.metadata
+                        ",
+                        &[&user_id, &state_name, &source_tool, &metadata_text],
+                    )
+                    .await?;
+                restored_runtime_state = true;
+            }
+        }
+    }
+
+    Ok(MemorySnapshotRestoreOutcome {
+        snapshot,
+        restored_memory_keys: payload.keys().cloned().collect(),
+        restored_runtime_state,
+    })
+}
+
+async fn collect_memory_payload(
+    client: &PgClient,
+    user_id: &str,
+) -> AppResult<BTreeMap<String, String>> {
+    let mut payload = BTreeMap::new();
+    for key in BASE_SNAPSHOT_KEYS {
+        if let Some(default) = default_memory_for_key(key) {
+            payload.insert(key.to_string(), default.to_string());
+        }
+    }
+
+    let rows = client
+        .query(
+            "
+            SELECT memory_key, content
+            FROM user_memories
+            WHERE user_id = $1
+            ORDER BY memory_key ASC
+            ",
+            &[&user_id],
+        )
+        .await?;
+    for row in rows {
+        let key: String = row.get("memory_key");
+        if !allowed_memory_key(&key) {
+            continue;
+        }
+        payload.insert(key, row.get("content"));
+    }
+
+    Ok(payload)
+}
+
+async fn runtime_state_payload(client: &PgClient, user_id: &str) -> AppResult<Option<Value>> {
+    let row = client
+        .query_opt(
+            "
+            SELECT state, entered_at, source_tool, metadata::TEXT AS metadata
+            FROM user_runtime_states
+            WHERE user_id = $1
+            ",
+            &[&user_id],
+        )
+        .await?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let entered_at: DateTime<Utc> = row.get("entered_at");
+    let metadata_text: String = row.get("metadata");
+    let metadata = serde_json::from_str::<Value>(&metadata_text).unwrap_or_else(|_| json!({}));
+    Ok(Some(json!({
+        "state": row.get::<_, String>("state"),
+        "enteredAt": entered_at,
+        "sourceTool": row.get::<_, Option<String>>("source_tool"),
+        "metadata": metadata
+    })))
+}
+
+async fn prune_memory_snapshots(client: &PgClient, user_id: &str) -> AppResult<()> {
+    client
+        .execute(
+            "
+            DELETE FROM memory_snapshots
+            WHERE id IN (
+                SELECT id
+                FROM memory_snapshots
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                OFFSET 10
+            )
+            ",
+            &[&user_id],
+        )
+        .await?;
+    Ok(())
+}
+
+async fn memory_snapshot_count(client: &PgClient, user_id: &str) -> AppResult<i64> {
+    let row = client
+        .query_one(
+            "SELECT COUNT(*)::BIGINT AS count FROM memory_snapshots WHERE user_id = $1",
+            &[&user_id],
+        )
+        .await?;
+    Ok(row.get("count"))
+}
+
+async fn memory_snapshot_summary(
+    client: &PgClient,
+    user_id: &str,
+    snapshot_id: &str,
+) -> AppResult<MemorySnapshotSummary> {
+    let row = client
+        .query_one(
+            "
+            SELECT
+                id,
+                device_id,
+                title,
+                reason,
+                memory_payload::TEXT AS memory_payload,
+                runtime_state::TEXT AS runtime_state,
+                created_at
+            FROM memory_snapshots
+            WHERE user_id = $1 AND id = $2
+            ",
+            &[&user_id, &snapshot_id],
+        )
+        .await?;
+    memory_snapshot_summary_from_row(row)
+}
+
+fn memory_snapshot_summary_from_row(row: tokio_postgres::Row) -> AppResult<MemorySnapshotSummary> {
+    let memory_payload: String = row.get("memory_payload");
+    let runtime_state_text: Option<String> = row.get("runtime_state");
+    let payload = serde_json::from_str::<BTreeMap<String, String>>(&memory_payload)?;
+    let runtime_state = runtime_state_text
+        .as_deref()
+        .and_then(|text| serde_json::from_str::<Value>(text).ok());
+    Ok(MemorySnapshotSummary {
+        id: row.get("id"),
+        device_id: row.get("device_id"),
+        title: row.get("title"),
+        reason: row.get("reason"),
+        memory_keys: payload.keys().cloned().collect(),
+        runtime_state,
+        created_at: row.get("created_at"),
+    })
+}
+
+async fn memory_payload_from_summary_source(
+    client: &PgClient,
+    user_id: &str,
+    snapshot_id: &str,
+) -> AppResult<BTreeMap<String, String>> {
+    let row = client
+        .query_one(
+            "
+            SELECT memory_payload::TEXT AS memory_payload
+            FROM memory_snapshots
+            WHERE user_id = $1 AND id = $2
+            ",
+            &[&user_id, &snapshot_id],
+        )
+        .await?;
+    let payload_text: String = row.get("memory_payload");
+    let payload = serde_json::from_str::<BTreeMap<String, String>>(&payload_text)?;
+    Ok(payload
+        .into_iter()
+        .filter(|(key, _)| allowed_memory_key(key))
+        .collect())
 }
 
 pub async fn note_sleep_started(client: &PgClient, user_id: &str) -> AppResult<()> {

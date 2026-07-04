@@ -111,6 +111,7 @@ struct ChatCoachRequest: Codable {
 struct ChatCoachResponse: Codable {
     var ok: Bool
     var reply: String
+    var runtimeState: RuntimeStatePayload?
     /// Optional "LLM Emotion Contract" fields. Absent on backend builds that
     /// have not attached them yet, so both decode to nil gracefully and the
     /// coach falls back to a calm watching pose.
@@ -123,12 +124,14 @@ struct ChatCoachResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case ok
         case reply
+        case runtimeState
         case coachEmotion = "coach_emotion"
         case voicePreface = "voice_preface"
     }
 }
 
 struct RuntimeStateResponse: Codable {
+    var ok: Bool?
     var runtimeState: RuntimeStatePayload?
 }
 
@@ -137,6 +140,52 @@ struct MemoryResponse: Codable {
     var key: String
     var content: String
     var updatedAt: Date
+}
+
+struct CreateMemorySnapshotRequest: Codable {
+    var deviceId: String?
+    var title: String?
+    var reason: String?
+}
+
+struct MemorySnapshotSummary: Codable, Identifiable, Equatable {
+    var id: String
+    var deviceId: String?
+    var title: String
+    var reason: String
+    var memoryKeys: [String]
+    var runtimeState: RuntimeStateSnapshotPayload?
+    var createdAt: Date
+}
+
+struct RuntimeStateSnapshotPayload: Codable, Equatable {
+    var state: String?
+    var enteredAt: Date?
+    var sourceTool: String?
+}
+
+struct CreateMemorySnapshotResponse: Codable {
+    var ok: Bool
+    var snapshot: MemorySnapshotSummary
+    var retainedCount: Int
+    var retentionLimit: Int
+}
+
+struct ListMemorySnapshotsResponse: Codable {
+    var ok: Bool
+    var snapshots: [MemorySnapshotSummary]
+    var retentionLimit: Int
+}
+
+struct RestoreMemorySnapshotRequest: Codable {
+    var restoreRuntimeState: Bool?
+}
+
+struct RestoreMemorySnapshotResponse: Codable {
+    var ok: Bool
+    var snapshot: MemorySnapshotSummary
+    var restoredMemoryKeys: [String]
+    var restoredRuntimeState: Bool
 }
 
 struct ReportEventPayload: Codable, Equatable {
@@ -164,6 +213,7 @@ struct CreateReportResponse: Codable {
 struct RuntimeStatePayload: Codable {
     var state: String?
     var sourceTool: String?
+    var metadata: String?
 }
 
 struct SpeechTranscriptionResponse: Codable {

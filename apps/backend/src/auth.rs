@@ -1,7 +1,7 @@
 use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 

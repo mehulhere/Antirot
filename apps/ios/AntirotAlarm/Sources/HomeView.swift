@@ -79,6 +79,8 @@ private extension HomeView {
         let set = CoachStateActions.actions(for: coach.runtimeState)
         return VStack(spacing: 14) {
             Spacer()
+            StatePill(label: runtimeStateLabel, isActive: coach.runtimeState.lowercased() != "unknown")
+                .padding(.bottom, 2)
             if !set.secondary.isEmpty {
                 HStack(spacing: 10) {
                     ForEach(set.secondary) { button in
@@ -98,6 +100,29 @@ private extension HomeView {
         }
     }
 
+    var runtimeStateLabel: String {
+        switch coach.runtimeState.lowercased() {
+        case "onboarding":
+            return "Onboarding"
+        case "idle":
+            return "Idle"
+        case "working":
+            return "Working"
+        case "break":
+            return "Break"
+        case "sleeping":
+            return "Sleeping"
+        case "vacation":
+            return "Vacation"
+        case "offline":
+            return "Offline"
+        case "unknown":
+            return "Syncing state"
+        default:
+            return coach.runtimeState.capitalized
+        }
+    }
+
     var latestOneLiner: String {
         if let last = coach.messages.last(where: { $0.role == .coach }), !last.text.isEmpty {
             return String(last.text.prefix(120)).replacingOccurrences(of: "\n", with: " ")
@@ -111,11 +136,35 @@ private extension HomeView {
             summary: "\(button.title) pressed.",
             detail: button.message
         )
+        if button.id == "done", settings.autoSnapshotOnStop {
+            await saveStopSnapshot()
+        }
         if button.triggersConfetti {
             coach.showConfetti = true
         }
         await coach.send(button.message, client: client)
         await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+    }
+
+    func saveStopSnapshot() async {
+        do {
+            let response = try await client.createMemorySnapshot(CreateMemorySnapshotRequest(
+                deviceId: settings.deviceId,
+                title: "Before stop",
+                reason: "auto_stop_ios"
+            ))
+            coach.recordDiagnosticEvent(
+                kind: "memory_snapshot.auto_saved",
+                summary: "Memory snapshot saved before stop.",
+                detail: response.snapshot.id
+            )
+        } catch {
+            coach.recordDiagnosticEvent(
+                kind: "memory_snapshot.auto_save_failed",
+                summary: "Memory snapshot before stop failed.",
+                detail: error.localizedDescription
+            )
+        }
     }
 
     func micTapped() async {

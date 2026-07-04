@@ -145,13 +145,7 @@ struct APIClient {
 
     func fetchRuntimeState(deviceId: String) async throws -> RuntimeStateResponse {
         let baseURL = effectiveBaseURL()
-        var components = URLComponents(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/test/state"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "userId", value: userId),
-            URLQueryItem(name: "deviceId", value: deviceId)
-        ]
-        guard let url = components?.url else { throw APIError.missingServerURL }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/state"))
         addAuth(to: &request)
         let (data, response) = try await perform(request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
@@ -183,6 +177,44 @@ struct APIClient {
         } catch {
             throw APIError.decodeFailed(body: responseBody(data))
         }
+    }
+
+    func createMemorySnapshot(_ request: CreateMemorySnapshotRequest) async throws -> CreateMemorySnapshotResponse {
+        try await send(
+            path: "/v1/memory/snapshots",
+            method: "POST",
+            body: request,
+            response: CreateMemorySnapshotResponse.self
+        )
+    }
+
+    func fetchMemorySnapshots() async throws -> ListMemorySnapshotsResponse {
+        let baseURL = effectiveBaseURL()
+        var request = URLRequest(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/memory/snapshots"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = RequestTimeout.standard
+        addAuth(to: &request)
+        logPreparedRequest(request, includeAuth: true)
+        let (data, response) = try await perform(request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
+        guard statusCode < 300 else {
+            throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
+        }
+        do {
+            return try JSONDecoder.antirot.decode(ListMemorySnapshotsResponse.self, from: data)
+        } catch {
+            throw APIError.decodeFailed(body: responseBody(data))
+        }
+    }
+
+    func restoreMemorySnapshot(id: String, restoreRuntimeState: Bool = true) async throws -> RestoreMemorySnapshotResponse {
+        let encodedId = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return try await send(
+            path: "/v1/memory/snapshots/\(encodedId)/restore",
+            method: "POST",
+            body: RestoreMemorySnapshotRequest(restoreRuntimeState: restoreRuntimeState),
+            response: RestoreMemorySnapshotResponse.self
+        )
     }
 
     func createReport(_ request: CreateReportRequest) async throws -> CreateReportResponse {

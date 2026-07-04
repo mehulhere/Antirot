@@ -51,6 +51,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(onboardingNameSent, forKey: Keys.onboardingNameSent) }
     }
 
+    @Published var autoSnapshotOnStop: Bool {
+        didSet { defaults.set(autoSnapshotOnStop, forKey: Keys.autoSnapshotOnStop) }
+    }
+
     @Published var statusMessage: String = "Not registered"
 
     private let defaults: UserDefaults
@@ -83,6 +87,10 @@ final class SettingsStore: ObservableObject {
         self.onboardingName = defaults.string(forKey: Keys.onboardingName) ?? ""
         self.onboardingNameSent = defaults.bool(forKey: Keys.onboardingNameSent)
             || !(defaults.string(forKey: Keys.onboardingName) ?? "").isEmpty
+        if defaults.object(forKey: Keys.autoSnapshotOnStop) == nil {
+            defaults.set(true, forKey: Keys.autoSnapshotOnStop)
+        }
+        self.autoSnapshotOnStop = defaults.bool(forKey: Keys.autoSnapshotOnStop)
         if defaults.string(forKey: Keys.deviceId) == nil {
             defaults.set(storedDeviceId, forKey: Keys.deviceId)
         }
@@ -172,6 +180,7 @@ final class SettingsStore: ObservableObject {
         static let pushToken = "apnsDeviceToken"
         static let onboardingName = "antirot:onboardingName"
         static let onboardingNameSent = "antirot:onboardingNameSent"
+        static let autoSnapshotOnStop = "antirot:autoSnapshotOnStop"
     }
 }
 
