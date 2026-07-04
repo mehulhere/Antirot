@@ -314,6 +314,29 @@ pub struct RuntimeStateResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StatsPeriodResponse {
+    pub label: String,
+    pub work_minutes: i64,
+    pub idle_minutes: i64,
+    pub unproductive_desk_minutes: i64,
+    pub sessions_completed: i64,
+    pub tasks_done: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsResponse {
+    pub ok: bool,
+    pub generated_at: DateTime<Utc>,
+    pub today: StatsPeriodResponse,
+    pub week: StatsPeriodResponse,
+    pub month: StatsPeriodResponse,
+    pub checked_tasks_total: i64,
+    pub note: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatHistoryMessage {
     pub id: String,
     pub role: String,

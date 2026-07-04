@@ -16,39 +16,16 @@ struct MainTabView: View {
                     HomeView()
                 case .tasks:
                     TaskBoardView()
+                case .stats:
+                    StatsView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack(spacing: 6) {
-                AppBarButton(
-                    title: "Coach",
-                    systemImage: "bolt.fill",
-                    isSelected: selectedScreen == .coach
-                ) {
-                    withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                        selectedScreen = .coach
-                    }
-                }
-
-                AppBarButton(
-                    title: "Tasks",
-                    systemImage: "checklist",
-                    isSelected: selectedScreen == .tasks
-                ) {
-                    withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                        selectedScreen = .tasks
-                    }
-                }
-            }
-            .padding(5)
-            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 8)
+            appBar
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.horizontal, 24)
+                .padding(.bottom, selectedScreen == .coach ? 132 : 10)
 
             // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
             // plan, alarms, and settings out of the primary coach experience.
@@ -78,6 +55,49 @@ struct MainTabView: View {
 private enum AppScreen {
     case coach
     case tasks
+    case stats
+}
+
+private extension MainTabView {
+    var appBar: some View {
+        HStack(spacing: 6) {
+            AppBarButton(
+                title: "Coach",
+                systemImage: "bolt.fill",
+                isSelected: selectedScreen == .coach
+            ) {
+                select(.coach)
+            }
+
+            AppBarButton(
+                title: "Tasks",
+                systemImage: "checklist",
+                isSelected: selectedScreen == .tasks
+            ) {
+                select(.tasks)
+            }
+
+            AppBarButton(
+                title: "Stats",
+                systemImage: "chart.bar.fill",
+                isSelected: selectedScreen == .stats
+            ) {
+                select(.stats)
+            }
+        }
+        .padding(5)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+
+    func select(_ screen: AppScreen) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+            selectedScreen = screen
+        }
+    }
 }
 
 private struct AppBarButton: View {

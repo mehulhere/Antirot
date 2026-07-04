@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
-use chrono::{DateTime, Duration, FixedOffset, SecondsFormat, Utc};
+use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveDate, SecondsFormat, Utc};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -40,8 +40,9 @@ use crate::models::{
     MemoryResponse, MemorySnapshotSummaryResponse, PairingClaimRequest, PairingClaimResponse,
     RestoreMemorySnapshotRequest, RestoreMemorySnapshotResponse, RuntimeStateResponse,
     RuntimeStateResponsePayload, SessionRequest, SessionResponse, SpeechSynthesisRequest,
-    SpeechSynthesisResponse, SpeechTranscriptionResponse, SubscriptionResponse,
-    SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice, WorkspaceDevicesResponse,
+    SpeechSynthesisResponse, SpeechTranscriptionResponse, StatsPeriodResponse, StatsResponse,
+    SubscriptionResponse, SubscriptionUpdateRequest, UpdateMemoryRequest, WorkspaceDevice,
+    WorkspaceDevicesResponse,
 };
 use crate::prompt::{allowed_memory_key, default_memory_for_key, normalize_memory_content};
 use crate::AppState;
@@ -87,6 +88,7 @@ pub fn router() -> Router<AppState> {
         .route("/chat", post(chat_coach))
         .route("/chat/history", get(chat_history))
         .route("/state", get(get_runtime_state))
+        .route("/stats", get(get_stats))
         .route("/reports", post(create_report))
         .route("/speech/transcribe", post(transcribe_speech))
         .route("/speech/synthesize", post(synthesize_speech))
@@ -128,6 +130,7 @@ pub fn router() -> Router<AppState> {
         .route("/v1/chat", post(chat_coach))
         .route("/v1/chat/history", get(chat_history))
         .route("/v1/state", get(get_runtime_state))
+        .route("/v1/stats", get(get_stats))
         .route("/v1/reports", post(create_report))
         .route("/v1/speech/transcribe", post(transcribe_speech))
         .route("/v1/speech/synthesize", post(synthesize_speech))
@@ -1453,6 +1456,82 @@ async fn get_runtime_state(
     }))
 }
 
+async fn get_stats(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AppResult<Json<StatsResponse>> {
+    let user_id = get_user_id_from_auth(&headers, &state.config, &state.pool).await?;
+    let client = state.pool.get().await?;
+    let rows = client
+        .query(
+            "
+            SELECT memory_key, content
+            FROM user_memories
+            WHERE user_id = $1
+                AND (memory_key LIKE 'work_log_%' OR memory_key = 'tasks')
+            ORDER BY memory_key ASC
+            ",
+            &[&user_id],
+        )
+        .await?;
+
+    let now = Utc::now();
+    let today = now.date_naive();
+    let week_start = today - Duration::days(today.weekday().num_days_from_monday() as i64);
+    let month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
+        .expect("valid first day of current month");
+
+    let runtime_row = client
+        .query_opt(
+            "
+            SELECT state, entered_at
+            FROM user_runtime_states
+            WHERE user_id = $1
+            ",
+            &[&user_id],
+        )
+        .await?;
+    let runtime_state: Option<String> = runtime_row.as_ref().map(|row| row.get("state"));
+    let runtime_entered_at: Option<DateTime<Utc>> =
+        runtime_row.as_ref().map(|row| row.get("entered_at"));
+
+    let mut day_logs = Vec::new();
+    let mut checked_tasks_total = 0;
+    for row in rows {
+        let key: String = row.get("memory_key");
+        let content: String = row.get("content");
+        if key == "tasks" {
+            checked_tasks_total = count_checked_tasks(&content);
+        } else if let Some(date) = work_log_date(&key) {
+            day_logs.push(parse_day_log(date, &content));
+        }
+    }
+
+    if runtime_state.as_deref() == Some("idle") {
+        if let Some(entered_at) = runtime_entered_at {
+            for log in &mut day_logs {
+                if log.date == today {
+                    log.idle_minutes += (now - entered_at).num_minutes().max(0);
+                }
+            }
+        }
+    }
+
+    let today_stats = aggregate_stats("Today", &day_logs, today, today);
+    let week_stats = aggregate_stats("This week", &day_logs, week_start, today);
+    let month_stats = aggregate_stats("This month", &day_logs, month_start, today);
+
+    Ok(Json(StatsResponse {
+        ok: true,
+        generated_at: now,
+        today: today_stats,
+        week: week_stats,
+        month: month_stats,
+        checked_tasks_total,
+        note: "Stats are derived from work logs. Idle time is estimated from gaps between logged sessions and the current idle runtime state.".to_string(),
+    }))
+}
+
 async fn create_report(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -2151,6 +2230,133 @@ async fn runtime_state_response_payload(
         }))
 }
 
+#[derive(Debug, Clone)]
+struct DayStats {
+    date: NaiveDate,
+    work_minutes: i64,
+    idle_minutes: i64,
+    unproductive_desk_minutes: i64,
+    sessions_completed: i64,
+    session_starts: Vec<DateTime<Utc>>,
+    session_ends: Vec<DateTime<Utc>>,
+}
+
+fn work_log_date(key: &str) -> Option<NaiveDate> {
+    let suffix = key.strip_prefix("work_log_")?;
+    NaiveDate::parse_from_str(suffix, "%Y_%m_%d").ok()
+}
+
+fn parse_day_log(date: NaiveDate, content: &str) -> DayStats {
+    let mut stats = DayStats {
+        date,
+        work_minutes: 0,
+        idle_minutes: 0,
+        unproductive_desk_minutes: 0,
+        sessions_completed: 0,
+        session_starts: Vec::new(),
+        session_ends: Vec::new(),
+    };
+
+    for line in content.lines() {
+        if line.contains("session_start:") {
+            if let Some(at) = parse_timestamp_after_at(line) {
+                stats.session_starts.push(at);
+            }
+        } else if line.contains("session_end:") {
+            let actual = parse_number_before(line, " actual mins").unwrap_or(0);
+            let productivity = parse_number_after(line, "productivity level ")
+                .unwrap_or(100)
+                .clamp(0, 100);
+            stats.work_minutes += actual;
+            stats.unproductive_desk_minutes += actual * (100 - productivity) / 100;
+            stats.sessions_completed += 1;
+            if let Some(at) = parse_timestamp_after_at(line) {
+                stats.session_ends.push(at);
+            }
+        }
+    }
+
+    stats.session_starts.sort();
+    stats.session_ends.sort();
+    stats.idle_minutes += idle_gaps_between_sessions(&stats.session_starts, &stats.session_ends);
+    stats
+}
+
+fn aggregate_stats(
+    label: &str,
+    logs: &[DayStats],
+    start: NaiveDate,
+    end: NaiveDate,
+) -> StatsPeriodResponse {
+    let mut work_minutes = 0;
+    let mut idle_minutes = 0;
+    let mut unproductive_desk_minutes = 0;
+    let mut sessions_completed = 0;
+    for log in logs {
+        if log.date < start || log.date > end {
+            continue;
+        }
+        work_minutes += log.work_minutes;
+        idle_minutes += log.idle_minutes;
+        unproductive_desk_minutes += log.unproductive_desk_minutes;
+        sessions_completed += log.sessions_completed;
+    }
+
+    StatsPeriodResponse {
+        label: label.to_string(),
+        work_minutes,
+        idle_minutes,
+        unproductive_desk_minutes,
+        sessions_completed,
+        tasks_done: sessions_completed,
+    }
+}
+
+fn idle_gaps_between_sessions(starts: &[DateTime<Utc>], ends: &[DateTime<Utc>]) -> i64 {
+    let mut idle = 0;
+    for end in ends {
+        if let Some(next_start) = starts.iter().find(|start| *start > end) {
+            idle += (*next_start - *end).num_minutes().clamp(0, 24 * 60);
+        }
+    }
+    idle
+}
+
+fn count_checked_tasks(content: &str) -> i64 {
+    content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim_start();
+            trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]")
+        })
+        .count() as i64
+}
+
+fn parse_timestamp_after_at(line: &str) -> Option<DateTime<Utc>> {
+    let marker = " at ";
+    let value = line.rsplit_once(marker)?.1.trim();
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|date| date.with_timezone(&Utc))
+}
+
+fn parse_number_before(line: &str, marker: &str) -> Option<i64> {
+    let before = line.split_once(marker)?.0;
+    before
+        .split_whitespace()
+        .rev()
+        .find_map(|part| part.parse::<i64>().ok())
+}
+
+fn parse_number_after(line: &str, marker: &str) -> Option<i64> {
+    let after = line.split_once(marker)?.1;
+    let digits = after
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    digits.parse::<i64>().ok()
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CancelAlarmsRequest {
@@ -2195,5 +2401,24 @@ mod tests {
             .with_timezone(&Utc);
 
         assert_eq!(current_time_ist(now), "2026-06-30T01:10:05+05:30");
+    }
+
+    #[test]
+    fn parse_day_log_sums_work_idle_and_unproductive_minutes() {
+        let date = NaiveDate::from_ymd_opt(2026, 7, 5).unwrap();
+        let log = "\
+# Work Log
+- session_start: Build stats page (estimated 30 mins) at 2026-07-05T08:00:00Z
+- session_end: 20 actual mins, productivity level 75% at 2026-07-05T08:20:00Z
+- session_start: Fix tabs (estimated 15 mins) at 2026-07-05T08:50:00Z
+- session_end: 10 actual mins, productivity level 100% at 2026-07-05T09:00:00Z
+";
+
+        let parsed = parse_day_log(date, log);
+
+        assert_eq!(parsed.work_minutes, 30);
+        assert_eq!(parsed.unproductive_desk_minutes, 5);
+        assert_eq!(parsed.idle_minutes, 30);
+        assert_eq!(parsed.sessions_completed, 2);
     }
 }

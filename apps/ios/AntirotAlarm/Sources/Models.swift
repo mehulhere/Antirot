@@ -216,6 +216,25 @@ struct RuntimeStatePayload: Codable {
     var metadata: String?
 }
 
+struct StatsPeriodResponse: Codable, Equatable {
+    var label: String
+    var workMinutes: Int
+    var idleMinutes: Int
+    var unproductiveDeskMinutes: Int
+    var sessionsCompleted: Int
+    var tasksDone: Int
+}
+
+struct StatsResponse: Codable, Equatable {
+    var ok: Bool
+    var generatedAt: Date
+    var today: StatsPeriodResponse
+    var week: StatsPeriodResponse
+    var month: StatsPeriodResponse
+    var checkedTasksTotal: Int
+    var note: String
+}
+
 struct SpeechTranscriptionResponse: Codable {
     var ok: Bool
     var text: String
