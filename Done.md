@@ -98,3 +98,4 @@
 - On iOS Developer settings, save and restore a Memory Snapshot, then start a task and verify Home shows Working with Done plus two small actions instead of Reconnect.
 - On iOS, use the new Coach/Tasks app bar and verify Tasks shows live, pending, and done tasks from runtime state, tasks.md, and today's work log.
 - On iOS, use the Coach/Tasks/Stats bottom menu and verify Stats shows daily, weekly, monthly, today's work/idle/unproductive desk time, tasks done, and the summarize-today button.
+- On iOS Home, verify the Coach/Tasks/Stats bottom bar sits at the bottom while the collapsed chat card floats above it without overlap.

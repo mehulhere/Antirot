@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum AppBottomBarMetrics {
+    static let horizontalPadding: CGFloat = 24
+    static let bottomPadding: CGFloat = 10
+    static let coachChatClearance: CGFloat = 76
+}
+
 struct MainTabView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
@@ -24,8 +30,8 @@ struct MainTabView: View {
 
             appBar
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.horizontal, 24)
-                .padding(.bottom, selectedScreen == .coach ? 132 : 10)
+                .padding(.horizontal, AppBottomBarMetrics.horizontalPadding)
+                .padding(.bottom, AppBottomBarMetrics.bottomPadding)
 
             // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
             // plan, alarms, and settings out of the primary coach experience.

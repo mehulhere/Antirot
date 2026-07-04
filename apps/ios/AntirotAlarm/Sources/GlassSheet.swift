@@ -88,6 +88,7 @@ struct GlassSheet: View {
     var isSending: Bool
     var statusText: String
     var latestOneLiner: String
+    var bottomInset: CGFloat = 0
 
     var onMic: () -> Void
     var onSend: () -> Void
@@ -99,7 +100,7 @@ struct GlassSheet: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let available = proxy.size.height
+            let available = max(1, proxy.size.height - bottomInset)
             let full = ChatSheetDetents.fullHeight(availableHeight: available)
             let resolved = min(max(height, ChatSheetDetents.collapsedHeight), full)
             let showCollapsedContent = ChatSheetDetents.showsCollapsedContent(
@@ -117,7 +118,7 @@ struct GlassSheet: View {
                     .frame(maxWidth: .infinity, alignment: .top)
                     .frame(height: resolved, alignment: .top)
                     .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, bottomInset + 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }

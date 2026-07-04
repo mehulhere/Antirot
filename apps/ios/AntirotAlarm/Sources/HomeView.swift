@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var showNamePrompt = false
     @State private var sheetHeight: CGFloat = 118
     private let actionClearance: CGFloat = 132
+    private let chatBottomClearance = AppBottomBarMetrics.coachChatClearance
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
     }
@@ -32,7 +33,7 @@ struct HomeView: View {
                     .gesture(homeSwipeUpGesture(availableHeight: proxy.size.height))
 
                 actionStack
-                    .padding(.bottom, min(sheetHeight, actionClearance) + 22)
+                    .padding(.bottom, min(sheetHeight, actionClearance) + chatBottomClearance + 22)
                     .padding(.horizontal, 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
 
@@ -44,6 +45,7 @@ struct HomeView: View {
                     isSending: coach.isSending,
                     statusText: coach.statusText,
                     latestOneLiner: latestOneLiner,
+                    bottomInset: chatBottomClearance,
                     onMic: { Task { await micTapped() } },
                     onSend: { Task { await sendTapped() } },
                     onPlayVoiceMessage: { url in coach.playVoiceMessage(url) }
@@ -184,8 +186,12 @@ private extension HomeView {
                 let horizontal = abs(value.translation.width)
                 guard ChatSheetDetents.isCollapsed(sheetHeight) else { return }
                 guard vertical < -36, abs(vertical) > horizontal * 1.2 else { return }
-                openChat(availableHeight: availableHeight)
+                openChat(availableHeight: sheetAvailableHeight(availableHeight))
             }
+    }
+
+    func sheetAvailableHeight(_ screenHeight: CGFloat) -> CGFloat {
+        max(1, screenHeight - chatBottomClearance)
     }
 
     func openChat(availableHeight: CGFloat) {
