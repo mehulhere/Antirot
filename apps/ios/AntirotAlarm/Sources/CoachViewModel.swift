@@ -14,6 +14,7 @@ final class CoachViewModel: ObservableObject {
     @Published var isSpeaking = false
     @Published var statusText = "Ready"
     @Published var runtimeState = "unknown"
+    @Published var runtimeMetadata: String?
     @Published var coachEmotion: CoachEmotion = .watching
     @Published var showConfetti = false
     @Published private(set) var diagnosticEvents: [ReportEventPayload] = []
@@ -69,8 +70,9 @@ final class CoachViewModel: ObservableObject {
         let previous = runtimeState
         do {
             let response = try await client.fetchRuntimeState(deviceId: deviceId)
-            if let nextState = response.runtimeState?.state, !nextState.isEmpty {
+            if let payload = response.runtimeState, let nextState = payload.state, !nextState.isEmpty {
                 runtimeState = nextState
+                runtimeMetadata = payload.metadata
             }
             if runtimeState != previous {
                 recordDiagnosticEvent(
@@ -92,6 +94,7 @@ final class CoachViewModel: ObservableObject {
         guard let nextState = response.runtimeState?.state, !nextState.isEmpty else { return }
         let previous = runtimeState
         runtimeState = nextState
+        runtimeMetadata = response.runtimeState?.metadata
         if runtimeState != previous {
             recordDiagnosticEvent(
                 kind: "state.changed",

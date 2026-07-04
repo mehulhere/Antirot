@@ -5,12 +5,50 @@ struct MainTabView: View {
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
 
+    @State private var selectedScreen: AppScreen = .coach
     @State private var showControlSheet = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            HomeView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                switch selectedScreen {
+                case .coach:
+                    HomeView()
+                case .tasks:
+                    TaskBoardView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 6) {
+                AppBarButton(
+                    title: "Coach",
+                    systemImage: "bolt.fill",
+                    isSelected: selectedScreen == .coach
+                ) {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                        selectedScreen = .coach
+                    }
+                }
+
+                AppBarButton(
+                    title: "Tasks",
+                    systemImage: "checklist",
+                    isSelected: selectedScreen == .tasks
+                ) {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                        selectedScreen = .tasks
+                    }
+                }
+            }
+            .padding(5)
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 8)
 
             // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
             // plan, alarms, and settings out of the primary coach experience.
@@ -34,6 +72,37 @@ struct MainTabView: View {
                 .environmentObject(alarmCenter)
                 .environmentObject(coach)
         }
+    }
+}
+
+private enum AppScreen {
+    case coach
+    case tasks
+}
+
+private struct AppBarButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                Text(title)
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(isSelected ? .white : .arTextSecondary)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isSelected ? Color.arAccent : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -96,3 +96,4 @@
 - On iOS Home, focus the chat Type field, then tap the message list or status header above the composer and verify the keyboard dismisses without sending or recording.
 - On iOS Developer settings, open Memory Files and verify markdown loads; press Copy Diagnostics and verify the last 3 exchanges report appears and is copied to the iPhone clipboard.
 - On iOS Developer settings, save and restore a Memory Snapshot, then start a task and verify Home shows Working with Done plus two small actions instead of Reconnect.
+- On iOS, use the new Coach/Tasks app bar and verify Tasks shows live, pending, and done tasks from runtime state, tasks.md, and today's work log.
