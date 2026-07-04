@@ -13,6 +13,8 @@ extension Color {
     static let arAccent = Color(red: 0.902, green: 0.224, blue: 0.275)               // #E63946
     static let arAccentDim = Color(red: 0.776, green: 0.157, blue: 0.157)            // #C62828
     static let arAccentSubtle = Color(red: 0.902, green: 0.224, blue: 0.275).opacity(0.12)
+    static let arCyan = Color(red: 0.024, green: 0.714, blue: 0.831)
+    static let arAmber = Color(red: 1.000, green: 0.620, blue: 0.120)
 
     // Text — clear hierarchy
     static let arTextPrimary = Color(red: 0.960, green: 0.960, blue: 0.960)          // #F5F5F5
@@ -120,7 +122,15 @@ struct MinimalCardModifier: ViewModifier {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.arSurface)
+                    .fill(.ultraThinMaterial)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.035))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
             )
     }
 }
@@ -158,15 +168,242 @@ struct StatePill: View {
 
     var body: some View {
         Text(label.uppercased())
-            .font(.caption2.weight(.semibold))
-            .tracking(0.8)
+            .font(.caption.weight(.bold))
+            .tracking(1.0)
             .foregroundStyle(isActive ? .arAccent : .arTextSecondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
             .background(
                 Capsule(style: .continuous)
-                    .fill(isActive ? Color.arAccentSubtle : Color.arSurface)
+                    .fill(.ultraThinMaterial)
             )
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isActive ? Color.arAccent.opacity(0.12) : Color.white.opacity(0.035))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(isActive ? Color.arAccent.opacity(0.32) : Color.white.opacity(0.08), lineWidth: 0.6)
+            )
+    }
+}
+
+// MARK: - Cinematic App System
+
+enum AntirotCinematicMetrics {
+    static let cardRadius: CGFloat = 20
+    static let pillRadius: CGFloat = 22
+    static let screenHorizontalPadding: CGFloat = 20
+    static let screenTopPadding: CGFloat = 82
+    static let bottomContentPadding: CGFloat = 118
+}
+
+struct CinematicBackdrop: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.010, green: 0.010, blue: 0.014),
+                    Color.arBg,
+                    Color(red: 0.034, green: 0.019, blue: 0.024)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            Circle()
+                .fill(Color.arAccent.opacity(0.18))
+                .frame(width: 300, height: 300)
+                .blur(radius: 90)
+                .offset(x: -150, y: -260)
+
+            Circle()
+                .fill(Color.arCyan.opacity(0.08))
+                .frame(width: 240, height: 240)
+                .blur(radius: 78)
+                .offset(x: 170, y: -80)
+
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.45)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
+struct CinematicScreen<Content: View>: View {
+    var title: String
+    var subtitle: String
+    var icon: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 16) {
+                CinematicHeader(title: title, subtitle: subtitle, icon: icon)
+                content
+            }
+            .padding(.horizontal, AntirotCinematicMetrics.screenHorizontalPadding)
+            .padding(.top, AntirotCinematicMetrics.screenTopPadding)
+            .padding(.bottom, AntirotCinematicMetrics.bottomContentPadding)
+        }
+        .background(CinematicBackdrop())
+    }
+}
+
+struct CinematicHeader: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: icon)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(LinearGradient.antirotAccent)
+                )
+                .shadow(color: Color.arAccent.opacity(0.28), radius: 18, y: 8)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(.arTextPrimary)
+                Text(subtitle)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.arTextSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct CinematicGlassCard<Content: View>: View {
+    var padding: CGFloat = 16
+    var accent: Color = .arAccent
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .fill(Color.black.opacity(0.20))
+            )
+            .overlay(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [accent.opacity(0.18), .clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .allowsHitTesting(false)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.09), lineWidth: 0.7)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.30), radius: 18, y: 12)
+    }
+}
+
+struct CinematicKicker: View {
+    let title: String
+    var icon: String?
+    var tint: Color = .arAccent
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+            }
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(1.35)
+                .foregroundStyle(.arTextSecondary)
+            Spacer()
+        }
+    }
+}
+
+struct CinematicMetricTile: View {
+    let title: String
+    let value: String
+    let icon: String
+    var tint: Color = .arAccent
+
+    var body: some View {
+        CinematicGlassCard(padding: 14, accent: tint) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(tint)
+                Text(value)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(.arTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.arTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+        }
+    }
+}
+
+struct CinematicActionRow: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    var tint: Color = .arAccent
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(tint.opacity(0.14)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.arTextPrimary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.arTextSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.arTextMuted)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

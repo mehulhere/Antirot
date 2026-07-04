@@ -100,3 +100,4 @@
 - On iOS, use the Coach/Tasks/Stats bottom menu and verify Stats shows daily, weekly, monthly, today's work/idle/unproductive desk time, tasks done, and the summarize-today button.
 - On iOS Home, verify the Coach/Tasks/Stats bottom bar sits at the bottom while the collapsed chat card floats above it without overlap.
 - On iOS Home, verify the collapsed chat card has a shorter top handle area while the Coach preview text remains readable.
+- On iOS, verify the imagegen-inspired redesign renders consistently across Coach, Tasks, Stats, and the Command sheet with bottom nav and floating chat intact.

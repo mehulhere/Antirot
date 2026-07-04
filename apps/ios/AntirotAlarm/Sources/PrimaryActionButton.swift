@@ -42,11 +42,11 @@ struct PrimaryActionButton: View {
                     }
                 }
                 .frame(width: 88, height: 88)
-                .shadow(color: Color.arAccent.opacity(0.32), radius: 22, y: 10)
+                .shadow(color: Color.arAccent.opacity(0.42), radius: 28, y: 12)
                 .shadow(color: .black.opacity(0.40), radius: 16, y: 8)
 
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
             }
         }
@@ -83,7 +83,9 @@ struct SecondaryActionButton: View {
             .foregroundStyle(.arTextSecondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .glassCapsule()
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .background(Color.white.opacity(0.045), in: Capsule(style: .continuous))
+            .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.6))
         }
         .buttonStyle(.plain)
     }

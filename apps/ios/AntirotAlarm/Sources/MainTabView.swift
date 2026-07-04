@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum AppBottomBarMetrics {
-    static let horizontalPadding: CGFloat = 24
+    static let horizontalPadding: CGFloat = 20
     static let bottomPadding: CGFloat = 10
-    static let coachChatClearance: CGFloat = 76
+    static let coachChatClearance: CGFloat = 82
 }
 
 struct MainTabView: View {
@@ -32,6 +32,7 @@ struct MainTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .padding(.horizontal, AppBottomBarMetrics.horizontalPadding)
                 .padding(.bottom, AppBottomBarMetrics.bottomPadding)
+                .shadow(color: .black.opacity(0.40), radius: 20, y: 10)
 
             // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
             // plan, alarms, and settings out of the primary coach experience.
@@ -39,10 +40,12 @@ struct MainTabView: View {
                 showControlSheet = true
             } label: {
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.arTextSecondary)
-                    .frame(width: 38, height: 38)
-                    .glassCapsule()
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.arTextPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(.ultraThinMaterial))
+                    .background(Circle().fill(Color.white.opacity(0.035)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 0.6))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open controls")
@@ -91,11 +94,12 @@ private extension MainTabView {
                 select(.stats)
             }
         }
-        .padding(5)
+        .padding(6)
         .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .background(Color.black.opacity(0.20), in: Capsule(style: .continuous))
         .overlay(
             Capsule(style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                .stroke(Color.white.opacity(0.12), lineWidth: 0.6)
         )
     }
 
@@ -121,12 +125,13 @@ private struct AppBarButton: View {
                     .font(.caption.weight(.bold))
             }
             .foregroundStyle(isSelected ? .white : .arTextSecondary)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
             .background(
                 Capsule(style: .continuous)
                     .fill(isSelected ? Color.arAccent : Color.clear)
             )
+            .shadow(color: isSelected ? Color.arAccent.opacity(0.22) : .clear, radius: 12, y: 5)
         }
         .buttonStyle(.plain)
     }
@@ -142,25 +147,25 @@ private struct ControlSheetView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 16) {
+                    CinematicHeader(
+                        title: "Command",
+                        subtitle: "Plan, alarms, permissions, diagnostics.",
+                        icon: "slider.horizontal.3"
+                    )
+
                     PlanView()
 
-                    SectionDivider()
-                        .padding(.vertical, 20)
-
                     AlarmsView()
-
-                    SectionDivider()
-                        .padding(.vertical, 20)
 
                     SettingsView()
                         .environmentObject(coach)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
                 .padding(.bottom, 32)
             }
-            .background(Color.arBg)
+            .background(CinematicBackdrop())
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])

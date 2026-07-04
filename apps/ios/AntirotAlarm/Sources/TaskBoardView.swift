@@ -16,26 +16,16 @@ struct TaskBoardView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Tasks")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
-                    Text(statusText)
-                        .font(.caption)
-                        .foregroundStyle(.arTextSecondary)
-                }
-                .padding(.top, 86)
-
-                taskSection(title: "Live", icon: "bolt.fill", items: liveTasks, emptyText: "No live work block.")
-                taskSection(title: "Pending", icon: "circle", items: pendingTasks, emptyText: "No pending tasks.")
-                taskSection(title: "Done", icon: "checkmark.circle.fill", items: doneTasks, emptyText: "No completed tasks found today.")
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 36)
+        CinematicScreen(
+            title: "Tasks",
+            subtitle: statusText,
+            icon: "checklist"
+        ) {
+            taskSummaryCard
+            taskSection(title: "Live", icon: "bolt.fill", items: liveTasks, emptyText: "No active work block.", tint: .arAccent)
+            taskSection(title: "Pending", icon: "circle", items: pendingTasks, emptyText: "Nothing queued right now.", tint: .arCyan)
+            taskSection(title: "Done", icon: "checkmark.circle.fill", items: doneTasks, emptyText: "No completed tasks found today.", tint: .arSuccess)
         }
-        .background(Color.arBg.ignoresSafeArea())
         .refreshable {
             await loadTasks()
         }
@@ -47,9 +37,64 @@ struct TaskBoardView: View {
         }
     }
 
-    private func taskSection(title: String, icon: String, items: [TaskBoardItem], emptyText: String) -> some View {
+    private var taskSummaryCard: some View {
+        CinematicGlassCard(padding: 16, accent: liveTasks.isEmpty ? .arCyan : .arAccent) {
+            VStack(alignment: .leading, spacing: 14) {
+                CinematicKicker(title: "Execution Board", icon: "scope", tint: .arAccent)
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(liveTasks.first?.title ?? "No live task")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.arTextPrimary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(liveTasks.first?.detail ?? "Pick one thing and make it real.")
+                            .font(.caption)
+                            .foregroundStyle(.arTextSecondary)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(pendingTasks.count)")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundStyle(.arTextPrimary)
+                        Text("queued")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.arTextMuted)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    summaryPill(value: "\(liveTasks.count)", label: "Live", tint: .arAccent)
+                    summaryPill(value: "\(pendingTasks.count)", label: "Pending", tint: .arCyan)
+                    summaryPill(value: "\(doneTasks.count)", label: "Done", tint: .arSuccess)
+                }
+            }
+        }
+    }
+
+    private func summaryPill(value: String, label: String, tint: Color) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(tint)
+                .frame(width: 7, height: 7)
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.arTextPrimary)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.arTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(Color.white.opacity(0.045), in: Capsule(style: .continuous))
+    }
+
+    private func taskSection(title: String, icon: String, items: [TaskBoardItem], emptyText: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            AntirotSectionHeader(title: title, icon: icon)
+            CinematicKicker(title: title, icon: icon, tint: tint)
 
             VStack(spacing: 0) {
                 if items.isEmpty {
@@ -69,7 +114,19 @@ struct TaskBoardView: View {
                     }
                 }
             }
-            .minimalCard(cornerRadius: 14, padding: 0)
+            .background(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.025))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
         }
     }
 
@@ -82,7 +139,7 @@ struct TaskBoardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
