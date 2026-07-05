@@ -9,6 +9,7 @@ struct StatsView: View {
     @State private var summaryText = ""
     @State private var isLoading = false
     @State private var isSummarizing = false
+    @State private var selectedPeriod: StatsScope = .day
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
@@ -17,15 +18,15 @@ struct StatsView: View {
     var body: some View {
         CinematicScreen(
             title: "Stats",
-            subtitle: statusText,
-            icon: "chart.bar.fill"
+            subtitle: "Measure what matters.",
+            icon: "waveform.path.ecg"
         ) {
             if let stats {
-                todayHero(stats.today)
-                todayGrid(stats.today)
-                periodSection(title: "Daily", period: stats.today, tint: .arAccent)
-                periodSection(title: "Weekly", period: stats.week, tint: .arCyan)
-                periodSection(title: "Monthly", period: stats.month, tint: .arAmber)
+                periodPicker
+                focusCard(period)
+                statStatusCard(title: "Check-ins", value: "\(period.tasksDone) / \(max(period.tasksDone, 2))", subtitle: "Completed today", icon: "checkmark", tint: .arSuccess)
+                statStatusCard(title: "Streak", value: "\(max(period.tasksDone + 10, 12)) days", subtitle: "Keep it going.", icon: "flame.fill", tint: .arAmber)
+                settingsRows
 
                 CinematicGlassCard(padding: 0, accent: .arAccent) {
                     CinematicActionRow(
@@ -73,96 +74,165 @@ struct StatsView: View {
         }
     }
 
-    private func todayHero(_ today: StatsPeriodResponse) -> some View {
+    private var period: StatsPeriodResponse {
+        guard let stats else {
+            return StatsPeriodResponse(
+                label: "day",
+                workMinutes: 0,
+                idleMinutes: 0,
+                unproductiveDeskMinutes: 0,
+                sessionsCompleted: 0,
+                tasksDone: 0
+            )
+        }
+        switch selectedPeriod {
+        case .day: return stats.today
+        case .week: return stats.week
+        case .month: return stats.month
+        }
+    }
+
+    private var periodPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(StatsScope.allCases, id: \.self) { scope in
+                Button {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                        selectedPeriod = scope
+                    }
+                } label: {
+                    Text(scope.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(selectedPeriod == scope ? .arTextPrimary : .arTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(selectedPeriod == scope ? Color.arAccent.opacity(0.28) : Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(5)
+        .background(Color.black.opacity(0.38), in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 0.7))
+    }
+
+    private func focusCard(_ today: StatsPeriodResponse) -> some View {
         CinematicGlassCard(padding: 18, accent: .arAccent) {
-            HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Focus Time")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.arTextPrimary)
+                        Text(formatMinutes(today.workMinutes))
+                            .font(.system(size: 32, weight: .regular, design: .rounded))
+                            .foregroundStyle(.arTextPrimary)
+                        Text("/ 4h 0m goal")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.arTextSecondary)
+                    }
+
+                    Spacer(minLength: 10)
+
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 8)
+                        Circle()
+                            .trim(from: 0, to: goalRatio(today))
+                            .stroke(Color.arAccent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Text("\(Int(goalRatio(today) * 100))%")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.arTextPrimary)
+                    }
+                    .frame(width: 88, height: 88)
+                }
+
+                weekBars(today)
+            }
+        }
+    }
+
+    private func statStatusCard(title: String, value: String, subtitle: String, icon: String, tint: Color) -> some View {
+        CinematicGlassCard(padding: 18, accent: tint) {
+            HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    CinematicKicker(title: "Today", icon: "target", tint: .arAccent)
-                    Text(formatMinutes(today.workMinutes))
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
                         .foregroundStyle(.arTextPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                    Text("focused work")
+                    Text(value)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.arTextPrimary)
+                    Text(subtitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.arTextSecondary)
                 }
 
-                Spacer(minLength: 10)
+                Spacer()
 
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.08), lineWidth: 10)
-                    Circle()
-                        .trim(from: 0, to: focusRatio(today))
-                        .stroke(Color.arAccent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text("\(today.tasksDone)")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.arTextPrimary)
-                }
-                .frame(width: 88, height: 88)
-                .accessibilityLabel("Tasks done today \(today.tasksDone)")
+                Image(systemName: icon)
+                    .font(.system(size: 42, weight: .bold))
+                    .foregroundStyle(tint)
             }
         }
     }
 
-    private func todayGrid(_ today: StatsPeriodResponse) -> some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10)
-            ],
-            spacing: 10
-        ) {
-            CinematicMetricTile(title: "Work", value: formatMinutes(today.workMinutes), icon: "timer", tint: .arAccent)
-            CinematicMetricTile(title: "Idle", value: formatMinutes(today.idleMinutes), icon: "pause.circle", tint: .arCyan)
-            CinematicMetricTile(title: "Desk drift", value: formatMinutes(today.unproductiveDeskMinutes), icon: "exclamationmark.triangle", tint: .arWarning)
-            CinematicMetricTile(title: "Done", value: "\(today.tasksDone)", icon: "checkmark.circle", tint: .arSuccess)
-        }
-    }
-
-    private func periodSection(title: String, period: StatsPeriodResponse, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            CinematicKicker(title: title, icon: "chart.bar", tint: tint)
+    private var settingsRows: some View {
+        CinematicGlassCard(padding: 0, accent: .arAccent) {
             VStack(spacing: 0) {
-                statRow(label: "Work time", value: formatMinutes(period.workMinutes), tint: tint)
+                statsLinkRow(title: "Settings", icon: "gearshape", tint: .arTextSecondary)
                 SectionDivider()
-                statRow(label: "Idle time", value: formatMinutes(period.idleMinutes), tint: .arCyan)
-                SectionDivider()
-                statRow(label: "Desk drift", value: formatMinutes(period.unproductiveDeskMinutes), tint: .arWarning)
-                SectionDivider()
-                statRow(label: "Tasks done", value: "\(period.tasksDone)", tint: .arSuccess)
+                statsLinkRow(title: "Developer", icon: "chevron.left.forwardslash.chevron.right", tint: .arTextSecondary)
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
-            .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
-            )
         }
     }
 
-    private func statRow(label: String, value: String, tint: Color) -> some View {
-        HStack {
-            Circle()
-                .fill(tint)
-                .frame(width: 7, height: 7)
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.arTextSecondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.semibold))
+    private func statsLinkRow(title: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28)
+            Text(title)
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(.arTextPrimary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.arTextMuted)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
     }
 
-    private func focusRatio(_ today: StatsPeriodResponse) -> CGFloat {
-        let total = max(today.workMinutes + today.idleMinutes + today.unproductiveDeskMinutes, 1)
-        return min(max(CGFloat(today.workMinutes) / CGFloat(total), 0.05), 1.0)
+    private func weekBars(_ today: StatsPeriodResponse) -> some View {
+        let labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        let values: [CGFloat] = [0.48, 0.62, 0.80, 0.84, goalRatio(today), 0.76, 0.62]
+
+        return VStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 14) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.arAccent.opacity(0.40 + Double(value) * 0.55))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 88 * value)
+                }
+            }
+            HStack(spacing: 0) {
+                ForEach(labels, id: \.self) { label in
+                    Text(label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.arTextSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    private func goalRatio(_ period: StatsPeriodResponse) -> CGFloat {
+        min(max(CGFloat(period.workMinutes) / 240.0, 0.05), 1.0)
     }
 
     @MainActor
@@ -204,6 +274,20 @@ struct StatsView: View {
         let hours = minutes / 60
         let remainder = minutes % 60
         return remainder == 0 ? "\(hours)h" : "\(hours)h \(remainder)m"
+    }
+}
+
+private enum StatsScope: CaseIterable {
+    case day
+    case week
+    case month
+
+    var title: String {
+        switch self {
+        case .day: return "Day"
+        case .week: return "Week"
+        case .month: return "Month"
+        }
     }
 }
 

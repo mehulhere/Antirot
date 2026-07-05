@@ -35,11 +35,16 @@ struct CoachStage: View {
                 )
 
                 Circle()
+                    .stroke(emotion.accentColor.opacity(0.11), lineWidth: 1)
+                    .frame(width: min(size.width, size.height) * 1.05, height: min(size.width, size.height) * 1.05)
+                    .offset(y: -size.height * 0.06)
+
+                Circle()
                     .fill(emotion.accentColor)
-                    .frame(width: min(size.width, size.height) * 1.65, height: min(size.width, size.height) * 1.65)
-                    .opacity(0.20 * pose.halo + 0.04)
-                    .blur(radius: 82)
-                    .offset(y: -size.height * 0.18)
+                    .frame(width: min(size.width, size.height) * 1.18, height: min(size.width, size.height) * 1.18)
+                    .opacity(0.12 * pose.halo + 0.03)
+                    .blur(radius: 74)
+                    .offset(y: -size.height * 0.08)
 
                 Ellipse()
                     .fill(Color.black.opacity(0.54))
@@ -49,18 +54,8 @@ struct CoachStage: View {
 
                 coachImage(size: size, pose: pose)
 
-                VStack {
-                    HStack {
-                        StageStatusPill(emotion: emotion, isThinking: isThinking)
-                        Spacer()
-                    }
-                    .padding(.top, 60)
-                    .padding(.horizontal, 24)
-                    Spacer()
-                }
-
                 LinearGradient(
-                    colors: [Color.clear, Color.arBg.opacity(0.78)],
+                    colors: [Color.clear, Color.arBg.opacity(0.82)],
                     startPoint: .center,
                     endPoint: .bottom
                 )
@@ -88,7 +83,7 @@ struct CoachStage: View {
 
     @ViewBuilder
     private func coachImage(size: CGSize, pose: Pose) -> some View {
-        let imageSize = min(size.width * 0.88, size.height * 0.44)
+        let imageSize = min(size.width * 0.88, size.height * 0.50)
         let breath = 1.0 + 0.018 * breathPhase
 
         ZStack {
@@ -122,7 +117,7 @@ struct CoachStage: View {
         .frame(width: size.width, height: imageSize * 1.24, alignment: .center)
         .scaleEffect(breath)
         .rotationEffect(.degrees(pose.headTilt * 180 / .pi))
-        .position(x: size.width / 2, y: size.height * 0.32)
+        .position(x: size.width / 2, y: size.height * 0.38)
         .accessibilityLabel("Antirot coach")
     }
 

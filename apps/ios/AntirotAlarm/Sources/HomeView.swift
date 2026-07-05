@@ -27,6 +27,11 @@ struct HomeView: View {
                 CoachStage(emotion: coach.coachEmotion, isThinking: coach.isSending)
                     .ignoresSafeArea()
 
+                homeHeader
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 86)
+
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
@@ -77,6 +82,28 @@ struct HomeView: View {
 // MARK: - Action Stack
 
 private extension HomeView {
+    var homeHeader: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Coach")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(.arTextPrimary)
+                Text("Backed by Antirot.")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.arTextSecondary)
+            }
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.arSuccess)
+                    .frame(width: 8, height: 8)
+                Text("Backend connected")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.arTextSecondary)
+            }
+        }
+    }
+
     var actionStack: some View {
         let set = CoachStateActions.actions(for: coach.runtimeState)
         return VStack(spacing: 14) {

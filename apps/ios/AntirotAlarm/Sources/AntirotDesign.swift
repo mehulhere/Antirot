@@ -191,10 +191,10 @@ struct StatePill: View {
 // MARK: - Cinematic App System
 
 enum AntirotCinematicMetrics {
-    static let cardRadius: CGFloat = 20
-    static let pillRadius: CGFloat = 22
+    static let cardRadius: CGFloat = 16
+    static let pillRadius: CGFloat = 24
     static let screenHorizontalPadding: CGFloat = 20
-    static let screenTopPadding: CGFloat = 82
+    static let screenTopPadding: CGFloat = 86
     static let bottomContentPadding: CGFloat = 118
 }
 
@@ -203,31 +203,25 @@ struct CinematicBackdrop: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.010, green: 0.010, blue: 0.014),
-                    Color.arBg,
-                    Color(red: 0.034, green: 0.019, blue: 0.024)
+                    Color(red: 0.006, green: 0.008, blue: 0.010),
+                    Color(red: 0.018, green: 0.022, blue: 0.027),
+                    Color.arBg
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
             Circle()
-                .fill(Color.arAccent.opacity(0.18))
-                .frame(width: 300, height: 300)
-                .blur(radius: 90)
-                .offset(x: -150, y: -260)
+                .fill(Color.arAccent.opacity(0.10))
+                .frame(width: 220, height: 220)
+                .blur(radius: 86)
+                .offset(x: -160, y: -240)
 
             Circle()
-                .fill(Color.arCyan.opacity(0.08))
-                .frame(width: 240, height: 240)
+                .fill(Color.arCyan.opacity(0.045))
+                .frame(width: 210, height: 210)
                 .blur(radius: 78)
-                .offset(x: 170, y: -80)
-
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.45)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+                .offset(x: 170, y: -120)
         }
         .ignoresSafeArea()
     }
@@ -259,28 +253,28 @@ struct CinematicHeader: View {
     let icon: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: icon)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(
-                    Circle()
-                        .fill(LinearGradient.antirotAccent)
-                )
-                .shadow(color: Color.arAccent.opacity(0.28), radius: 18, y: 8)
-
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
                 Text(subtitle)
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.arTextSecondary)
                     .lineLimit(2)
             }
 
             Spacer(minLength: 0)
+
+            Image(systemName: icon)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(icon == "waveform.path.ecg" ? .arAccent : .arTextSecondary)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.055))
+                )
+                .overlay(Circle().stroke(Color.white.opacity(0.07), lineWidth: 0.6))
         }
     }
 }
@@ -295,17 +289,13 @@ struct CinematicGlassCard<Content: View>: View {
             .padding(padding)
             .background(
                 RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.20))
+                    .fill(Color(red: 0.070, green: 0.080, blue: 0.095).opacity(0.86))
             )
             .overlay(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [accent.opacity(0.18), .clear],
+                            colors: [accent.opacity(0.08), .clear],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -314,10 +304,10 @@ struct CinematicGlassCard<Content: View>: View {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 0.7)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.7)
             )
             .clipShape(RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.30), radius: 18, y: 12)
+            .shadow(color: .black.opacity(0.28), radius: 12, y: 8)
     }
 }
 

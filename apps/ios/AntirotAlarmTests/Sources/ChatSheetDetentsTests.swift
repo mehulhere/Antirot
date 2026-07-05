@@ -4,7 +4,7 @@ import XCTest
 
 final class ChatSheetDetentsTests: XCTestCase {
     func testCollapsedSheetUsesCompactPreviewHeight() {
-        XCTAssertEqual(ChatSheetDetents.collapsedHeight, 104, accuracy: 0.1)
+        XCTAssertEqual(ChatSheetDetents.collapsedHeight, 72, accuracy: 0.1)
     }
 
     func testUpwardSwipeOpensDirectlyToFull() {
@@ -100,7 +100,7 @@ final class ChatSheetDetentsTests: XCTestCase {
                 translationY: -500,
                 availableHeight: availableHeight
             ),
-            604,
+            572,
             accuracy: 0.1
         )
         XCTAssertEqual(

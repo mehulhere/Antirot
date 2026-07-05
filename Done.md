@@ -101,3 +101,4 @@
 - On iOS Home, verify the Coach/Tasks/Stats bottom bar sits at the bottom while the collapsed chat card floats above it without overlap.
 - On iOS Home, verify the collapsed chat card has a shorter top handle area while the Coach preview text remains readable.
 - On iOS, verify the imagegen-inspired redesign renders consistently across Coach, Tasks, Stats, and the Command sheet with bottom nav and floating chat intact.
+- On iOS, verify Coach, expanded chat, Tasks, and Stats match the provided four-screen reference design with the same dark cinematic layout, red accent, bottom tabs, command composer, task cards, and stats cards.

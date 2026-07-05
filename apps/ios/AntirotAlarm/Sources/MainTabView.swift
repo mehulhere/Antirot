@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum AppBottomBarMetrics {
-    static let horizontalPadding: CGFloat = 20
+    static let horizontalPadding: CGFloat = 12
     static let bottomPadding: CGFloat = 10
-    static let coachChatClearance: CGFloat = 82
+    static let coachChatClearance: CGFloat = 92
 }
 
 struct MainTabView: View {
@@ -12,10 +12,9 @@ struct MainTabView: View {
     @EnvironmentObject private var coach: CoachViewModel
 
     @State private var selectedScreen: AppScreen = .coach
-    @State private var showControlSheet = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .bottom) {
             Group {
                 switch selectedScreen {
                 case .coach:
@@ -24,6 +23,8 @@ struct MainTabView: View {
                     TaskBoardView()
                 case .stats:
                     StatsView()
+                case .settings:
+                    SettingsScreen()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -34,72 +35,72 @@ struct MainTabView: View {
                 .padding(.bottom, AppBottomBarMetrics.bottomPadding)
                 .shadow(color: .black.opacity(0.40), radius: 20, y: 10)
 
-            // Hidden menu — small, quiet glass icon, top-right. Keeps stats,
-            // plan, alarms, and settings out of the primary coach experience.
-            Button {
-                showControlSheet = true
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.arTextPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(.ultraThinMaterial))
-                    .background(Circle().fill(Color.white.opacity(0.035)))
-                    .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 0.6))
+            if selectedScreen == .coach {
+                Button {
+                    select(.settings)
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.arTextSecondary)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.white.opacity(0.055)))
+                        .overlay(Circle().stroke(Color.white.opacity(0.07), lineWidth: 0.6))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open settings")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.trailing, 18)
+                .padding(.top, 96)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open controls")
-            .padding(.trailing, 16)
-            .padding(.top, 6)
-        }
-        .sheet(isPresented: $showControlSheet) {
-            ControlSheetView()
-                .environmentObject(settings)
-                .environmentObject(alarmCenter)
-                .environmentObject(coach)
         }
     }
 }
 
-private enum AppScreen {
+enum AppScreen: CaseIterable {
     case coach
     case tasks
     case stats
+    case settings
+
+    var title: String {
+        switch self {
+        case .coach: return "Coach"
+        case .tasks: return "Tasks"
+        case .stats: return "Stats"
+        case .settings: return "Settings"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .coach: return "bolt.fill"
+        case .tasks: return "list.bullet"
+        case .stats: return "chart.bar.fill"
+        case .settings: return "gearshape"
+        }
+    }
 }
 
 private extension MainTabView {
     var appBar: some View {
-        HStack(spacing: 6) {
-            AppBarButton(
-                title: "Coach",
-                systemImage: "bolt.fill",
-                isSelected: selectedScreen == .coach
-            ) {
-                select(.coach)
-            }
-
-            AppBarButton(
-                title: "Tasks",
-                systemImage: "checklist",
-                isSelected: selectedScreen == .tasks
-            ) {
-                select(.tasks)
-            }
-
-            AppBarButton(
-                title: "Stats",
-                systemImage: "chart.bar.fill",
-                isSelected: selectedScreen == .stats
-            ) {
-                select(.stats)
+        HStack(spacing: 2) {
+            ForEach(AppScreen.allCases, id: \.self) { screen in
+                AppBarButton(
+                    title: screen.title,
+                    systemImage: screen.systemImage,
+                    isSelected: selectedScreen == screen
+                ) {
+                    select(screen)
+                }
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(6)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-        .background(Color.black.opacity(0.20), in: Capsule(style: .continuous))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            Capsule(style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
         )
     }
 
@@ -118,18 +119,18 @@ private struct AppBarButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Image(systemName: systemImage)
-                    .font(.caption.weight(.bold))
+                    .font(.system(size: 18, weight: .bold))
                 Text(title)
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.bold))
             }
             .foregroundStyle(isSelected ? .white : .arTextSecondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
             .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? Color.arAccent : Color.clear)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? Color.arAccent.opacity(0.20) : Color.clear)
             )
             .shadow(color: isSelected ? Color.arAccent.opacity(0.22) : .clear, radius: 12, y: 5)
         }
@@ -137,39 +138,24 @@ private struct AppBarButton: View {
     }
 }
 
-// MARK: - Control Sheet
-
-private struct ControlSheetView: View {
+private struct SettingsScreen: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    CinematicHeader(
-                        title: "Command",
-                        subtitle: "Plan, alarms, permissions, diagnostics.",
-                        icon: "slider.horizontal.3"
-                    )
-
-                    PlanView()
-
-                    AlarmsView()
-
+            CinematicScreen(
+                title: "Settings",
+                subtitle: "Account, alarms, developer tools.",
+                icon: "gearshape"
+            ) {
+                VStack(spacing: 14) {
                     SettingsView()
                         .environmentObject(coach)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 32)
             }
-            .background(CinematicBackdrop())
-            .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 }
 

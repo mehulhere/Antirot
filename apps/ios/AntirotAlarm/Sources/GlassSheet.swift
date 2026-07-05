@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum ChatSheetDetents {
-    static let collapsedHeight: CGFloat = 104
+    static let collapsedHeight: CGFloat = 72
     static let fullFraction: CGFloat = 0.96
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
@@ -117,7 +117,7 @@ struct GlassSheet: View {
                 )
                     .frame(maxWidth: .infinity, alignment: .top)
                     .frame(height: resolved, alignment: .top)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 16)
                     .padding(.bottom, bottomInset + 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -145,19 +145,29 @@ struct GlassSheet: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .liquidGlass(cornerRadius: 30, borderWidth: 0.7)
-        .shadow(color: .black.opacity(0.38), radius: 24, y: -8)
+        .contentShape(RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous)
+                .fill(Color(red: 0.070, green: 0.078, blue: 0.090).opacity(0.94))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 0.7)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous))
+        .shadow(color: .black.opacity(0.42), radius: 18, y: -6)
     }
 
     private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
-        let handleHeight: CGFloat = isCompact ? 28 : 44
+        let handleHeight: CGFloat = isCompact ? 0 : 44
 
         return ZStack {
-            Capsule(style: .continuous)
-                .fill(Color.white.opacity(0.28))
-                .frame(width: 38, height: 5)
-                .allowsHitTesting(false)
+            if !isCompact {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.28))
+                    .frame(width: 38, height: 5)
+                    .allowsHitTesting(false)
+            }
 
             ChatSheetHandleInput(
                 currentHeight: $height,
@@ -197,33 +207,34 @@ struct GlassSheet: View {
 
     private func collapsedContent(available: CGFloat) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Coach")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.0)
+            micButton(size: 46)
+
+            TextField("Say it or type a command...", text: $draft, axis: .vertical)
+                .focused($isDraftFocused)
+                .lineLimit(1...2)
+                .textInputAutocapitalization(.sentences)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.arTextPrimary)
+                .submitLabel(.send)
+                .onSubmit(onSend)
+                .padding(.horizontal, 2)
+
+            Button(action: onSend) {
+                Image(systemName: "arrow.up")
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.arTextSecondary)
-
-                Text(latestOneLiner)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.arTextPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-                    height = ChatSheetDetents.fullHeight(availableHeight: available)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            micButton(size: 48)
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isDraftFocused = true
+        }
     }
 
     // MARK: - Expanded
