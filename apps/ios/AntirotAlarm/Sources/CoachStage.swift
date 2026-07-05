@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum CoachStageLayoutMetrics {
+    static let imageVerticalPositionFraction: CGFloat = 0.48
+}
+
 // MARK: - Coach Stage
 
 /// Full-screen, cinematic, stylized coach "presence".
@@ -117,7 +121,7 @@ struct CoachStage: View {
         .frame(width: size.width, height: imageSize * 1.24, alignment: .center)
         .scaleEffect(breath)
         .rotationEffect(.degrees(pose.headTilt * 180 / .pi))
-        .position(x: size.width / 2, y: size.height * 0.38)
+        .position(x: size.width / 2, y: size.height * CoachStageLayoutMetrics.imageVerticalPositionFraction)
         .accessibilityLabel("Antirot coach")
     }
 

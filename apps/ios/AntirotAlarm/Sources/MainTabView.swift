@@ -6,6 +6,10 @@ enum AppBottomBarMetrics {
     static let coachChatClearance: CGFloat = 92
 }
 
+enum AppChromeMetrics {
+    static let showsCoachTopMenuShortcut = false
+}
+
 struct MainTabView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
@@ -34,24 +38,6 @@ struct MainTabView: View {
                 .padding(.horizontal, AppBottomBarMetrics.horizontalPadding)
                 .padding(.bottom, AppBottomBarMetrics.bottomPadding)
                 .shadow(color: .black.opacity(0.40), radius: 20, y: 10)
-
-            if selectedScreen == .coach {
-                Button {
-                    select(.settings)
-                } label: {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.arTextSecondary)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color.white.opacity(0.055)))
-                        .overlay(Circle().stroke(Color.white.opacity(0.07), lineWidth: 0.6))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open settings")
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.trailing, 18)
-                .padding(.top, 96)
-            }
         }
     }
 }
