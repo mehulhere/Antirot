@@ -5,8 +5,7 @@ import SwiftUI
 /// The cinematic coach room: a full-screen stylized coach, one dominant
 /// circular action button per runtime state, optional quiet secondary
 /// actions, and a draggable glass chat sheet pinned to the bottom. There is
-/// no dashboard clutter here — stats, plan, alarms, and settings stay hidden
-/// behind the small top-right menu in `MainTabView`.
+/// no dashboard clutter here; secondary surfaces live in the bottom app bar.
 struct HomeView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
@@ -26,11 +25,13 @@ struct HomeView: View {
             ZStack(alignment: .bottom) {
                 CoachStage(emotion: coach.coachEmotion, isThinking: coach.isSending)
                     .ignoresSafeArea()
+                    .ignoresSafeArea(.keyboard)
 
                 homeHeader
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.horizontal, 24)
                     .padding(.top, 86)
+                    .ignoresSafeArea(.keyboard)
 
                 Color.clear
                     .contentShape(Rectangle())
@@ -41,6 +42,7 @@ struct HomeView: View {
                     .padding(.bottom, min(sheetHeight, actionClearance) + chatBottomClearance + 22)
                     .padding(.horizontal, 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .ignoresSafeArea(.keyboard)
 
                 GlassSheet(
                     height: $sheetHeight,
