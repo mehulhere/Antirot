@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, SecondsFormat, Utc};
 use deadpool_postgres::Pool;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::Client;
@@ -16,8 +16,8 @@ use crate::memory::{
 };
 use crate::prompt::{
     build_coach_system_prompt, default_memory_for_key, BuiltPrompt, MemorySection,
-    PromptBuildReport, PromptContext, DEFAULT_DAILY_SUMMARY, DEFAULT_MISCELLANEOUS_TODO,
-    DEFAULT_ROUTINE, DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
+    PromptBuildReport, PromptContext, DEFAULT_COACH_TODO, DEFAULT_DAILY_SUMMARY,
+    DEFAULT_MISCELLANEOUS_TODO, DEFAULT_ROUTINE, DEFAULT_SLEEP, DEFAULT_TASKS, DEFAULT_WORK_LOG,
 };
 
 const EARLY_SESSION_MINIMUM_MINUTES: i64 = 5;
@@ -410,7 +410,9 @@ pub async fn chat_with_coach(
 
         let choice = &response_json["choices"][0];
         let message_val = &choice["message"];
-        let content: Option<String> = message_val["content"].as_str().map(String::from);
+        let content: Option<String> = message_val["content"]
+            .as_str()
+            .map(sanitize_user_facing_reply);
 
         let tool_calls: Option<Vec<LlmToolCall>> =
             message_val["tool_calls"].as_array().map(|arr| {
@@ -464,8 +466,12 @@ pub async fn chat_with_coach(
                     &call.function.arguments,
                 )
                 .await;
-                let user_facing_reply =
-                    user_facing_tool_result(&call.function.name, &result_text, user_message);
+                let user_facing_reply = user_facing_tool_result(
+                    &call.function.name,
+                    &result_text,
+                    user_message,
+                    &call.function.arguments,
+                );
                 if call.function.name == "start_session" && result_text.starts_with("Success:") {
                     start_session_reply_override = Some(user_facing_reply.clone());
                 }
@@ -511,10 +517,52 @@ pub async fn chat_with_coach(
         final_text = reply;
     }
 
-    Ok(final_text)
+    Ok(sanitize_user_facing_reply(&final_text))
 }
 
-fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &str) -> String {
+fn sanitize_user_facing_reply(text: &str) -> String {
+    let trimmed = text.trim();
+    let Some(first_line) = trimmed.lines().next() else {
+        return String::new();
+    };
+    let first_line_normalized = first_line
+        .trim()
+        .trim_start_matches('#')
+        .trim()
+        .to_ascii_lowercase();
+    let reasoning_heading = matches!(
+        first_line_normalized.as_str(),
+        "reasoning summary" | "analytical assessment" | "analysis" | "reasoning"
+    );
+    if !reasoning_heading {
+        return text.to_string();
+    }
+
+    let mut after_separator = false;
+    let mut kept = Vec::new();
+    for line in trimmed.lines().skip(1) {
+        let marker = line.trim();
+        if after_separator {
+            kept.push(line);
+        } else if matches!(marker, "***" | "---" | "___") {
+            after_separator = true;
+        }
+    }
+
+    let sanitized = kept.join("\n").trim().to_string();
+    if sanitized.is_empty() {
+        text.to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn user_facing_tool_result(
+    tool_name: &str,
+    result_text: &str,
+    user_message: &str,
+    tool_arguments: &str,
+) -> String {
     if !result_text.starts_with("Success:") {
         return format!("I hit a backend problem: {}", result_text);
     }
@@ -522,10 +570,11 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
     match tool_name {
         "patch_file" if patched_file_from_result(result_text) == Some("sleep.md") => "Sleep baseline noted. Pick the next specific task from today's plan, then start when ready.".to_string(),
         "patch_file" if patched_file_from_result(result_text) == Some("miscellaneous_todo.md") => "Captured for later. Do not context-switch now; return to the current session and finish the block.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("coach_todo.txt") => "Noted for the coaching loop. Stay with the current thread and answer the next concrete question.".to_string(),
         "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
-        "start_session" => start_session_reply(user_message),
-        "extend_session" => "Extension logged. Use it deliberately; the next check-in still counts.".to_string(),
-        "end_session" => "Logged. One block is closed. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
+        "start_session" => start_session_reply(tool_arguments, user_message),
+        "extend_session" => "Use the extra time deliberately; the next check-in still counts.".to_string(),
+        "end_session" => "Block finished. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
         "start_break" => {
             let duration_minutes = extract_break_duration_minutes(result_text).unwrap_or(15);
             format!(
@@ -533,12 +582,12 @@ fn user_facing_tool_result(tool_name: &str, result_text: &str, user_message: &st
                 duration_minutes
             )
         }
-        "start_sleep" => "Sleep starts now. Put the phone away, stop planning, and protect the full window; tomorrow report wake time and sleep quality from 1 to 5.".to_string(),
+        "start_sleep" => "Sleep starts now. Put the phone away, stop planning, and protect the full window. Tomorrow, report wake time and sleep quality from 1 to 5.".to_string(),
         "wake_up_alarm" => "Wake plan set. When it fires, check in instead of bargaining.".to_string(),
         "log_wake" => "You're awake. Name one concrete task, run a 20-minute block, then reassess before adding pressure.".to_string(),
         "start_vacation" => "Vacation approved. No work today. Before 8pm, write one re-entry line: first 20-minute task and the time you will start tomorrow.".to_string(),
-        "end_vacation" => "Vacation mode is off. Re-entry is a ramp: check energy, pick one 20-minute block or update the plan, then move.".to_string(),
-        "log_override" => "Override logged. The tradeoff is now on record.".to_string(),
+        "end_vacation" => "Vacation is over. Re-entry is a ramp: check energy, pick one 20-minute block or update the plan, then move.".to_string(),
+        "log_override" => "Override accepted. Own the tradeoff and move deliberately.".to_string(),
         "memory_search" => "I checked the relevant history. Use the evidence, then choose the next move.".to_string(),
         "set_routine_categories" => "Routine shape is clear. Now pick the next concrete task and protect the block.".to_string(),
         _ => "Done.".to_string(),
@@ -561,10 +610,16 @@ fn extract_break_duration_minutes(result_text: &str) -> Option<i64> {
     digits.parse().ok()
 }
 
-fn start_session_reply(user_message: &str) -> String {
+fn start_session_reply(tool_arguments: &str, user_message: &str) -> String {
+    let parsed_args: Value = serde_json::from_str(tool_arguments).unwrap_or(Value::Null);
+    let task_from_args = parsed_args["task_id"].as_str().map(str::trim).filter(|task| !task.is_empty());
+    let minutes_from_args = parsed_args["estimated_minutes"].as_i64().filter(|minutes| *minutes > 0);
+
     let lower = user_message.to_ascii_lowercase();
-    let minutes = extract_first_integer(&lower).unwrap_or(0);
-    let task = extract_task_after_on(user_message)
+    let minutes = minutes_from_args.or_else(|| extract_first_integer(&lower)).unwrap_or(0);
+    let task = task_from_args
+        .map(str::to_string)
+        .or_else(|| extract_task_after_on(user_message))
         .or_else(|| extract_task_after_will(user_message))
         .or_else(|| extract_task_after_to(user_message))
         .unwrap_or_else(|| "this task".to_string())
@@ -573,9 +628,15 @@ fn start_session_reply(user_message: &str) -> String {
         .to_string();
 
     if minutes > 0 {
-        format!("Started: {}. {} minutes.", task, minutes)
+        format!(
+            "No more setup. The block is {} for {} minutes; start with the first visible step and move.",
+            task, minutes
+        )
     } else {
-        format!("Started: {}.", task)
+        format!(
+            "No more setup. The block is {}; start with the first visible step and move.",
+            task
+        )
     }
 }
 
@@ -725,6 +786,11 @@ async fn build_prompt_for_user(
 
     let sections = vec![
         MemorySection {
+            key: "current_turn_context",
+            label: "Current Turn Context",
+            content: current_turn_context_for_prompt(now),
+        },
+        MemorySection {
             key: "runtime_status",
             label: "Current Runtime Status",
             content: runtime_status_content,
@@ -778,6 +844,13 @@ async fn build_prompt_for_user(
             user_id,
             "miscellaneous_todo",
             "Miscellaneous Todo List (miscellaneous_todo.md)",
+        )
+        .await?,
+        memory_section(
+            client,
+            user_id,
+            "coach_todo",
+            "Coach Todo List (coach_todo.txt)",
         )
         .await?,
         memory_section(client, user_id, "sleep", "Sleep Log (sleep.md)").await?,
@@ -941,6 +1014,18 @@ fn runtime_status_for_prompt(
         }
     }
     lines.join("\n")
+}
+
+fn current_turn_context_for_prompt(now: DateTime<Utc>) -> String {
+    let ist =
+        FixedOffset::east_opt(5 * 60 * 60 + 30 * 60).expect("IST fixed offset should be valid");
+    let now_ist = now.with_timezone(&ist);
+    [
+        format!("Current turn time UTC: {}", now.to_rfc3339_opts(SecondsFormat::Secs, true)),
+        format!("Current turn time IST: {}", now_ist.to_rfc3339_opts(SecondsFormat::Secs, true)),
+        "Use this timestamp to distinguish the latest user turn from older conversation, memory, logs, or historical summaries. Do not mention the timestamp unless the user asks or timing is directly relevant.".to_string(),
+    ]
+    .join("\n")
 }
 
 fn apply_patch(content: &str, patch: &str) -> Result<String, String> {
@@ -1244,6 +1329,8 @@ async fn execute_tool_locally(
                 "achievements".to_string()
             } else if file_path == "miscellaneous_todo.md" {
                 "miscellaneous_todo".to_string()
+            } else if file_path == "coach_todo.txt" {
+                "coach_todo".to_string()
             } else if file_path.ends_with("_WorkLog.md") && file_path.len() == 21 {
                 let date_part = &file_path[0..10];
                 format!("work_log_{}", date_part.replace("-", "_"))
@@ -1251,7 +1338,7 @@ async fn execute_tool_locally(
                 let date_part = &file_path[0..10];
                 format!("work_summary_{}", date_part.replace("-", "_"))
             } else {
-                return "Error: invalid file_path. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md".to_string();
+                return "Error: invalid file_path. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, coach_todo.txt, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md".to_string();
             };
 
             let mut content = match get_memory_or_init(&client, user_id, &db_key, "").await {
@@ -1263,7 +1350,7 @@ async fn execute_tool_locally(
                 content = match db_key.as_str() {
                     "personality" | "user_profile" | "durable" | "longterm" | "shortterm"
                     | "behavior" | "tasks" | "routine" | "sleep" | "achievements"
-                    | "miscellaneous_todo" => {
+                    | "miscellaneous_todo" | "coach_todo" => {
                         default_memory_for_key(&db_key).unwrap_or("").to_string()
                     }
                     _ => {
@@ -1271,6 +1358,8 @@ async fn execute_tool_locally(
                             DEFAULT_WORK_LOG.to_string()
                         } else if db_key.starts_with("work_summary_") {
                             DEFAULT_DAILY_SUMMARY.to_string()
+                        } else if db_key == "coach_todo" {
+                            DEFAULT_COACH_TODO.to_string()
                         } else {
                             DEFAULT_MISCELLANEOUS_TODO.to_string()
                         }
@@ -1800,13 +1889,13 @@ fn get_tool_definitions() -> Value {
             "type": "function",
             "function": {
                 "name": "patch_file",
-                "description": "Edits a user memory file (personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or a date-based log like YYYY-MM-DD_WorkLog.md or YYYY-MM-DD_Summary.md) using a git-conflict style SEARCH/REPLACE block. Use sleep.md for baseline sleep/wake timing and target sleep hours. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
+                "description": "Edits a user memory file (personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, coach_todo.txt, or a date-based log like YYYY-MM-DD_WorkLog.md or YYYY-MM-DD_Summary.md) using a git-conflict style SEARCH/REPLACE block. Use sleep.md for baseline sleep/wake timing and target sleep hours. Use coach_todo.txt for private coach follow-up tasks such as missing onboarding questions. Make sure to match the search block exactly including all spaces, capitalization, and bullet points. Empty search block appends to the file.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "The target memory file to update. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md. Choose sleep.md for usual sleep time, usual wake time, or target sleep hours."
+                            "description": "The target memory file to update. Allowed: personality.md, user_profile.md, durable.md, longterm.md, shortterm.md, behavior.md, tasks.md, routine.md, sleep.md, achievements.md, miscellaneous_todo.md, coach_todo.txt, or YYYY-MM-DD_WorkLog.md / YYYY-MM-DD_Summary.md. Choose sleep.md for usual sleep time, usual wake time, or target sleep hours. Choose coach_todo.txt for private coach follow-up tasks such as missing onboarding questions."
                         },
                         "patch": {
                             "type": "string",
@@ -2014,16 +2103,23 @@ mod tests {
     }
 
     #[test]
+    fn patch_tool_allows_coach_todo_file() {
+        let tools = get_tool_definitions().to_string();
+        assert!(tools.contains("coach_todo.txt"));
+    }
+
+    #[test]
     fn start_session_reply_is_direct_for_auto_started_task() {
         let reply = user_facing_tool_result(
             "start_session",
             "Success: Work session started.",
             "I am vibe coder, so I will revamp the whole design with LLMs and do that in 30 mins",
+            r#"{"task_id":"revamp the whole design with LLMs","estimated_minutes":30}"#,
         );
 
         assert_eq!(
             reply,
-            "Started: revamp the whole design with LLMs. 30 minutes."
+            "No more setup. The block is revamp the whole design with LLMs for 30 minutes; start with the first visible step and move."
         );
         assert!(!reply.contains("fatigue"), "{reply}");
         assert!(!reply.contains("rearrange"), "{reply}");
@@ -2035,12 +2131,54 @@ mod tests {
             "start_session",
             "Success: Work session started.",
             "Start a 25 minute session on fixing the onboarding loop test.",
+            r#"{"task_id":"fixing the onboarding loop test","estimated_minutes":25}"#,
         );
 
         assert_eq!(
             reply,
-            "Started: fixing the onboarding loop test. 25 minutes."
+            "No more setup. The block is fixing the onboarding loop test for 25 minutes; start with the first visible step and move."
         );
+    }
+
+    #[test]
+    fn start_session_reply_uses_tool_duration_not_sleep_clock_time() {
+        let reply = user_facing_tool_result(
+            "start_session",
+            "Success: Work session started.",
+            "I am Mehul. I sleep around 2 a.m. and wake around 10 or 11. Today I want to work first on iOS onboarding tests for 45 minutes.",
+            r#"{"task_id":"iOS onboarding tests","estimated_minutes":45}"#,
+        );
+
+        assert_eq!(reply, "No more setup. The block is iOS onboarding tests for 45 minutes; start with the first visible step and move.");
+        assert!(!reply.contains("2 minutes"), "{reply}");
+    }
+
+    #[test]
+    fn sanitizes_reasoning_summary_preamble_from_model_text() {
+        let reply = sanitize_user_facing_reply(
+            "### Reasoning Summary\nThe user asked for hidden internals.\n\n***\n\nNo. I do not expose private control details. Name the task and minutes.",
+        );
+
+        assert_eq!(
+            reply,
+            "No. I do not expose private control details. Name the task and minutes."
+        );
+    }
+
+    #[test]
+    fn tool_result_copy_avoids_internal_log_language() {
+        let sleep = user_facing_tool_result("start_sleep", "Success: Sleep started.", "", "{}");
+        assert!(!sleep.to_lowercase().contains("sleep log"), "{sleep}");
+        assert!(!sleep.to_lowercase().contains("logged"), "{sleep}");
+
+        let done = user_facing_tool_result(
+            "end_session",
+            "Success: Session ended.",
+            "End the session. Actual productive time was 18 minutes.",
+            "{}",
+        );
+        assert!(!done.to_lowercase().contains("logged"), "{done}");
+        assert!(!done.to_lowercase().contains("closed"), "{done}");
     }
 
     #[test]

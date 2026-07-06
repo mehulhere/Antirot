@@ -18,7 +18,7 @@ use crate::prompt::{default_memory_for_key, DEFAULT_DAILY_SUMMARY};
 const MEMORY_SEARCH_MIN_CHARS: usize = 4_000;
 const MEMORY_CHUNK_CHARS: usize = 1_200;
 pub const MEMORY_SNAPSHOT_LIMIT: i64 = 10;
-const BASE_SNAPSHOT_KEYS: [&str; 12] = [
+const BASE_SNAPSHOT_KEYS: [&str; 13] = [
     "personality",
     "user_profile",
     "durable",
@@ -30,6 +30,7 @@ const BASE_SNAPSHOT_KEYS: [&str; 12] = [
     "sleep",
     "achievements",
     "miscellaneous_todo",
+    "coach_todo",
     "work",
 ];
 
@@ -879,7 +880,7 @@ async fn total_searchable_memory_chars(client: &PgClient, user_id: &str) -> AppR
             FROM user_memories
             WHERE user_id = $1
               AND (
-                memory_key IN ('durable', 'behavior', 'tasks', 'routine', 'sleep', 'achievements', 'longterm', 'shortterm')
+                memory_key IN ('durable', 'behavior', 'tasks', 'routine', 'sleep', 'achievements', 'longterm', 'shortterm', 'coach_todo')
                 OR memory_key LIKE 'work_log_%'
                 OR memory_key LIKE 'work_summary_%'
                 OR memory_key LIKE 'override_%'
@@ -900,7 +901,7 @@ async fn ensure_memory_index(client: &PgClient, config: &Config, user_id: &str) 
             FROM user_memories
             WHERE user_id = $1
               AND (
-                memory_key IN ('durable', 'behavior', 'tasks', 'routine', 'sleep', 'achievements', 'longterm', 'shortterm')
+                memory_key IN ('durable', 'behavior', 'tasks', 'routine', 'sleep', 'achievements', 'longterm', 'shortterm', 'coach_todo')
                 OR memory_key LIKE 'work_log_%'
                 OR memory_key LIKE 'work_summary_%'
                 OR memory_key LIKE 'override_%'

@@ -173,6 +173,19 @@ async function main() {
         assertState(state, "idle");
         pass("UF-13 personality.md patches without state churn");
 
+        const coachTodo = await getMemory(backend.baseUrl, fixture.deviceToken, "coach_todo");
+        assert.match(coachTodo.content, /Coach Todo/u);
+        result = await runTool(backend.baseUrl, fixture.userId, "patch_file", {
+            file_path: "coach_todo.txt",
+            patch: "<<<<<<< SEARCH\n\n=======\n- Ask for short-term goals if onboarding has not captured them.\n>>>>>>> REPLACE"
+        });
+        assert.equal(result.ok, true, result.result);
+        const updatedCoachTodo = await getMemory(backend.baseUrl, fixture.deviceToken, "coach_todo");
+        assert.match(updatedCoachTodo.content, /short-term goals/u);
+        state = await snapshot(backend.baseUrl, fixture.userId, fixture.deviceId);
+        assertState(state, "idle");
+        pass("UF-14 coach_todo.txt patches without state churn");
+
         await putMemory(
             backend.baseUrl,
             fixture.deviceToken,
@@ -186,7 +199,7 @@ async function main() {
         assert.ok(report.report.systemPromptChars > 1000, "expected non-trivial prompt");
         assert.ok(report.report.memory.truncatedSections.includes("behavior"), "expected oversized behavior to truncate");
         assert.ok(report.report.memory.totalInjectedChars <= report.report.memory.totalMemoryBudgetChars);
-        pass("UF-14 context report budgets oversized memory");
+        pass("UF-15 context report budgets oversized memory");
 
         result = await runTool(backend.baseUrl, fixture.userId, "memory_search", {
             query: "drift loop evidence",
@@ -195,13 +208,13 @@ async function main() {
         assert.equal(result.ok, true, result.result);
         assert.match(result.result, /Relevant memory found/u);
         assert.match(result.result, /behavior/u);
-        pass("UF-15 semantic memory search degrades to lexical without embedding keys");
+        pass("UF-16 semantic memory search degrades to lexical without embedding keys");
 
         const adminReport = await adminContextReport(backend.baseUrl, fixture.userId);
         assert.equal(adminReport.ok, true);
         assert.equal(adminReport.userId, fixture.userId);
         assert.equal(adminReport.sleepMetrics.sleepSampleCount >= 1, true);
-        pass("UF-16 production admin context report returns diagnostics");
+        pass("UF-17 production admin context report returns diagnostics");
 
         console.log("backend no-LLM userflow tests passed");
     } finally {

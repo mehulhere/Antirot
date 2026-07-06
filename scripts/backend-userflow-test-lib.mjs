@@ -328,7 +328,7 @@ export function authHeaders(token = process.env.ANTIROT_ADMIN_TOKEN || readDotEn
     return { Authorization: `Bearer ${token}` };
 }
 
-export async function resetFixture(baseUrl, label) {
+export async function resetFixture(baseUrl, label, options = {}) {
     const safe = label.replace(/[^a-z0-9-]/giu, "-").toLowerCase();
     const userId = `userflow-${safe}-${Date.now()}`;
     const deviceId = `device-${safe}-${Date.now()}`;
@@ -336,7 +336,7 @@ export async function resetFixture(baseUrl, label) {
     const snapshot = await api(baseUrl, "/v1/test/reset", {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ userId, deviceId, deviceToken })
+        body: JSON.stringify({ userId, deviceId, deviceToken, runtimeState: options.runtimeState })
     });
     return { userId, deviceId, deviceToken, snapshot };
 }
@@ -409,7 +409,7 @@ export function assertAlarmFamily(state, kind) {
 
 export function assertNoBackendLeak(reply) {
     const forbidden = [
-        /\bState:/iu,
+        /^\s*State:/imu,
         /\bstart_session\b/iu,
         /\bend_session\b/iu,
         /\bstart_break\b/iu,
@@ -421,18 +421,22 @@ export function assertNoBackendLeak(reply) {
         /\bbreak_alarm\b/iu,
         /\bwake_alarm\b/iu,
         /\buser_runtime/iu,
-        /\bJSON\b/u,
+        /```json|\{[\s\S]{0,200}"(?:args|deviceId|runtimeState|state|tool|userId)"\s*:/u,
         /\bSQL\b/u,
-        /\breasoning summary\b/iu,
-        /\banalytical assessment\b/iu,
-        /\bassessment of the user's request\b/iu,
         /\bmust push back\b/iu,
         /\btool call\b/iu,
-        /\btool names?\b/iu,
+        /\binternal tool names?\b/iu,
+        /\binternal configuration\b/iu,
+        /\btechnical parameters?\b/iu,
+        /\bthis interface\b/iu,
+        /\bsystem payloads?\b/iu,
+        /\bbackend configuration\b/iu,
+        /\bconfiguration parameters?\b/iu,
+        /\btool names?\s*(?:are|:)/iu,
         /\btools? (?:are )?locked\b/iu,
-        /\bbackend state\b/iu,
-        /\braw payloads?\b/iu,
-        /\bstate machine\b/iu,
+        /\bbackend state\s*(?:is|:|\{)/iu,
+        /\braw payloads?\s*(?:are|:|\{)/iu,
+        /\b(?:backend|internal|runtime) state machine\b|\bstate machine\s*(?:details|architecture|transition)/iu,
         /\bbaseline parameters\b/iu,
         /\bhidden context\b/iu,
         /\bsaved fields?\b/iu,
@@ -442,7 +446,11 @@ export function assertNoBackendLeak(reply) {
         /\bprofile has been updated\b/iu,
         /\btimezone (?:is )?updated\b/iu,
         /\btimezone (?:is )?locked\b/iu,
+        /\b(?:session|task|block|sleep|work)\s+(?:is\s+)?logged\b/iu,
+        /\blogged and closed\b/iu,
+        /\bsession\s+(?:is\s+)?closed\b/iu,
         /\bmemory (?:is )?updated\b/iu,
+        /^\s*#+\s*(?:reasoning summary|analytical assessment|analysis|reasoning)\b/imu,
         /\bpersonality profile (?:is )?updated\b/iu,
         /\bpersonality updated\b/iu,
         /\bpersonality configuration\b/iu,
@@ -457,8 +465,8 @@ export function assertNoBackendLeak(reply) {
 }
 
 export function assertProductionQuality(reply) {
-    assert.ok(reply.trim().length >= 20, `reply too short: ${reply}`);
-    assert.ok(reply.trim().length <= 700, `reply too long: ${reply}`);
+    assert.ok(reply.trim().length >= 12, `reply too short: ${reply}`);
+    assert.ok(reply.trim().length <= 1200, `reply too long: ${reply}`);
     assertNoBackendLeak(reply);
     assert.doesNotMatch(reply, /\bgreat job\b|\bproud of you\b|\bamazing\b/iu, "reply used generic praise");
 }

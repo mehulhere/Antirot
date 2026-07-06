@@ -54,6 +54,7 @@
 - Verify nightly memory distillation updates `durable.md` when sleep starts, sleep metrics update after wake logs, semantic memory search returns relevant historical logs once memory is large, and `/v1/admin/context` works with admin auth outside test mode.
 - Verify GitHub Backend CI blocks prompt snapshot drift and runs backend no-LLM userflows against Postgres on pull requests.
 - Run `npm run test:backend-userflows-llm` followed by `CROF_API_KEY=... npm run test:llm-judge-quality`, then review `.antirot/llm-judge-quality-report.json` for Qwen judge scores and issues before treating live LLM output as paid-product ready.
+- Run the expanded onboarding/state LLM suite, then review `.antirot/llm-judge-manual-review.md` for every Crof.ai low-score case before changing prompts or backend state logic.
 - Build the iOS app on a real iPhone, verify Coach/Plan/Alarms/Settings render correctly, record a voice check-in through Smallest STT, send Done/Start/Break buttons through chat, and confirm Inworld TTS playback after `INWORLD_TTS_VOICE_ID` is configured.
 - Verify `/v1/speech/transcribe` uses Smallest Pulse HTTP STT and `/v1/speech/synthesize` returns playable Inworld streaming TTS audio on the VPS.
 - Launch the backend-only VPS setup from `docs/backend-vps-new-user.md` with fresh `antirot` and `antirot-backend` Linux users, then verify `/health`, `/v1/chat`, and `/v1/speech/transcribe` through the public HTTPS domain.
@@ -75,6 +76,7 @@
 - Reset frontend onboarding, give goals/day/today details, press Start, then Done; verify the coach uses the bossy first/second-message loop, asks productive duration after Done, and never mentions hidden/system/memory terms.
 - Start a frontend work session that schedules repeated 5-minute alarms, then verify the frontend Pending alarms panel and top stat show only the next upcoming reminder per alarm family while the backend still keeps the full alarm sequence scheduled.
 - During onboarding, verify the second coach reply suggests one specific first task, asks for exact task details plus estimated minutes, and only then tells the user to press Start.
+- During onboarding, provide goals/day/today context and verify the coach asks for the smallest first work slice plus committed minutes instead of giving generic ambition praise.
 - Open the web frontend and iOS app side by side, then verify onboarding name cache/reset, silent timezone onboarding, quick actions, pending alarm collapse, voice queue, and Plan/Home action copy match.
 - Open the web frontend, iOS app, and Android app across onboarding/idle/working/break/sleeping/vacation states and verify only idle shows Start and only working shows Done.
 - Speak in the web frontend, iOS app, and Android app, then verify the chat shows a playable voice message instead of raw transcription while the coach still receives the transcript.
@@ -102,3 +104,5 @@
 - On iOS Home, verify the collapsed chat card has a shorter top handle area while the Coach preview text remains readable.
 - On iOS, verify the imagegen-inspired redesign renders consistently across Coach, Tasks, Stats, and the Command sheet with bottom nav and floating chat intact.
 - On iOS, verify Coach, expanded chat, Tasks, and Stats match the provided four-screen reference design with the same dark cinematic layout, red accent, bottom tabs, command composer, task cards, and stats cards.
+- Rerun LLM-18 with an idle reset fixture and verify it rejects soft-personality override without drifting into onboarding/profile setup copy or saving the bad preference.
+- Review the latest Crof judge report after onboarding LLM runs and manually verify LLM-20 writes pending missing onboarding questions to coach_todo.txt without broad schedule drift.

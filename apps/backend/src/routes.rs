@@ -1881,6 +1881,7 @@ struct TestResetRequest {
     user_id: Option<String>,
     device_id: Option<String>,
     device_token: Option<String>,
+    runtime_state: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1969,6 +1970,19 @@ async fn test_reset(
     let user_id = req.user_id.unwrap_or_else(|| "admin".to_string());
     let device_id = req.device_id.unwrap_or_else(|| "test-device".to_string());
     let api_token_hash = req.device_token.as_ref().map(|token| token_hash(token));
+    let runtime_state = match req.runtime_state.as_deref().unwrap_or("onboarding") {
+        "onboarding" => "onboarding",
+        "idle" => "idle",
+        "working" => "working",
+        "break" => "break",
+        "sleeping" => "sleeping",
+        "vacation" => "vacation",
+        _ => {
+            return Err(AppError::BadRequest(
+                "invalid test runtime state".to_string(),
+            ))
+        }
+    };
     let client = state.pool.get().await?;
 
     client
@@ -2037,14 +2051,14 @@ async fn test_reset(
         .execute(
             "
             INSERT INTO user_runtime_states (user_id, state, source_tool, metadata)
-            VALUES ($1, 'onboarding', 'test_reset', '{}'::JSONB)
+            VALUES ($1, $2, 'test_reset', '{}'::JSONB)
             ON CONFLICT (user_id) DO UPDATE SET
-                state = 'onboarding',
+                state = EXCLUDED.state,
                 entered_at = now(),
                 source_tool = 'test_reset',
                 metadata = '{}'::JSONB
             ",
-            &[&user_id],
+            &[&user_id, &runtime_state],
         )
         .await?;
 

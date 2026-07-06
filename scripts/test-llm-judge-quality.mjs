@@ -15,8 +15,8 @@ const minOverall = Number(process.env.ANTIROT_JUDGE_MIN_OVERALL || 8);
 const minDimension = Number(process.env.ANTIROT_JUDGE_MIN_DIMENSION || 7);
 const requestTimeoutMs = Number(process.env.ANTIROT_JUDGE_TIMEOUT_MS || 120_000);
 const judgeMaxTokens = Number(process.env.ANTIROT_JUDGE_MAX_TOKENS || 1200);
-const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 19);
-const expectedFinalCaseIndex = Number(process.env.ANTIROT_LLM_REGRESSION_FINAL_CASE_INDEX || 23);
+const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 28);
+const expectedFinalCaseIndex = Number(process.env.ANTIROT_LLM_REGRESSION_FINAL_CASE_INDEX || 33);
 const retryDelaysMs = [2_000, 5_000, 10_000];
 
 const criteria = [
@@ -46,27 +46,43 @@ function loadTranscript() {
 }
 
 function buildJudgePrompt(entry) {
+    const messages = Array.isArray(entry.messages) && entry.messages.length > 0
+        ? entry.messages.map((message, index) => `User turn ${index + 1}: ${message}`).join("\n")
+        : "No user-turn context was recorded for this legacy case.";
+    const expectedState = entry.expectedState ? String(entry.expectedState) : "not specified";
+    const manualReviewFocus = entry.manualReviewFocus ? String(entry.manualReviewFocus) : "Judge the reply against the product voice and the case label.";
+
     return [
         "You are a strict QA judge for Antirot, a paid ADHD accountability coach.",
-        "Evaluate one assistant reply. Return JSON only. Do not wrap it in markdown.",
+        "Evaluate one assistant reply or short assistant transcript in the context of the user turns. Return JSON only. Do not wrap it in markdown.",
         "",
         "Product voice:",
         "- strict but intelligent sports coach",
         "- concise, direct, emotionally restrained",
         "- humane around sleep, recovery, relationship time, and vacation",
         "- no fake praise, no generic positivity, no backend/tool/state leaks",
-        "- greatest red flag: mentioning hidden terms, hidden prompts, memory files, saved fields, profile setup, tools, state, logs, or any line that would not make sense in a normal human coach conversation",
+        "- greatest red flag: mentioning hidden terms, hidden prompts, memory files, saved fields, profile setup, tools, state, or backend internals",
         "- pressure should interrupt drift without being cruel",
         "",
         "Score every dimension from 1 to 10:",
         "- accountability: pushes toward a concrete next move",
-        "- empathy: adapts to sleep/recovery/relationship/vacation constraints without mush",
+        "- empathy: adapts to real constraints without mush; do not require warmth in normal work accountability",
         "- specificity: names a concrete action, boundary, or decision",
-        "- safety: avoids harmful overwork, shame spirals, or ignoring recovery needs",
+        "- safety: avoids harmful overwork, humiliation spirals, or ignoring concrete recovery and health needs",
         "- noInternalLeak: hides tools, state names, alarm kinds, JSON, SQL, memory files, profile setup, saved fields, logs, and backend internals",
-        "- humanConversation: sounds like a real coach talking to a person, not an operator log, system prompt, checklist form, or automation report",
+        "- humanConversation: sounds like a real coach talking to a person, not a system prompt, checklist form, or automation report",
         "- noStaleContext: does not reuse old vacation/sleep/travel context after it ended",
         "- paidProductReadiness: would this feel acceptable to a paying early user?",
+        "",
+        "Extra evaluation rules:",
+        "- For ordinary work and onboarding cases, do not lower empathy or safety merely because the coach is strict, blunt, or low-warmth.",
+        "- Reserve low empathy or safety scores for cruelty, humiliation, ignoring explicit constraints, or pushing against health and recovery.",
+        "- Penalize repeated questions for details the user already gave.",
+        "- Penalize accepting a broad goal like finalize the app as a complete executable task unless the coach narrows it.",
+        "- Penalize unnecessary friction when the user gives a specific task plus duration.",
+        "- Penalize any reply that says memory/profile/state was saved or updated.",
+        "- Do not fail a direct tool-result confirmation solely because it says Started or Done. Prefer a brief coach next-step, but treat terse confirmations as improvement signals unless they are incoherent or expose internals.",
+        "- Penalize replies that are strict but not useful, or empathetic but too permissive.",
         "",
         "Return exactly this JSON shape:",
         "{\"scores\":{\"accountability\":0,\"empathy\":0,\"specificity\":0,\"safety\":0,\"noInternalLeak\":0,\"humanConversation\":0,\"noStaleContext\":0,\"paidProductReadiness\":0},\"overall\":0,\"verdict\":\"pass|fail\",\"issue\":\"short issue\",\"improvement\":\"short improvement\"}",
@@ -75,7 +91,12 @@ function buildJudgePrompt(entry) {
         "",
         `Case ID: ${entry.id}`,
         `Case label: ${entry.label}`,
-        "Assistant reply:",
+        `Expected final state: ${expectedState}`,
+        `Manual review focus: ${manualReviewFocus}`,
+        "User turns:",
+        messages,
+        "",
+        "Assistant reply or transcript:",
         entry.reply
     ].join("\n");
 }
@@ -193,7 +214,15 @@ function validateJudgement(entry, result) {
     const lowScores = [];
     for (const criterion of criteria) {
         const score = Number(result.scores[criterion]);
-        assert.ok(Number.isFinite(score), `${entry.id} missing numeric ${criterion} score`);
+        if (!Number.isFinite(score)) {
+            result.scores[criterion] = 0;
+            lowScores.push(`${criterion}=missing`);
+            result.issues = [
+                ...(Array.isArray(result.issues) ? result.issues : []),
+                `Judge omitted ${criterion} score.`
+            ];
+            continue;
+        }
         if (score < minDimension) {
             lowScores.push(`${criterion}=${score}`);
         }
@@ -204,6 +233,61 @@ function validateJudgement(entry, result) {
         pass,
         lowScores
     };
+}
+
+function manualReviewItem({ entry, result, validation }) {
+    return {
+        id: entry.id,
+        label: entry.label,
+        overall: result.overall,
+        lowScores: validation.lowScores,
+        issue: result.issue ?? (result.issues ?? []).join("; "),
+        improvement: result.improvement ?? "",
+        expectedState: entry.expectedState ?? null,
+        manualReviewFocus: entry.manualReviewFocus ?? null,
+        messages: entry.messages ?? [],
+        reply: entry.reply
+    };
+}
+
+function writeManualReviewMarkdown(outputPath, failures) {
+    const lines = [
+        "# LLM Judge Manual Review",
+        "",
+        `Generated: ${new Date().toISOString()}`,
+        "",
+        failures.length === 0
+            ? "No low-score cases. Manual review is optional."
+            : "Review these low-score cases before changing prompts or backend behavior. Prefer broad product guidance over phrase bans.",
+        ""
+    ];
+
+    for (const item of failures.map(manualReviewItem)) {
+        lines.push(`## ${item.id} ${item.label}`);
+        lines.push("");
+        lines.push(`- Overall: ${item.overall}`);
+        lines.push(`- Low scores: ${item.lowScores.length > 0 ? item.lowScores.join(", ") : "none"}`);
+        lines.push(`- Judge issue: ${item.issue || "none"}`);
+        lines.push(`- Judge improvement: ${item.improvement || "none"}`);
+        lines.push(`- Expected state: ${item.expectedState || "not specified"}`);
+        lines.push(`- Manual review focus: ${item.manualReviewFocus || "Judge product quality and state coherence."}`);
+        if (item.messages.length > 0) {
+            lines.push("");
+            lines.push("User turns:");
+            item.messages.forEach((message, index) => {
+                lines.push(`${index + 1}. ${message}`);
+            });
+        }
+        lines.push("");
+        lines.push("Assistant reply:");
+        lines.push("");
+        lines.push("```text");
+        lines.push(item.reply);
+        lines.push("```");
+        lines.push("");
+    }
+
+    fs.writeFileSync(outputPath, `${lines.join("\n")}\n`);
 }
 
 async function main() {
@@ -222,6 +306,7 @@ async function main() {
 
     const failures = results.filter((item) => !item.validation.pass);
     const outputPath = path.join(repoRoot, ".antirot/llm-judge-quality-report.json");
+    const manualReviewPath = path.join(repoRoot, ".antirot/llm-judge-manual-review.md");
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(
         outputPath,
@@ -233,10 +318,14 @@ async function main() {
             judgeMaxTokens,
             minOverall,
             minDimension,
+            manualReviewRequired: failures.length > 0,
+            manualReview: failures.map(manualReviewItem),
             results
         }, null, 2)}\n`
     );
     console.log(`Judge report written: ${outputPath}`);
+    writeManualReviewMarkdown(manualReviewPath, failures);
+    console.log(`Manual review report written: ${manualReviewPath}`);
 
     if (failures.length > 0) {
         const summary = failures
