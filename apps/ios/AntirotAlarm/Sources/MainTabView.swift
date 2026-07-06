@@ -4,6 +4,7 @@ enum AppBottomBarMetrics {
     static let horizontalPadding: CGFloat = 12
     static let bottomPadding: CGFloat = 10
     static let coachChatClearance: CGFloat = 92
+    static let usesFullScreenHitTestOverlay = false
 }
 
 enum AppChromeMetrics {
@@ -34,7 +35,7 @@ struct MainTabView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             appBar
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, AppBottomBarMetrics.horizontalPadding)
                 .padding(.bottom, AppBottomBarMetrics.bottomPadding)
                 .shadow(color: .black.opacity(0.40), radius: 20, y: 10)

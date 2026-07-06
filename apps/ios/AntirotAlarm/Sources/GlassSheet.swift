@@ -2,7 +2,9 @@ import SwiftUI
 import UIKit
 
 enum ChatSheetDetents {
-    static let collapsedHeight: CGFloat = 72
+    static let collapsedHeight: CGFloat = 90
+    static let compactHandleHeight: CGFloat = 18
+    static let expandedHandleHeight: CGFloat = 44
     static let fullFraction: CGFloat = 0.96
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
@@ -58,6 +60,10 @@ enum ChatSheetDetents {
 
     static func isCollapsed(_ height: CGFloat) -> Bool {
         height <= collapsedHeight + 14
+    }
+
+    static func handleHeight(isCollapsed: Bool) -> CGFloat {
+        isCollapsed ? compactHandleHeight : expandedHandleHeight
     }
 
     static func showsCollapsedContent(
@@ -159,15 +165,13 @@ struct GlassSheet: View {
     }
 
     private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
-        let handleHeight: CGFloat = isCompact ? 0 : 44
+        let handleHeight = ChatSheetDetents.handleHeight(isCollapsed: isCompact)
 
         return ZStack {
-            if !isCompact {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.28))
-                    .frame(width: 38, height: 5)
-                    .allowsHitTesting(false)
-            }
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(isCompact ? 0.22 : 0.28))
+                .frame(width: isCompact ? 34 : 38, height: 5)
+                .allowsHitTesting(false)
 
             ChatSheetHandleInput(
                 currentHeight: $height,

@@ -7,6 +7,7 @@ final class CinematicLayoutTests: XCTestCase {
         XCTAssertGreaterThan(AppBottomBarMetrics.coachChatClearance, AppBottomBarMetrics.bottomPadding)
         XCTAssertEqual(AppBottomBarMetrics.horizontalPadding, 12, accuracy: 0.1)
         XCTAssertEqual(AppBottomBarMetrics.coachChatClearance, 92, accuracy: 0.1)
+        XCTAssertFalse(AppBottomBarMetrics.usesFullScreenHitTestOverlay)
     }
 
     func testCinematicShellUsesCompactCornerRadii() {

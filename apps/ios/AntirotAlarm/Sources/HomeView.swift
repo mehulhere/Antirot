@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum HomeLayoutMetrics {
     static let headerTopPadding: CGFloat = 34
@@ -208,6 +209,9 @@ private extension HomeView {
     }
 
     func sendTapped() async {
+        await MainActor.run {
+            openChat(availableHeight: sheetAvailableHeight(UIScreen.main.bounds.height))
+        }
         await coach.sendDraft(client: client)
         await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
     }
