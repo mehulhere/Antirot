@@ -8,8 +8,17 @@ const defaultBranch = "main";
 const deployJobName = "Deploy to TestFlight";
 const uploadStepName = "Upload to TestFlight";
 const errorContextChars = 100;
+const diagnosticContextLines = 2;
+const maxDiagnosticLineChars = 1000;
+const maxDiagnosticExcerptChars = 5000;
+const maxGhBufferBytes = 16 * 1024 * 1024;
 const defaultPollIntervalSeconds = 30;
 const defaultTimeoutSeconds = 1800;
+const escapeCharacter = String.fromCharCode(27);
+const actionsLogPrefixPattern = /^[^\t\n]+\t[^\t\n]+\t\ufeff?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z\s*/u;
+const ansiPattern = new RegExp(`${escapeCharacter}\\[[0-9;]*m`, "gu");
+const fileDiagnosticPattern = /(?:^|[^\S\r\n])(?:[^\s:]+\/)?[^\s:]+(?:\.swift|\.m|\.mm|\.h|\.c|\.cpp|\.xcassets|\.plist)(?::\d+(?::\d+)?)?:\s*(?:error|fatal error):/iu;
+const genericDiagnosticPattern = /^(?:error:|fatal error:|\*\* BUILD FAILED \*\*|The following build commands failed:|##\[error\]Process completed with exit code \d+\.?|Process completed with exit code \d+\.?)/iu;
 
 export function parseArgs(argv) {
     const options = {
@@ -109,7 +118,9 @@ export function evaluateTestFlightUpload(run, errorLog = "") {
     if (uploadStep.conclusion !== "success") {
         return {
             ...withErrorLog(base, errorLog),
-            message: `${uploadStepName} step concluded with ${uploadStep.conclusion ?? "unknown"}.`
+            message: uploadStep.conclusion === "skipped" && hasBuildFailure(errorLog)
+                ? `Build failed before ${uploadStepName}; ${uploadStepName} step concluded with skipped.`
+                : `${uploadStepName} step concluded with ${uploadStep.conclusion ?? "unknown"}.`
         };
     }
 
@@ -140,6 +151,11 @@ export function excerptErrorLog(logText) {
         return "";
     }
 
+    const diagnosticExcerpt = excerptDiagnosticLog(logText);
+    if (diagnosticExcerpt) {
+        return diagnosticExcerpt;
+    }
+
     const firstCaret = logText.indexOf("^");
     const lastCaret = logText.lastIndexOf("^");
     if (firstCaret === -1) {
@@ -156,6 +172,55 @@ export function excerptErrorLog(logText) {
     }
 
     return `${logText.slice(firstStart, firstEnd)}\n...\n${logText.slice(lastStart, lastEnd)}`;
+}
+
+function excerptDiagnosticLog(logText) {
+    const lines = logText.split(/\r?\n/u);
+    const diagnosticIndexes = lines.flatMap((line, index) => (
+        isDiagnosticLine(line) ? [index] : []
+    ));
+
+    if (diagnosticIndexes.length === 0) {
+        return "";
+    }
+
+    const firstIndex = diagnosticIndexes[0];
+    const lastIndex = diagnosticIndexes[diagnosticIndexes.length - 1];
+    const start = Math.max(0, firstIndex - diagnosticContextLines);
+    const end = Math.min(lines.length, lastIndex + diagnosticContextLines + 1);
+    const excerpt = formatDiagnosticLines(lines.slice(start, end));
+
+    if (excerpt.length <= maxDiagnosticExcerptChars) {
+        return excerpt;
+    }
+
+    const headEnd = Math.min(lines.length, firstIndex + diagnosticContextLines + 1);
+    const tailStart = Math.max(0, lastIndex - diagnosticContextLines);
+    return `${formatDiagnosticLines(lines.slice(start, headEnd))}\n...\n${formatDiagnosticLines(lines.slice(tailStart, end))}`;
+}
+
+function isDiagnosticLine(line) {
+    const strippedLine = stripLogPrefix(line).trim();
+    return fileDiagnosticPattern.test(strippedLine) || genericDiagnosticPattern.test(strippedLine);
+}
+
+function hasBuildFailure(logText) {
+    return /\*\* BUILD FAILED \*\*|Process completed with exit code \d+/iu.test(logText);
+}
+
+function formatDiagnosticLines(lines) {
+    return lines.map((line) => clipDiagnosticLine(stripLogPrefix(line).trimEnd())).join("\n");
+}
+
+function clipDiagnosticLine(line) {
+    if (line.length <= maxDiagnosticLineChars) {
+        return line;
+    }
+    return `${line.slice(0, maxDiagnosticLineChars)}...`;
+}
+
+function stripLogPrefix(line) {
+    return line.replace(actionsLogPrefixPattern, "").replace(ansiPattern, "");
 }
 
 function withErrorLog(result, errorLog) {
@@ -197,7 +262,7 @@ function ghJson(args) {
 
 function ghText(args) {
     try {
-        return execFileSync("gh", args, { encoding: "utf8" });
+        return execFileSync("gh", args, { encoding: "utf8", maxBuffer: maxGhBufferBytes });
     } catch (error) {
         return error.stdout?.toString() ?? error.stderr?.toString() ?? error.message;
     }
