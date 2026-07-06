@@ -568,29 +568,29 @@ fn user_facing_tool_result(
     }
 
     match tool_name {
-        "patch_file" if patched_file_from_result(result_text) == Some("sleep.md") => "Sleep baseline noted. Pick the next specific task from today's plan, then start when ready.".to_string(),
-        "patch_file" if patched_file_from_result(result_text) == Some("miscellaneous_todo.md") => "Captured for later. Do not context-switch now; return to the current session and finish the block.".to_string(),
-        "patch_file" if patched_file_from_result(result_text) == Some("coach_todo.txt") => "Noted for the coaching loop. Stay with the current thread and answer the next concrete question.".to_string(),
-        "patch_file" => "New standard is in. Quick scan: if sleep, recovery, or relationship constraints are active, say so now; otherwise name your current top task and start 10 minutes on it.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("sleep.md") => "Sleep baseline noted. Now pick today's first real task; bedtime trivia does not ship the app.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("miscellaneous_todo.md") => "Parked for later. Do not chase the shiny side quest; finish what is already open.".to_string(),
+        "patch_file" if patched_file_from_result(result_text) == Some("coach_todo.txt") => "I will carry that forward. Stay with the question in front of you.".to_string(),
+        "patch_file" => "New standard is in. Back to the arena: name the current top task and give it 10 clean minutes.".to_string(),
         "start_session" => start_session_reply(tool_arguments, user_message),
-        "extend_session" => "Use the extra time deliberately; the next check-in still counts.".to_string(),
-        "end_session" => "Block finished. Choose the next move now: another focused block, a real break, sleep, or a plan update.".to_string(),
+        "extend_session" => "Extra time granted. Use it like borrowed money: intentionally, with receipts at check-in.".to_string(),
+        "end_session" => "Round finished. Choose the next move now: another focused run, a real break, sleep, or a plan update.".to_string(),
         "start_break" => {
             let duration_minutes = extract_break_duration_minutes(result_text).unwrap_or(15);
             format!(
-                "Break approved for {} minutes. Make it deliberate, then return and choose the next concrete move.",
+                "Break approved: {} minutes. Make it an actual reset, not a tiny vacation with denial.",
                 duration_minutes
             )
         }
-        "start_sleep" => "Sleep starts now. Put the phone away, stop planning, and protect the full window. Tomorrow, report wake time and sleep quality from 1 to 5.".to_string(),
-        "wake_up_alarm" => "Wake plan set. When it fires, check in instead of bargaining.".to_string(),
-        "log_wake" => "You're awake. Name one concrete task, run a 20-minute block, then reassess before adding pressure.".to_string(),
-        "start_vacation" => "Vacation approved. No work today. Before 8pm, write one re-entry line: first 20-minute task and the time you will start tomorrow.".to_string(),
-        "end_vacation" => "Vacation is over. Re-entry is a ramp: check energy, pick one 20-minute block or update the plan, then move.".to_string(),
-        "log_override" => "Override accepted. Own the tradeoff and move deliberately.".to_string(),
-        "memory_search" => "I checked the relevant history. Use the evidence, then choose the next move.".to_string(),
-        "set_routine_categories" => "Routine shape is clear. Now pick the next concrete task and protect the block.".to_string(),
-        _ => "Done.".to_string(),
+        "start_sleep" => "Sleep starts now. Phone down. No last-minute life redesign in the blue-light courtroom.".to_string(),
+        "wake_up_alarm" => "Wake plan set. When it fires, check in before the bargaining committee wakes up.".to_string(),
+        "log_wake" => "You're awake. Pick one concrete task and run 20 minutes before your brain starts negotiating.".to_string(),
+        "start_vacation" => "Vacation approved. Real vacation, not guilt cosplay. Before 8pm, write tomorrow's first 20-minute re-entry task.".to_string(),
+        "end_vacation" => "Vacation is over. Gentle ramp, not heroic montage: choose one 20-minute task and begin.".to_string(),
+        "log_override" => "Override accepted. Own the tradeoff, skip the self-fanfic, and move deliberately.".to_string(),
+        "memory_search" => "I checked the relevant history. Use the evidence; no mythology required. Choose the next move.".to_string(),
+        "set_routine_categories" => "Routine shape is clear. Now protect the next task from schedule soup.".to_string(),
+        _ => "Handled. Next move.".to_string(),
     }
 }
 
@@ -629,12 +629,12 @@ fn start_session_reply(tool_arguments: &str, user_message: &str) -> String {
 
     if minutes > 0 {
         format!(
-            "No more setup. The block is {} for {} minutes; start with the first visible step and move.",
-            task, minutes
+            "Good. {} minutes on {}. Get it in front of you, attack the smallest real piece, and report back before your brain opens twelve tabs.",
+            minutes, task
         )
     } else {
         format!(
-            "No more setup. The block is {}; start with the first visible step and move.",
+            "Good. {} is the target. Get it in front of you, attack the smallest real piece, and report back before your brain opens twelve tabs.",
             task
         )
     }
@@ -2119,8 +2119,10 @@ mod tests {
 
         assert_eq!(
             reply,
-            "No more setup. The block is revamp the whole design with LLMs for 30 minutes; start with the first visible step and move."
+            "Good. 30 minutes on revamp the whole design with LLMs. Get it in front of you, attack the smallest real piece, and report back before your brain opens twelve tabs."
         );
+        assert!(!reply.contains("block"), "{reply}");
+        assert!(!reply.contains("visible step"), "{reply}");
         assert!(!reply.contains("fatigue"), "{reply}");
         assert!(!reply.contains("rearrange"), "{reply}");
     }
@@ -2136,8 +2138,10 @@ mod tests {
 
         assert_eq!(
             reply,
-            "No more setup. The block is fixing the onboarding loop test for 25 minutes; start with the first visible step and move."
+            "Good. 25 minutes on fixing the onboarding loop test. Get it in front of you, attack the smallest real piece, and report back before your brain opens twelve tabs."
         );
+        assert!(!reply.contains("block"), "{reply}");
+        assert!(!reply.contains("visible step"), "{reply}");
     }
 
     #[test]
@@ -2149,8 +2153,10 @@ mod tests {
             r#"{"task_id":"iOS onboarding tests","estimated_minutes":45}"#,
         );
 
-        assert_eq!(reply, "No more setup. The block is iOS onboarding tests for 45 minutes; start with the first visible step and move.");
+        assert_eq!(reply, "Good. 45 minutes on iOS onboarding tests. Get it in front of you, attack the smallest real piece, and report back before your brain opens twelve tabs.");
         assert!(!reply.contains("2 minutes"), "{reply}");
+        assert!(!reply.contains("block"), "{reply}");
+        assert!(!reply.contains("visible step"), "{reply}");
     }
 
     #[test]
