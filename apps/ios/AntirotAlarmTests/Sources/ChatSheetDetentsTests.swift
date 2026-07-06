@@ -10,6 +10,7 @@ final class ChatSheetDetentsTests: XCTestCase {
             ChatSheetDetents.handleHeight(isCollapsed: true),
             ChatSheetDetents.handleHeight(isCollapsed: false)
         )
+        XCTAssertFalse(ChatSheetDetents.collapsedPreviewAcceptsKeyboardInput)
     }
 
     func testUpwardSwipeOpensDirectlyToFull() {

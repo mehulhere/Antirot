@@ -5,6 +5,7 @@ enum ChatSheetDetents {
     static let collapsedHeight: CGFloat = 90
     static let compactHandleHeight: CGFloat = 18
     static let expandedHandleHeight: CGFloat = 44
+    static let collapsedPreviewAcceptsKeyboardInput = false
     static let fullFraction: CGFloat = 0.96
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
@@ -210,20 +211,30 @@ struct GlassSheet: View {
     // MARK: - Collapsed
 
     private func collapsedContent(available: CGFloat) -> some View {
-        HStack(spacing: 12) {
+        let hasDraft = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        return HStack(spacing: 12) {
             micButton(size: 46)
 
-            TextField("Say it or type a command...", text: $draft, axis: .vertical)
-                .focused($isDraftFocused)
-                .lineLimit(1...2)
-                .textInputAutocapitalization(.sentences)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.arTextPrimary)
-                .submitLabel(.send)
-                .onSubmit(onSend)
-                .padding(.horizontal, 2)
+            Button {
+                openSheet(availableHeight: available)
+            } label: {
+                Text(hasDraft ? draft : "Say it or type a command...")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(hasDraft ? .arTextPrimary : .arTextSecondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 2)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-            Button(action: onSend) {
+            Button {
+                openSheet(availableHeight: available)
+                if hasDraft {
+                    onSend()
+                }
+            } label: {
                 Image(systemName: "arrow.up")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.arTextSecondary)
@@ -237,7 +248,7 @@ struct GlassSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture {
-            isDraftFocused = true
+            openSheet(availableHeight: available)
         }
     }
 
@@ -387,6 +398,13 @@ struct GlassSheet: View {
 
     private func dismissDraftKeyboard() {
         isDraftFocused = false
+    }
+
+    private func openSheet(availableHeight: CGFloat) {
+        isDraftFocused = false
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+            height = ChatSheetDetents.fullHeight(availableHeight: availableHeight)
+        }
     }
 }
 
