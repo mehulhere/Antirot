@@ -99,6 +99,7 @@ jobs:
             -scheme Antirot \
             -configuration Release \
             -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -217,6 +218,7 @@ jobs:
             -scheme Antirot \
             -configuration Release \
             -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             -derivedDataPath build/DerivedData \
             -archivePath build/Antirot.xcarchive \
             OTHER_CODE_SIGN_FLAGS="--keychain ${RUNNER_TEMP}/app-signing.keychain-db" \
