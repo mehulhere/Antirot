@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum HomeLayoutMetrics {
+    static let headerTopPadding: CGFloat = 34
+}
+
 // MARK: - Home (Coach Room)
 
 /// The cinematic coach room: a full-screen stylized coach, one dominant
@@ -30,7 +34,7 @@ struct HomeView: View {
                 homeHeader
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.horizontal, 24)
-                    .padding(.top, 86)
+                    .padding(.top, HomeLayoutMetrics.headerTopPadding)
                     .ignoresSafeArea(.keyboard)
 
                 Color.clear

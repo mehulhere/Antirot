@@ -26,6 +26,10 @@ final class CinematicLayoutTests: XCTestCase {
         XCTAssertEqual(CoachStageLayoutMetrics.backgroundAssetName, "AntirotCoachStage")
     }
 
+    func testCoachHeaderDoesNotLeaveLargeTopGap() {
+        XCTAssertLessThanOrEqual(HomeLayoutMetrics.headerTopPadding, 40)
+    }
+
     func testCoachScreenDoesNotShowTopMenuShortcut() {
         XCTAssertFalse(AppChromeMetrics.showsCoachTopMenuShortcut)
     }
