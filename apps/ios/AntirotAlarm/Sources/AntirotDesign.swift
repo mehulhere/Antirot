@@ -1,29 +1,62 @@
 import SwiftUI
 
-// MARK: - Color Palette (Monochrome + Single Accent)
+// MARK: - Warm Smoked-Glass Palette
+
+enum AntirotPaletteValues {
+    static let backgroundRed = 0.082
+    static let backgroundGreen = 0.075
+    static let backgroundBlue = 0.067
+
+    static let deepBackgroundRed = 0.035
+    static let deepBackgroundGreen = 0.031
+    static let deepBackgroundBlue = 0.028
+
+    static let surfaceRed = 0.231
+    static let surfaceGreen = 0.212
+    static let surfaceBlue = 0.200
+
+    static let elevatedRed = 0.318
+    static let elevatedGreen = 0.290
+    static let elevatedBlue = 0.275
+}
 
 extension Color {
-    // Backgrounds — warm near-blacks
-    static let arBg = Color(red: 0.039, green: 0.039, blue: 0.039)                  // #0A0A0A
-    static let arSurface = Color(red: 0.078, green: 0.078, blue: 0.078)              // #141414
-    static let arElevated = Color(red: 0.110, green: 0.110, blue: 0.118)             // #1C1C1E
-    static let arOverlay = Color.black.opacity(0.6)
+    static let arBg = Color(
+        red: AntirotPaletteValues.backgroundRed,
+        green: AntirotPaletteValues.backgroundGreen,
+        blue: AntirotPaletteValues.backgroundBlue
+    )
+    static let arDeepBg = Color(
+        red: AntirotPaletteValues.deepBackgroundRed,
+        green: AntirotPaletteValues.deepBackgroundGreen,
+        blue: AntirotPaletteValues.deepBackgroundBlue
+    )
+    static let arSurface = Color(
+        red: AntirotPaletteValues.surfaceRed,
+        green: AntirotPaletteValues.surfaceGreen,
+        blue: AntirotPaletteValues.surfaceBlue
+    )
+    static let arElevated = Color(
+        red: AntirotPaletteValues.elevatedRed,
+        green: AntirotPaletteValues.elevatedGreen,
+        blue: AntirotPaletteValues.elevatedBlue
+    )
+    static let arGlassTint = Color(red: 0.285, green: 0.257, blue: 0.240)
+    static let arOverlay = Color.black.opacity(0.66)
 
     // Accent — sophisticated muted red
     static let arAccent = Color(red: 0.902, green: 0.224, blue: 0.275)               // #E63946
     static let arAccentDim = Color(red: 0.776, green: 0.157, blue: 0.157)            // #C62828
     static let arAccentSubtle = Color(red: 0.902, green: 0.224, blue: 0.275).opacity(0.12)
-    static let arCyan = Color(red: 0.024, green: 0.714, blue: 0.831)
-    static let arAmber = Color(red: 1.000, green: 0.620, blue: 0.120)
+    static let arCyan = Color(red: 0.275, green: 0.690, blue: 0.741)
+    static let arAmber = Color(red: 0.914, green: 0.604, blue: 0.286)
 
-    // Text — clear hierarchy
-    static let arTextPrimary = Color(red: 0.960, green: 0.960, blue: 0.960)          // #F5F5F5
-    static let arTextSecondary = Color(red: 0.557, green: 0.557, blue: 0.576)        // #8E8E93
-    static let arTextMuted = Color(red: 0.282, green: 0.282, blue: 0.290)            // #48484A
+    static let arTextPrimary = Color(red: 0.961, green: 0.945, blue: 0.925)
+    static let arTextSecondary = Color(red: 0.714, green: 0.678, blue: 0.651)
+    static let arTextMuted = Color(red: 0.486, green: 0.455, blue: 0.435)
 
-    // Borders
-    static let arBorder = Color.white.opacity(0.06)
-    static let arBorderActive = Color.white.opacity(0.12)
+    static let arBorder = Color(red: 0.961, green: 0.925, blue: 0.886).opacity(0.10)
+    static let arBorderActive = Color(red: 1.000, green: 0.965, blue: 0.925).opacity(0.22)
 
     // Semantic (used sparingly, never decoratively)
     static let arSuccess = Color(red: 0.188, green: 0.820, blue: 0.345)              // #30D158
@@ -34,8 +67,10 @@ extension Color {
 // ShapeStyle convenience
 extension ShapeStyle where Self == Color {
     static var arBg: Color { .arBg }
+    static var arDeepBg: Color { .arDeepBg }
     static var arSurface: Color { .arSurface }
     static var arElevated: Color { .arElevated }
+    static var arGlassTint: Color { .arGlassTint }
     static var arAccent: Color { .arAccent }
     static var arAccentDim: Color { .arAccentDim }
     static var arTextPrimary: Color { .arTextPrimary }
@@ -120,18 +155,7 @@ struct MinimalCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.035))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
-            )
+            .smokedGlass(cornerRadius: cornerRadius, shadow: false)
     }
 }
 
@@ -191,11 +215,11 @@ struct StatePill: View {
 // MARK: - Cinematic App System
 
 enum AntirotCinematicMetrics {
-    static let cardRadius: CGFloat = 16
-    static let pillRadius: CGFloat = 24
+    static let cardRadius: CGFloat = 22
+    static let pillRadius: CGFloat = 28
     static let screenHorizontalPadding: CGFloat = 20
-    static let screenTopPadding: CGFloat = 86
-    static let bottomContentPadding: CGFloat = 118
+    static let screenTopPadding: CGFloat = 64
+    static let bottomContentPadding: CGFloat = 126
 }
 
 struct CinematicBackdrop: View {
@@ -203,25 +227,25 @@ struct CinematicBackdrop: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.006, green: 0.008, blue: 0.010),
-                    Color(red: 0.018, green: 0.022, blue: 0.027),
+                    .arDeepBg,
+                    Color(red: 0.105, green: 0.093, blue: 0.082),
                     Color.arBg
                 ],
-                startPoint: .top,
-                endPoint: .bottom
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
 
-            Circle()
-                .fill(Color.arAccent.opacity(0.10))
-                .frame(width: 220, height: 220)
-                .blur(radius: 86)
-                .offset(x: -160, y: -240)
+            Ellipse()
+                .fill(Color(red: 0.576, green: 0.431, blue: 0.333).opacity(0.18))
+                .frame(width: 340, height: 260)
+                .blur(radius: 98)
+                .offset(x: 150, y: -250)
 
             Circle()
-                .fill(Color.arCyan.opacity(0.045))
-                .frame(width: 210, height: 210)
-                .blur(radius: 78)
-                .offset(x: 170, y: -120)
+                .fill(Color.arAccent.opacity(0.07))
+                .frame(width: 250, height: 250)
+                .blur(radius: 100)
+                .offset(x: -170, y: 250)
         }
         .ignoresSafeArea()
     }
@@ -256,7 +280,7 @@ struct CinematicHeader: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 29, weight: .bold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
                 Text(subtitle)
                     .font(.subheadline.weight(.medium))
@@ -271,11 +295,12 @@ struct CinematicHeader: View {
                 .foregroundStyle(icon == "waveform.path.ecg" ? .arAccent : .arTextSecondary)
                 .frame(width: 42, height: 42)
                 .background(
-                    Circle()
-                        .fill(Color.white.opacity(0.055))
+                    Circle().fill(Color.white.opacity(0.07))
                 )
-                .overlay(Circle().stroke(Color.white.opacity(0.07), lineWidth: 0.6))
+                .overlay(Circle().stroke(Color.arBorderActive, lineWidth: 0.6))
         }
+        .padding(16)
+        .smokedGlass(cornerRadius: 26, shadow: false)
     }
 }
 
@@ -287,10 +312,6 @@ struct CinematicGlassCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .background(
-                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .fill(Color(red: 0.070, green: 0.080, blue: 0.095).opacity(0.86))
-            )
             .overlay(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
                     .fill(
@@ -302,12 +323,7 @@ struct CinematicGlassCard<Content: View>: View {
                     )
                     .allowsHitTesting(false)
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.7)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.28), radius: 12, y: 8)
+            .smokedGlass(cornerRadius: AntirotCinematicMetrics.cardRadius)
     }
 }
 
@@ -569,6 +585,72 @@ struct FocusDial: View {
 
 // MARK: - Liquid Glass
 
+struct SmokedGlassModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    var cornerRadius: CGFloat
+    var tint: Color
+    var castsShadow: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let borderOpacity = colorSchemeContrast == .increased ? 0.34 : 0.18
+
+        content
+            .background {
+                if reduceTransparency {
+                    shape.fill(Color.arSurface)
+                } else {
+                    shape.fill(.ultraThinMaterial)
+                }
+            }
+            .background(shape.fill(tint.opacity(reduceTransparency ? 0.72 : 0.48)))
+            .overlay {
+                shape.stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(borderOpacity),
+                            Color.white.opacity(0.035),
+                            Color.black.opacity(0.16)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: colorSchemeContrast == .increased ? 0.9 : 0.65
+                )
+                .allowsHitTesting(false)
+            }
+            .overlay(alignment: .top) {
+                shape
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.09), .clear],
+                            startPoint: .top,
+                            endPoint: .center
+                        )
+                    )
+                    .allowsHitTesting(false)
+            }
+            .clipShape(shape)
+            .shadow(
+                color: castsShadow ? Color.black.opacity(0.32) : .clear,
+                radius: castsShadow ? 22 : 0,
+                y: castsShadow ? 12 : 0
+            )
+    }
+}
+
+extension View {
+    func smokedGlass(
+        cornerRadius: CGFloat = AntirotCinematicMetrics.cardRadius,
+        tint: Color = .arGlassTint,
+        shadow: Bool = true
+    ) -> some View {
+        modifier(SmokedGlassModifier(cornerRadius: cornerRadius, tint: tint, castsShadow: shadow))
+    }
+}
+
 /// Translucent glass surface in the spirit of the iOS "Liquid Glass" language:
 /// strong background blur, a hairline specular border, and a soft top sheen.
 /// Built on `.ultraThinMaterial` so it works on the iOS 17 deployment target
@@ -586,13 +668,13 @@ struct LiquidGlassModifier: ViewModifier {
             )
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.24))
+                    .fill(Color.arGlassTint.opacity(0.42))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.24), Color.white.opacity(0.05)],
+                            colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
