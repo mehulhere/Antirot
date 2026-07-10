@@ -17,6 +17,7 @@ struct MemorySnapshotsView: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
+                    CinematicKicker(title: "Developer tool", icon: "archivebox", tint: .arAccent)
                     Text("Memory Snapshots")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.arTextPrimary)
@@ -55,7 +56,7 @@ struct MemorySnapshotsView: View {
                             .font(.subheadline)
                             .foregroundStyle(.arTextMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .minimalCard(cornerRadius: 12, padding: 14)
+                            .minimalCard(cornerRadius: 20, padding: 14)
                     } else {
                         ForEach(snapshots) { snapshot in
                             snapshotCard(snapshot)
@@ -65,7 +66,7 @@ struct MemorySnapshotsView: View {
             }
             .padding(20)
         }
-        .background(Color.arBg.ignoresSafeArea())
+        .background(CinematicBackdrop())
         .navigationTitle("Snapshots")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -132,7 +133,7 @@ struct MemorySnapshotsView: View {
                 .disabled(isLoading || restoringSnapshotId != nil)
             }
         }
-        .minimalCard(cornerRadius: 12, padding: 14)
+        .minimalCard(cornerRadius: 20, padding: 14)
     }
 
     private func snapshotSubtitle(_ snapshot: MemorySnapshotSummary) -> String {

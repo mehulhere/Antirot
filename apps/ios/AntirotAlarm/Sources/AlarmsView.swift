@@ -8,7 +8,7 @@ struct AlarmsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            AntirotSectionHeader(title: "Alarms", icon: "bell")
+            CinematicKicker(title: "Alarms", icon: "bell", tint: .arAmber)
 
             // Upcoming alarms
             if alarmCenter.scheduledAlarms.isEmpty {
@@ -16,7 +16,8 @@ struct AlarmsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.arTextMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
+                    .padding(14)
+                    .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(alarmCenter.scheduledAlarms.enumerated()), id: \.element.id) { index, alarm in
@@ -28,7 +29,7 @@ struct AlarmsView: View {
                         }
                     }
                 }
-                .minimalCard(cornerRadius: 12, padding: 0)
+                .minimalCard(cornerRadius: 20, padding: 0)
             }
 
             // Sound config — single row
@@ -39,6 +40,7 @@ struct AlarmsView: View {
                     Image(systemName: "speaker.wave.2")
                         .font(.subheadline)
                         .foregroundStyle(.arTextSecondary)
+                        .frame(width: 30)
                     Text("Alarm Sound")
                         .font(.subheadline)
                         .foregroundStyle(.arTextPrimary)
@@ -51,10 +53,10 @@ struct AlarmsView: View {
                         .foregroundStyle(.arTextMuted)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .frame(minHeight: 50)
             }
             .buttonStyle(.plain)
-            .minimalCard(cornerRadius: 12, padding: 0)
+            .minimalCard(cornerRadius: 20, padding: 0)
 
             // Test alarm — single row
             Button {
@@ -64,6 +66,7 @@ struct AlarmsView: View {
                     Image(systemName: "waveform")
                         .font(.subheadline)
                         .foregroundStyle(.arTextSecondary)
+                        .frame(width: 30)
                     Text("Test Alarm")
                         .font(.subheadline)
                         .foregroundStyle(.arTextPrimary)
@@ -73,10 +76,10 @@ struct AlarmsView: View {
                         .foregroundStyle(.arTextMuted)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .frame(minHeight: 50)
             }
             .buttonStyle(.plain)
-            .minimalCard(cornerRadius: 12, padding: 0)
+            .minimalCard(cornerRadius: 20, padding: 0)
         }
         .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
             switch result {

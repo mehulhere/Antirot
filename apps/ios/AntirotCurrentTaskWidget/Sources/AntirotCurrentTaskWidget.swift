@@ -38,9 +38,9 @@ struct CurrentTaskWidgetView: View {
         case "working", "routine":
             return Color(red: 0.902, green: 0.224, blue: 0.275) // accent red
         case "idle":
-            return Color(red: 0.282, green: 0.282, blue: 0.290) // muted gray
+            return Color(red: 0.486, green: 0.455, blue: 0.435) // warm muted stone
         default:
-            return Color(red: 1.000, green: 0.839, blue: 0.039) // warning yellow
+            return Color(red: 0.914, green: 0.604, blue: 0.286) // warm amber
         }
     }
 
@@ -59,18 +59,18 @@ struct CurrentTaskWidgetView: View {
 
                 Text(entry.snapshot.updatedAt, style: .time)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Color(red: 0.714, green: 0.678, blue: 0.651))
             }
 
             Text(entry.snapshot.title)
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color(red: 0.961, green: 0.945, blue: 0.925))
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
 
             Text(entry.snapshot.subtitle)
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(Color(red: 0.714, green: 0.678, blue: 0.651))
                 .lineLimit(2)
 
             Spacer(minLength: 0)
@@ -86,10 +86,17 @@ struct CurrentTaskWidgetView: View {
             }
         }
         .containerBackground(for: .widget) {
-            Color(red: 0.039, green: 0.039, blue: 0.039)
+            LinearGradient(
+                colors: [
+                    Color(red: 0.105, green: 0.093, blue: 0.082),
+                    Color(red: 0.035, green: 0.031, blue: 0.028)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
                 .overlay(
                     LinearGradient(
-                        colors: [modeColor.opacity(0.08), .clear],
+                        colors: [Color.white.opacity(0.08), modeColor.opacity(0.10), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

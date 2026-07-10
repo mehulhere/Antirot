@@ -13,7 +13,7 @@ struct PlanView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            AntirotSectionHeader(title: "Plan", icon: "list.bullet")
+            CinematicKicker(title: "Plan", icon: "list.bullet", tint: .arAccent)
 
             // State actions
             if !visibleStateActions.isEmpty {
@@ -22,11 +22,11 @@ struct PlanView: View {
                         actionRow(action)
                     }
                 }
-                .minimalCard(cornerRadius: 12, padding: 0)
+                .minimalCard(cornerRadius: 20, padding: 0)
             }
 
             if !routineItems.isEmpty {
-                AntirotSectionHeader(title: "Routine")
+                CinematicKicker(title: "Routine", icon: "repeat", tint: .arAmber)
 
                 VStack(spacing: 0) {
                     ForEach(Array(routineItems.enumerated()), id: \.offset) { index, item in
@@ -57,7 +57,7 @@ struct PlanView: View {
                         }
                     }
                 }
-                .minimalCard(cornerRadius: 12, padding: 0)
+                .minimalCard(cornerRadius: 20, padding: 0)
             }
 
             // Review
@@ -81,13 +81,13 @@ struct PlanView: View {
             }
             .buttonStyle(.plain)
             .disabled(isReviewing)
-            .minimalCard(cornerRadius: 12, padding: 0)
+            .minimalCard(cornerRadius: 20, padding: 0)
 
             if !reviewText.isEmpty {
                 Text(reviewText)
                     .font(.subheadline)
                     .foregroundStyle(.arTextSecondary)
-                    .minimalCard(cornerRadius: 12, padding: 14)
+                    .minimalCard(cornerRadius: 20, padding: 14)
             }
         }
         .task {

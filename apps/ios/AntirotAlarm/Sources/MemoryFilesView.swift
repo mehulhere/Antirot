@@ -29,8 +29,13 @@ struct MemoryFilesView: View {
                                 .padding(.vertical, 8)
                                 .background(
                                     Capsule(style: .continuous)
-                                        .fill(selectedKey == key ? Color.arAccent : Color.arElevated)
+                                        .fill(
+                                            selectedKey == key
+                                                ? Color.arAccent.opacity(0.82)
+                                                : Color.arElevated.opacity(0.58)
+                                        )
                                 )
+                                .overlay(Capsule().stroke(Color.arBorder, lineWidth: 0.5))
                         }
                         .buttonStyle(.plain)
                     }
@@ -52,7 +57,8 @@ struct MemoryFilesView: View {
                     Task { await loadSelectedFile() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.white.opacity(0.07)))
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
@@ -62,7 +68,8 @@ struct MemoryFilesView: View {
                     statusText = "Copied \(selectedKey).md"
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.white.opacity(0.07)))
                 }
                 .buttonStyle(.plain)
             }
@@ -76,16 +83,11 @@ struct MemoryFilesView: View {
                     .textSelection(.enabled)
                     .padding(14)
             }
-            .background(Color.black.opacity(0.18))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
+            .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
             .padding(.horizontal, 20)
         }
         .padding(.vertical, 18)
-        .background(Color.arBg.ignoresSafeArea())
+        .background(CinematicBackdrop())
         .navigationTitle("Markdown Files")
         .navigationBarTitleDisplayMode(.inline)
         .task {

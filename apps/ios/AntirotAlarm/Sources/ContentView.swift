@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -12,7 +13,7 @@ struct ContentView: View {
                 LoginView()
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: settings.registered)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: settings.registered)
     }
 }
 

@@ -3,70 +3,90 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var appeared = false
     @State private var showFullError = false
 
     var body: some View {
         ZStack {
-            Color.arBg.ignoresSafeArea()
+            CinematicBackdrop()
 
-            VStack(spacing: 0) {
+            Circle()
+                .fill(Color.arAccent.opacity(0.08))
+                .frame(width: 260, height: 260)
+                .blur(radius: 100)
+                .offset(x: -150, y: 300)
+
+            VStack(spacing: 24) {
                 Spacer()
 
-                // Wordmark
-                HStack(spacing: 0) {
-                    Text("Anti")
-                        .foregroundStyle(.arTextPrimary)
-                    Text("rot")
-                        .foregroundStyle(.arAccent)
-                }
-                .font(.system(size: 38, weight: .bold, design: .rounded))
-                .tracking(2)
+                VStack(spacing: 18) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 58, height: 58)
+                        .background(Circle().fill(LinearGradient.antirotAccent))
+                        .shadow(color: Color.arAccent.opacity(0.30), radius: 22, y: 8)
 
-                Spacer().frame(height: 12)
+                    HStack(spacing: 0) {
+                        Text("Anti")
+                            .foregroundStyle(.arTextPrimary)
+                        Text("rot")
+                            .foregroundStyle(.arAccent)
+                    }
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .tracking(2)
 
-                // Tagline
-                Text("Behavioral operating system")
-                    .font(.caption)
-                    .foregroundStyle(.arTextMuted)
+                    VStack(spacing: 5) {
+                        Text("BEHAVIORAL OPERATING SYSTEM")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.25)
+                            .foregroundStyle(.arTextSecondary)
+                        Text("Standards up. Drift down.")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.arTextPrimary)
+                    }
 
-                Spacer().frame(height: 40)
+                    SectionDivider()
 
-                // Sign-in button
-                Button {
-                    Task { await signInWithGoogle() }
-                } label: {
-                    Text("Continue with Google")
-                }
-                .buttonStyle(AntirotAccentButtonStyle(fullWidth: true))
+                    Button {
+                        Task { await signInWithGoogle() }
+                    } label: {
+                        Label("Continue with Google", systemImage: "arrow.right")
+                    }
+                    .buttonStyle(AntirotAccentButtonStyle(fullWidth: true))
 
-                Spacer().frame(height: 20)
-
-                // Status message
-                if !alarmCenter.lastMessage.isEmpty {
-                    Text(alarmCenter.lastMessage)
-                        .font(.footnote)
+                    Text("Your coach state stays synced to your Antirot account.")
+                        .font(.caption)
                         .foregroundStyle(.arTextMuted)
                         .multilineTextAlignment(.center)
-                        .transition(.opacity)
-                }
 
-                // Error details button
-                if alarmCenter.lastErrorDetails != nil {
-                    Button("Show full error") {
-                        showFullError = true
+                    if !alarmCenter.lastMessage.isEmpty {
+                        Text(alarmCenter.lastMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.arTextSecondary)
+                            .multilineTextAlignment(.center)
+                            .transition(.opacity)
                     }
-                    .buttonStyle(AntirotGhostButtonStyle())
-                    .padding(.top, 10)
-                    .transition(.opacity)
+
+                    if alarmCenter.lastErrorDetails != nil {
+                        Button("Show full error") {
+                            showFullError = true
+                        }
+                        .buttonStyle(AntirotGhostButtonStyle())
+                        .transition(.opacity)
+                    }
                 }
+                .padding(24)
+                .smokedGlass(cornerRadius: 30, tint: .arSurface)
 
                 Spacer()
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 20)
             .opacity(appeared ? 1 : 0)
-            .animation(.easeOut(duration: 0.5), value: appeared)
+            .offset(y: appeared || reduceMotion ? 0 : 12)
+            .animation(reduceMotion ? .easeOut(duration: 0.1) : .easeOut(duration: 0.5), value: appeared)
         }
         .alert("Full Error", isPresented: $showFullError) {
             Button("OK", role: .cancel) {}
