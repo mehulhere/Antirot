@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+enum ChatSheetMetrics {
+    static let minimumControlSize: CGFloat = 44
+    static let collapsedCornerRadius: CGFloat = 24
+    static let expandedCornerRadius: CGFloat = 30
+}
+
 enum ChatSheetDetents {
     static let collapsedHeight: CGFloat = 90
     static let compactHandleHeight: CGFloat = 18
@@ -104,6 +110,7 @@ struct GlassSheet: View {
     @State private var isHandleDragging = false
     @State private var handleDragBeganCollapsed = false
     @FocusState private var isDraftFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { proxy in
@@ -138,6 +145,10 @@ struct GlassSheet: View {
 
     @ViewBuilder
     private func sheetContent(full: CGFloat, showCollapsedContent: Bool) -> some View {
+        let cornerRadius = showCollapsedContent
+            ? ChatSheetMetrics.collapsedCornerRadius
+            : ChatSheetMetrics.expandedCornerRadius
+
         VStack(spacing: 0) {
             dragHandle(
                 full: full,
@@ -152,17 +163,8 @@ struct GlassSheet: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .contentShape(RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous))
-        .background(
-            RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous)
-                .fill(Color(red: 0.070, green: 0.078, blue: 0.090).opacity(0.94))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 0.7)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: showCollapsedContent ? 22 : 28, style: .continuous))
-        .shadow(color: .black.opacity(0.42), radius: 18, y: -6)
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .smokedGlass(cornerRadius: cornerRadius, tint: .arSurface)
     }
 
     private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
@@ -192,7 +194,7 @@ struct GlassSheet: View {
                 },
                 onEnded: { nextHeight in
                     isHandleDragging = false
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                    withAnimation(resolvedAnimation) {
                         height = nextHeight
                     }
                 },
@@ -238,7 +240,10 @@ struct GlassSheet: View {
                 Image(systemName: "arrow.up")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.arTextSecondary)
-                    .frame(width: 38, height: 38)
+                    .frame(
+                        width: ChatSheetMetrics.minimumControlSize,
+                        height: ChatSheetMetrics.minimumControlSize
+                    )
                     .background(Circle().fill(Color.white.opacity(0.06)))
             }
             .buttonStyle(.plain)
@@ -265,9 +270,7 @@ struct GlassSheet: View {
 
     private var expandedHeader: some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(Color.white.opacity(0.36))
-                .frame(width: 7, height: 7)
+            StatusDot(color: .arSuccess, animated: !reduceMotion)
 
             Text(statusText)
                 .font(.system(size: 13, weight: .semibold))
@@ -344,7 +347,7 @@ struct GlassSheet: View {
                 .padding(.vertical, 11)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.black.opacity(0.22))
+                        .fill(Color.arDeepBg.opacity(0.58))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -361,7 +364,10 @@ struct GlassSheet: View {
                     Image(systemName: "arrow.up")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
+                        .frame(
+                            width: ChatSheetMetrics.minimumControlSize,
+                            height: ChatSheetMetrics.minimumControlSize
+                        )
                         .background(Circle().fill(Color.arAccent))
                 }
                 .buttonStyle(.plain)
@@ -372,7 +378,7 @@ struct GlassSheet: View {
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .padding(.bottom, 14)
-        .animation(.spring(duration: 0.3), value: hasDraft)
+        .animation(resolvedAnimation, value: hasDraft)
         .contentShape(Rectangle())
     }
 
@@ -387,9 +393,11 @@ struct GlassSheet: View {
                     Circle()
                         .fill(isRecording ? Color.arDanger : Color.arAccent)
                 )
-                .scaleEffect(isRecording ? 1.06 : 1.0)
+                .scaleEffect(isRecording && !reduceMotion ? 1.06 : 1.0)
                 .animation(
-                    isRecording ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
+                    isRecording && !reduceMotion
+                        ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                        : .easeOut(duration: 0.12),
                     value: isRecording
                 )
         }
@@ -402,9 +410,13 @@ struct GlassSheet: View {
 
     private func openSheet(availableHeight: CGFloat) {
         isDraftFocused = false
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+        withAnimation(resolvedAnimation) {
             height = ChatSheetDetents.fullHeight(availableHeight: availableHeight)
         }
+    }
+
+    private var resolvedAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.24, dampingFraction: 0.86)
     }
 }
 
@@ -558,7 +570,11 @@ private struct GlassChatRow: View {
             .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isUser ? Color.arAccent.opacity(0.20) : Color.white.opacity(0.08))
+                    .fill(isUser ? Color.arAccent.opacity(0.20) : Color.arElevated.opacity(0.58))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isUser ? Color.arAccent.opacity(0.18) : Color.arBorder, lineWidth: 0.5)
             )
 
             if !isUser { Spacer(minLength: 48) }

@@ -2,10 +2,8 @@ import SwiftUI
 
 // MARK: - Primary Action Button
 
-/// One large, circular, thumb-friendly action. Designed to feel physical and
-/// important: an accent gradient fill, a specular highlight, a double shadow
-/// for depth, and a springy press. The title sits as a quiet caption beneath
-/// the circle so the icon stays the hero.
+/// The dominant state action: a substantial smoked-glass control with a
+/// decisive red core, clear label, and restrained physical depth.
 struct PrimaryActionButton: View {
     let title: String
     let systemImage: String
@@ -14,7 +12,7 @@ struct PrimaryActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 11) {
+            HStack(spacing: 14) {
                 ZStack {
                     Circle()
                         .fill(LinearGradient.antirotAccent)
@@ -22,7 +20,6 @@ struct PrimaryActionButton: View {
                     Circle()
                         .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
 
-                                        // Specular highlight — reads as glassy/metallic, not flat.
                     Circle()
                         .fill(
                             LinearGradient(
@@ -37,18 +34,40 @@ struct PrimaryActionButton: View {
                             .tint(.white)
                     } else {
                         Image(systemName: systemImage)
-                            .font(.system(size: 30, weight: .semibold))
+                            .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
-                .frame(width: 88, height: 88)
-                .shadow(color: Color.arAccent.opacity(0.42), radius: 28, y: 12)
-                .shadow(color: .black.opacity(0.40), radius: 16, y: 8)
+                .frame(width: 54, height: 54)
+                .shadow(color: Color.arAccent.opacity(0.34), radius: 18, y: 8)
 
-                Text(title)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("NEXT MOVE")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.25)
+                        .foregroundStyle(.arTextSecondary)
+                    Text(title)
+                        .font(.system(size: 21, weight: .bold, design: .rounded))
+                        .foregroundStyle(.arTextPrimary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.arTextPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
             }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 74)
+            .background(Color.arAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .smokedGlass(cornerRadius: 26, tint: .arSurface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(Color.arAccent.opacity(0.22), lineWidth: 0.7)
+            )
         }
         .buttonStyle(PrimaryActionButtonStyle())
         .disabled(isBusy)
@@ -56,10 +75,15 @@ struct PrimaryActionButton: View {
 }
 
 private struct PrimaryActionButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.975 : 1.0)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.28, dampingFraction: 0.72),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -81,11 +105,9 @@ struct SecondaryActionButton: View {
                     .font(.caption.weight(.semibold))
             }
             .foregroundStyle(.arTextSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-            .background(Color.white.opacity(0.045), in: Capsule(style: .continuous))
-            .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.6))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .smokedGlass(cornerRadius: 22, tint: .arSurface, shadow: false)
         }
         .buttonStyle(.plain)
     }

@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum HomeLayoutMetrics {
-    static let headerTopPadding: CGFloat = 34
+    static let headerTopPadding: CGFloat = 24
 }
 
 // MARK: - Home (Coach Room)
@@ -15,6 +15,7 @@ struct HomeView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var onboardingName = ""
     @State private var showNamePrompt = false
@@ -34,7 +35,7 @@ struct HomeView: View {
 
                 homeHeader
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 20)
                     .padding(.top, HomeLayoutMetrics.headerTopPadding)
                     .ignoresSafeArea(.keyboard)
 
@@ -45,7 +46,7 @@ struct HomeView: View {
 
                 actionStack
                     .padding(.bottom, min(sheetHeight, actionClearance) + chatBottomClearance + 22)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(.keyboard)
 
@@ -90,33 +91,35 @@ struct HomeView: View {
 
 private extension HomeView {
     var homeHeader: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Coach")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
-                Text("Backed by Antirot.")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.arTextSecondary)
+                HStack(spacing: 7) {
+                    StatusDot(color: .arSuccess, animated: !reduceMotion)
+                    Text("Antirot connected")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.arTextSecondary)
+                }
             }
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.arSuccess)
-                    .frame(width: 8, height: 8)
-                Text("Backend connected")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.arTextSecondary)
-            }
+            Spacer(minLength: 8)
+
+            StatePill(
+                label: runtimeStateLabel,
+                isActive: coach.runtimeState.lowercased() != "unknown"
+            )
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .smokedGlass(cornerRadius: 26, tint: .arSurface)
     }
 
     var actionStack: some View {
         let set = CoachStateActions.actions(for: coach.runtimeState)
         return VStack(spacing: 14) {
             Spacer()
-            StatePill(label: runtimeStateLabel, isActive: coach.runtimeState.lowercased() != "unknown")
-                .padding(.bottom, 2)
             if !set.secondary.isEmpty {
                 HStack(spacing: 10) {
                     ForEach(set.secondary) { button in
@@ -232,7 +235,7 @@ private extension HomeView {
     }
 
     func openChat(availableHeight: CGFloat) {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.22, dampingFraction: 0.86)) {
             sheetHeight = ChatSheetDetents.nextExpandedHeight(
                 from: sheetHeight,
                 availableHeight: availableHeight
