@@ -3,6 +3,7 @@ import SwiftUI
 struct StatsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var coach: CoachViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var stats: StatsResponse?
     @State private var statusText = "Loading stats..."
@@ -24,8 +25,7 @@ struct StatsView: View {
             if let stats {
                 periodPicker
                 focusCard(period)
-                statStatusCard(title: "Check-ins", value: "\(period.tasksDone) / \(max(period.tasksDone, 2))", subtitle: "Completed today", icon: "checkmark", tint: .arSuccess)
-                statStatusCard(title: "Streak", value: "\(max(period.tasksDone + 10, 12)) days", subtitle: "Keep it going.", icon: "flame.fill", tint: .arAmber)
+                metricGrid(period)
                 settingsRows
 
                 CinematicGlassCard(padding: 0, accent: .arAccent) {
@@ -96,7 +96,7 @@ struct StatsView: View {
         HStack(spacing: 4) {
             ForEach(StatsScope.allCases, id: \.self) { scope in
                 Button {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.22, dampingFraction: 0.86)) {
                         selectedPeriod = scope
                     }
                 } label: {
@@ -107,25 +107,41 @@ struct StatsView: View {
                         .padding(.vertical, 12)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(selectedPeriod == scope ? Color.arAccent.opacity(0.28) : Color.clear)
+                                .fill(selectedPeriod == scope ? Color.white.opacity(0.10) : Color.clear)
                         )
+                        .overlay(alignment: .bottom) {
+                            Capsule(style: .continuous)
+                                .fill(selectedPeriod == scope ? Color.arAccent : Color.clear)
+                                .frame(width: 18, height: 2)
+                                .padding(.bottom, 4)
+                        }
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(5)
-        .background(Color.black.opacity(0.38), in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 0.7))
+        .smokedGlass(cornerRadius: AntirotCinematicMetrics.pillRadius, tint: .arSurface, shadow: false)
     }
 
     private func focusCard(_ today: StatsPeriodResponse) -> some View {
         CinematicGlassCard(padding: 18, accent: .arAccent) {
             VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Label("PERFORMANCE", systemImage: "scope")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.1)
+                        .foregroundStyle(.arAccent)
+                    Spacer()
+                    Text(statusText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.arTextMuted)
+                }
                 HStack(alignment: .center, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Focus Time")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.arTextPrimary)
+                        Text("FOCUS TIME")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.0)
+                            .foregroundStyle(.arTextSecondary)
                         Text(formatMinutes(today.workMinutes))
                             .font(.system(size: 32, weight: .regular, design: .rounded))
                             .foregroundStyle(.arTextPrimary)
@@ -155,27 +171,20 @@ struct StatsView: View {
         }
     }
 
-    private func statStatusCard(title: String, value: String, subtitle: String, icon: String, tint: Color) -> some View {
-        CinematicGlassCard(padding: 18, accent: tint) {
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(title)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
-                    Text(value)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(.arTextPrimary)
-                    Text(subtitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.arTextSecondary)
-                }
-
-                Spacer()
-
-                Image(systemName: icon)
-                    .font(.system(size: 42, weight: .bold))
-                    .foregroundStyle(tint)
-            }
+    private func metricGrid(_ period: StatsPeriodResponse) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            CinematicMetricTile(
+                title: "Completed",
+                value: "\(period.tasksDone)",
+                icon: "checkmark",
+                tint: .arSuccess
+            )
+            CinematicMetricTile(
+                title: "Current streak",
+                value: "\(max(period.tasksDone + 10, 12))d",
+                icon: "flame.fill",
+                tint: .arAmber
+            )
         }
     }
 
@@ -212,10 +221,19 @@ struct StatsView: View {
         let values: [CGFloat] = [0.48, 0.62, 0.80, 0.84, goalRatio(today), 0.76, 0.62]
 
         return VStack(spacing: 8) {
-            HStack(alignment: .bottom, spacing: 14) {
+            HStack(alignment: .bottom, spacing: 12) {
                 ForEach(Array(values.enumerated()), id: \.offset) { _, value in
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.arAccent.opacity(0.40 + Double(value) * 0.55))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.arAccent.opacity(0.42 + Double(value) * 0.36),
+                                    Color(red: 0.735, green: 0.518, blue: 0.388).opacity(0.58)
+                                ],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
                         .frame(maxWidth: .infinity)
                         .frame(height: 88 * value)
                 }

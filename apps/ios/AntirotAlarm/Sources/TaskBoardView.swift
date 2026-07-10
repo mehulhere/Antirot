@@ -4,6 +4,7 @@ import SwiftUI
 struct TaskBoardView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var coach: CoachViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var liveTasks: [TaskBoardItem] = []
     @State private var pendingTasks: [TaskBoardItem] = []
@@ -23,6 +24,8 @@ struct TaskBoardView: View {
             icon: "line.3.horizontal.decrease"
         ) {
             taskScopePicker
+            taskOverviewStrip
+            priorityTaskCard
             taskListCard
             taskSummaryCard
             quoteCard
@@ -42,7 +45,7 @@ struct TaskBoardView: View {
         HStack(spacing: 4) {
             ForEach(TaskScope.allCases, id: \.self) { scope in
                 Button {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.22, dampingFraction: 0.86)) {
                         selectedScope = scope
                     }
                 } label: {
@@ -53,41 +56,127 @@ struct TaskBoardView: View {
                         .padding(.vertical, 12)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(selectedScope == scope ? Color.arAccent.opacity(0.28) : Color.clear)
+                                .fill(selectedScope == scope ? Color.white.opacity(0.10) : Color.clear)
                         )
+                        .overlay(alignment: .bottom) {
+                            Capsule(style: .continuous)
+                                .fill(selectedScope == scope ? Color.arAccent : Color.clear)
+                                .frame(width: 18, height: 2)
+                                .padding(.bottom, 4)
+                        }
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(5)
-        .background(Color.black.opacity(0.38), in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 0.7))
+        .smokedGlass(cornerRadius: AntirotCinematicMetrics.pillRadius, tint: .arSurface, shadow: false)
+    }
+
+    private var taskOverviewStrip: some View {
+        HStack(spacing: 0) {
+            taskOverviewMetric(value: "\(liveTasks.count)", label: "Active", tint: .arAccent)
+            overviewDivider
+            taskOverviewMetric(value: "\(pendingTasks.count)", label: "Queued", tint: .arAmber)
+            overviewDivider
+            taskOverviewMetric(value: "\(doneTasks.count)", label: "Done", tint: .arSuccess)
+        }
+        .padding(.vertical, 12)
+        .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
+    }
+
+    private func taskOverviewMetric(value: String, label: String, tint: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(tint)
+            Text(label.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(.arTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var overviewDivider: some View {
+        Rectangle()
+            .fill(Color.arBorder)
+            .frame(width: 0.5, height: 34)
+    }
+
+    @ViewBuilder
+    private var priorityTaskCard: some View {
+        if let item = scopedItems.first {
+            CinematicGlassCard(padding: 18, accent: item.tint) {
+                VStack(alignment: .leading, spacing: 14) {
+                    CinematicKicker(
+                        title: item.status == .live ? "In progress" : "Next priority",
+                        icon: item.systemImage,
+                        tint: item.tint
+                    )
+
+                    Text(item.title)
+                        .font(.system(size: 23, weight: .bold, design: .rounded))
+                        .foregroundStyle(.arTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let detail = item.detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundStyle(.arTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack {
+                        Label(durationText(for: item), systemImage: "timer")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.arTextSecondary)
+                        Spacer()
+                        Text(item.status == .live ? "Stay on it" : "Ready when you are")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(item.tint)
+                    }
+                }
+            }
+        }
     }
 
     private var taskListCard: some View {
-        let items = scopedItems
+        let items = Array(scopedItems.dropFirst())
         return CinematicGlassCard(padding: 0, accent: .arAccent) {
             VStack(spacing: 0) {
                 HStack {
-                    Text(dayTitle)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("QUEUE")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.1)
+                            .foregroundStyle(.arTextMuted)
+                        Text(dayTitle)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.arTextPrimary)
+                    }
                     Spacer()
-                    Text("\(focusMinutesText) Focus")
+                    Text("\(items.count) remaining")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.arAccent)
+                        .foregroundStyle(.arTextSecondary)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
 
-                if items.isEmpty {
+                if scopedItems.isEmpty {
                     Text(emptyText)
                         .font(.subheadline)
                         .foregroundStyle(.arTextMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 18)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
+                } else if items.isEmpty {
+                    Text("No other tasks behind the current priority.")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.arTextMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
                 } else {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         referenceTaskRow(item)
@@ -135,21 +224,15 @@ struct TaskBoardView: View {
 
     private var quoteCard: some View {
         CinematicGlassCard(padding: 16, accent: .arAccent) {
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Discipline is the bridge between goals and results.")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.arTextPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("- Antirot")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.arTextSecondary)
-                }
-                Spacer()
-                Image("AntirotCoach")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 84, height: 84)
+            VStack(alignment: .leading, spacing: 10) {
+                CinematicKicker(title: "Coach standard", icon: "quote.opening", tint: .arAccent)
+                Text("Discipline is the bridge between goals and results.")
+                    .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.arTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Antirot")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.arTextSecondary)
             }
         }
         .overlay(alignment: .bottom) {
