@@ -31,8 +31,8 @@ final class CinematicLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(CoachStageLayoutMetrics.imageVerticalPositionFraction, 0.47)
     }
 
-    func testCoachStageUsesGeneratedBackgroundAsset() {
-        XCTAssertEqual(CoachStageLayoutMetrics.backgroundAssetName, "AntirotCoachStage")
+    func testCoachStageUsesWarmGeneratedBackgroundAsset() {
+        XCTAssertEqual(CoachStageLayoutMetrics.backgroundAssetName, "AntirotCoachStageWarm")
     }
 
     func testCoachHeaderDoesNotLeaveLargeTopGap() {
