@@ -106,3 +106,4 @@
 - On iOS, verify Coach, expanded chat, Tasks, and Stats match the provided four-screen reference design with the same dark cinematic layout, red accent, bottom tabs, command composer, task cards, and stats cards.
 - Rerun LLM-18 with an idle reset fixture and verify it rejects soft-personality override without drifting into onboarding/profile setup copy or saving the bad preference.
 - Review the latest Crof judge report after onboarding LLM runs and manually verify LLM-20 writes pending missing onboarding questions to coach_todo.txt without broad schedule drift.
+- On an iPhone simulator or TestFlight device, verify the warm smoked-glass Coach, Tasks, Stats, Settings, sign-in, chat detents/keyboard, Dynamic Type, VoiceOver order, and Reduce Motion behavior.
