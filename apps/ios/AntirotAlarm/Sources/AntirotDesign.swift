@@ -1,67 +1,73 @@
 import SwiftUI
 
-// MARK: - Warm Smoked-Glass Palette
+// MARK: - Editorial Operator Palette
 
-enum AntirotPaletteValues {
-    static let backgroundRed = 0.082
-    static let backgroundGreen = 0.075
-    static let backgroundBlue = 0.067
+enum AntirotEditorialPalette {
+    static let inkRed = 8.0 / 255.0
+    static let inkGreen = 8.0 / 255.0
+    static let inkBlue = 7.0 / 255.0
 
-    static let deepBackgroundRed = 0.035
-    static let deepBackgroundGreen = 0.031
-    static let deepBackgroundBlue = 0.028
+    static let graphiteRed = 23.0 / 255.0
+    static let graphiteGreen = 23.0 / 255.0
+    static let graphiteBlue = 20.0 / 255.0
 
-    static let surfaceRed = 0.231
-    static let surfaceGreen = 0.212
-    static let surfaceBlue = 0.200
+    static let paperRed = 240.0 / 255.0
+    static let paperGreen = 236.0 / 255.0
+    static let paperBlue = 226.0 / 255.0
 
-    static let elevatedRed = 0.318
-    static let elevatedGreen = 0.290
-    static let elevatedBlue = 0.275
+    static let signalOrangeRed = 228.0 / 255.0
+    static let signalOrangeGreen = 91.0 / 255.0
+    static let signalOrangeBlue = 44.0 / 255.0
+}
+
+enum AntirotEditorialMetrics {
+    static let maximumRadius: CGFloat = 16
+    static let sectionRadius: CGFloat = 4
+    static let horizontalInset: CGFloat = 20
+    static let ruleWidth: CGFloat = 1
 }
 
 extension Color {
     static let arBg = Color(
-        red: AntirotPaletteValues.backgroundRed,
-        green: AntirotPaletteValues.backgroundGreen,
-        blue: AntirotPaletteValues.backgroundBlue
+        red: AntirotEditorialPalette.inkRed,
+        green: AntirotEditorialPalette.inkGreen,
+        blue: AntirotEditorialPalette.inkBlue
     )
-    static let arDeepBg = Color(
-        red: AntirotPaletteValues.deepBackgroundRed,
-        green: AntirotPaletteValues.deepBackgroundGreen,
-        blue: AntirotPaletteValues.deepBackgroundBlue
-    )
+    static let arDeepBg = arBg
     static let arSurface = Color(
-        red: AntirotPaletteValues.surfaceRed,
-        green: AntirotPaletteValues.surfaceGreen,
-        blue: AntirotPaletteValues.surfaceBlue
+        red: AntirotEditorialPalette.graphiteRed,
+        green: AntirotEditorialPalette.graphiteGreen,
+        blue: AntirotEditorialPalette.graphiteBlue
     )
-    static let arElevated = Color(
-        red: AntirotPaletteValues.elevatedRed,
-        green: AntirotPaletteValues.elevatedGreen,
-        blue: AntirotPaletteValues.elevatedBlue
+    static let arElevated = Color(red: 0.118, green: 0.114, blue: 0.102)
+    static let arGlassTint = arSurface
+    static let arOverlay = Color.black.opacity(0.74)
+
+    static let arAccent = Color(
+        red: AntirotEditorialPalette.signalOrangeRed,
+        green: AntirotEditorialPalette.signalOrangeGreen,
+        blue: AntirotEditorialPalette.signalOrangeBlue
     )
-    static let arGlassTint = Color(red: 0.285, green: 0.257, blue: 0.240)
-    static let arOverlay = Color.black.opacity(0.66)
+    static let arAccentDim = Color(red: 0.650, green: 0.220, blue: 0.090)
+    static let arAccentSubtle = arAccent.opacity(0.12)
+    static let arCyan = Color(red: 0.420, green: 0.690, blue: 0.740)
+    static let arAmber = Color(red: 0.910, green: 0.640, blue: 0.235)
 
-    // Accent — sophisticated muted red
-    static let arAccent = Color(red: 0.902, green: 0.224, blue: 0.275)               // #E63946
-    static let arAccentDim = Color(red: 0.776, green: 0.157, blue: 0.157)            // #C62828
-    static let arAccentSubtle = Color(red: 0.902, green: 0.224, blue: 0.275).opacity(0.12)
-    static let arCyan = Color(red: 0.275, green: 0.690, blue: 0.741)
-    static let arAmber = Color(red: 0.914, green: 0.604, blue: 0.286)
+    static let arTextPrimary = Color(
+        red: AntirotEditorialPalette.paperRed,
+        green: AntirotEditorialPalette.paperGreen,
+        blue: AntirotEditorialPalette.paperBlue
+    )
+    static let arTextSecondary = Color(red: 0.650, green: 0.635, blue: 0.600)
+    static let arTextMuted = Color(red: 0.540, green: 0.529, blue: 0.498)
 
-    static let arTextPrimary = Color(red: 0.961, green: 0.945, blue: 0.925)
-    static let arTextSecondary = Color(red: 0.714, green: 0.678, blue: 0.651)
-    static let arTextMuted = Color(red: 0.486, green: 0.455, blue: 0.435)
-
-    static let arBorder = Color(red: 0.961, green: 0.925, blue: 0.886).opacity(0.10)
-    static let arBorderActive = Color(red: 1.000, green: 0.965, blue: 0.925).opacity(0.22)
+    static let arBorder = Color(red: 0.204, green: 0.196, blue: 0.180)
+    static let arBorderActive = arTextPrimary.opacity(0.52)
 
     // Semantic (used sparingly, never decoratively)
-    static let arSuccess = Color(red: 0.188, green: 0.820, blue: 0.345)              // #30D158
-    static let arWarning = Color(red: 1.000, green: 0.839, blue: 0.039)              // #FFD60A
-    static let arDanger = Color(red: 1.000, green: 0.271, blue: 0.227)               // #FF453A
+    static let arSuccess = Color(red: 0.282, green: 0.780, blue: 0.455)
+    static let arWarning = Color(red: 0.910, green: 0.640, blue: 0.235)
+    static let arDanger = Color(red: 0.898, green: 0.282, blue: 0.302)
 }
 
 // ShapeStyle convenience
@@ -155,7 +161,20 @@ struct MinimalCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .smokedGlass(cornerRadius: cornerRadius, shadow: false)
+            .background(Color.arSurface)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: min(cornerRadius, AntirotEditorialMetrics.maximumRadius),
+                    style: .continuous
+                )
+            )
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: min(cornerRadius, AntirotEditorialMetrics.maximumRadius),
+                    style: .continuous
+                )
+                .stroke(Color.arBorder, lineWidth: AntirotEditorialMetrics.ruleWidth)
+            }
     }
 }
 
@@ -180,7 +199,7 @@ struct SectionDivider: View {
     var body: some View {
         Rectangle()
             .fill(Color.arBorder)
-            .frame(height: 0.33)
+            .frame(height: AntirotEditorialMetrics.ruleWidth)
     }
 }
 
@@ -191,63 +210,31 @@ struct StatePill: View {
     var isActive: Bool = false
 
     var body: some View {
-        Text(label.uppercased())
-            .font(.caption.weight(.bold))
-            .tracking(1.0)
-            .foregroundStyle(isActive ? .arAccent : .arTextSecondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isActive ? Color.arAccent.opacity(0.12) : Color.white.opacity(0.035))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(isActive ? Color.arAccent.opacity(0.32) : Color.white.opacity(0.08), lineWidth: 0.6)
-            )
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(isActive ? Color.arAccent : Color.arBorder)
+                .frame(width: 12, height: 2)
+            Text(label.uppercased())
+                .font(.caption.monospaced().weight(.semibold))
+                .tracking(1.0)
+                .foregroundStyle(isActive ? .arTextPrimary : .arTextSecondary)
+        }
     }
 }
 
 // MARK: - Cinematic App System
 
 enum AntirotCinematicMetrics {
-    static let cardRadius: CGFloat = 22
-    static let pillRadius: CGFloat = 28
-    static let screenHorizontalPadding: CGFloat = 20
-    static let screenTopPadding: CGFloat = 64
-    static let bottomContentPadding: CGFloat = 126
+    static let cardRadius: CGFloat = 4
+    static let pillRadius: CGFloat = 12
+    static let screenHorizontalPadding: CGFloat = AntirotEditorialMetrics.horizontalInset
+    static let screenTopPadding: CGFloat = 32
+    static let bottomContentPadding: CGFloat = 32
 }
 
 struct CinematicBackdrop: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    .arDeepBg,
-                    Color(red: 0.105, green: 0.093, blue: 0.082),
-                    Color.arBg
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Ellipse()
-                .fill(Color(red: 0.576, green: 0.431, blue: 0.333).opacity(0.18))
-                .frame(width: 340, height: 260)
-                .blur(radius: 98)
-                .offset(x: 150, y: -250)
-
-            Circle()
-                .fill(Color.arAccent.opacity(0.07))
-                .frame(width: 250, height: 250)
-                .blur(radius: 100)
-                .offset(x: -170, y: 250)
-        }
-        .ignoresSafeArea()
+        Color.arBg.ignoresSafeArea()
     }
 }
 
@@ -259,7 +246,7 @@ struct CinematicScreen<Content: View>: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 32) {
                 CinematicHeader(title: title, subtitle: subtitle, icon: icon)
                 content
             }
@@ -278,29 +265,28 @@ struct CinematicHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.system(size: 29, weight: .bold, design: .rounded))
+                    .font(.largeTitle.weight(.medium))
+                    .fontDesign(.serif)
                     .foregroundStyle(.arTextPrimary)
                 Text(subtitle)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline)
                     .foregroundStyle(.arTextSecondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
 
             Image(systemName: icon)
-                .font(.subheadline.weight(.bold))
+                .font(.headline.weight(.medium))
                 .foregroundStyle(icon == "waveform.path.ecg" ? .arAccent : .arTextSecondary)
-                .frame(width: 42, height: 42)
-                .background(
-                    Circle().fill(Color.white.opacity(0.07))
-                )
-                .overlay(Circle().stroke(Color.arBorderActive, lineWidth: 0.6))
+                .frame(width: 44, height: 44, alignment: .topTrailing)
         }
-        .padding(16)
-        .smokedGlass(cornerRadius: 26, shadow: false)
+        .padding(.bottom, 20)
+        .overlay(alignment: .bottom) {
+            SectionDivider()
+        }
     }
 }
 
@@ -312,18 +298,17 @@ struct CinematicGlassCard<Content: View>: View {
     var body: some View {
         content
             .padding(padding)
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [accent.opacity(0.08), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .allowsHitTesting(false)
+            .background(Color.arSurface)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(accent)
+                    .frame(width: 3)
             }
-            .smokedGlass(cornerRadius: AntirotCinematicMetrics.cardRadius)
+            .clipShape(RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AntirotCinematicMetrics.cardRadius, style: .continuous)
+                    .stroke(Color.arBorder, lineWidth: AntirotEditorialMetrics.ruleWidth)
+            }
     }
 }
 
@@ -340,7 +325,7 @@ struct CinematicKicker: View {
                     .foregroundStyle(tint)
             }
             Text(title.uppercased())
-                .font(.caption2.weight(.bold))
+                .font(.caption2.monospaced().weight(.semibold))
                 .tracking(1.35)
                 .foregroundStyle(.arTextSecondary)
             Spacer()
@@ -493,7 +478,7 @@ struct AntirotAccentButtonStyle: ButtonStyle {
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
             .background(Color.arAccent)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -507,7 +492,8 @@ struct AntirotGhostButtonStyle: ButtonStyle {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color.arSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.arBorder, lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -524,7 +510,7 @@ struct AntirotGoldButtonStyle: ButtonStyle {
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
             .background(Color.arWarning)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -538,7 +524,7 @@ struct AntirotDestructiveButtonStyle: ButtonStyle {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color.arDanger.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -587,7 +573,6 @@ struct FocusDial: View {
 // MARK: - Liquid Glass
 
 struct SmokedGlassModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var cornerRadius: CGFloat
@@ -595,50 +580,16 @@ struct SmokedGlassModifier: ViewModifier {
     var castsShadow: Bool
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let borderOpacity = colorSchemeContrast == .increased ? 0.34 : 0.18
+        let resolvedRadius = min(cornerRadius, AntirotEditorialMetrics.maximumRadius)
+        let shape = RoundedRectangle(cornerRadius: resolvedRadius, style: .continuous)
 
         content
-            .background {
-                if reduceTransparency {
-                    shape.fill(Color.arSurface)
-                } else {
-                    shape.fill(.ultraThinMaterial)
-                }
-            }
-            .background(shape.fill(tint.opacity(reduceTransparency ? 0.72 : 0.48)))
+            .background(shape.fill(tint))
             .overlay {
-                shape.stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(borderOpacity),
-                            Color.white.opacity(0.035),
-                            Color.black.opacity(0.16)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: colorSchemeContrast == .increased ? 0.9 : 0.65
-                )
+                shape.stroke(Color.arBorder, lineWidth: colorSchemeContrast == .increased ? 2 : 1)
                 .allowsHitTesting(false)
             }
-            .overlay(alignment: .top) {
-                shape
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.09), .clear],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
-                    .allowsHitTesting(false)
-            }
             .clipShape(shape)
-            .shadow(
-                color: castsShadow ? Color.black.opacity(0.32) : .clear,
-                radius: castsShadow ? 22 : 0,
-                y: castsShadow ? 12 : 0
-            )
     }
 }
 
@@ -662,42 +613,18 @@ struct LiquidGlassModifier: ViewModifier {
     var sheen: Bool = true
 
     func body(content: Content) -> some View {
+        let resolvedRadius = min(cornerRadius, AntirotEditorialMetrics.maximumRadius)
         content
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.arGlassTint.opacity(0.42))
+                RoundedRectangle(cornerRadius: resolvedRadius, style: .continuous)
+                    .fill(Color.arSurface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: borderWidth
-                    )
+                RoundedRectangle(cornerRadius: resolvedRadius, style: .continuous)
+                    .stroke(Color.arBorder, lineWidth: max(borderWidth, 1))
                     .allowsHitTesting(false)
             )
-            .overlay(alignment: .top) {
-                if sheen {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.12), Color.clear],
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                        .allowsHitTesting(false)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: resolvedRadius, style: .continuous))
     }
 }
 
@@ -710,6 +637,6 @@ extension View {
     /// Quiet glass capsule used for small secondary controls.
     func glassCapsule() -> some View {
         self
-            .liquidGlass(cornerRadius: 22, borderWidth: 0.5, sheen: false)
+            .liquidGlass(cornerRadius: 12, borderWidth: 1, sheen: false)
     }
 }

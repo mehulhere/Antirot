@@ -1,9 +1,10 @@
 import SwiftUI
 
 enum AppBottomBarMetrics {
-    static let horizontalPadding: CGFloat = 14
-    static let bottomPadding: CGFloat = 12
-    static let coachChatClearance: CGFloat = 104
+    static let horizontalPadding: CGFloat = 0
+    static let bottomPadding: CGFloat = 0
+    static let coachChatClearance: CGFloat = 76
+    static let barHeight: CGFloat = 64
     static let minimumHitTarget: CGFloat = 44
     static let usesFullScreenHitTestOverlay = false
 }
@@ -18,30 +19,27 @@ struct MainTabView: View {
     @EnvironmentObject private var coach: CoachViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var selectedScreen: AppScreen = .coach
+    @StateObject private var navigation = AppNavigationModel()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selectedScreen {
-                case .coach:
-                    HomeView()
-                case .tasks:
-                    TaskBoardView()
-                case .stats:
-                    StatsView()
-                case .settings:
-                    SettingsScreen()
-                }
+        Group {
+            switch navigation.selectedScreen {
+            case .coach:
+                HomeView()
+            case .tasks:
+                TaskBoardView()
+            case .stats:
+                StatsView()
+            case .settings:
+                SettingsScreen()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            appBar
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, AppBottomBarMetrics.horizontalPadding)
-                .padding(.bottom, AppBottomBarMetrics.bottomPadding)
-                .shadow(color: .black.opacity(0.44), radius: 26, y: 14)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environmentObject(navigation)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            appBar
+        }
+        .background(Color.arBg)
     }
 }
 
@@ -70,27 +68,36 @@ enum AppScreen: CaseIterable {
     }
 }
 
+final class AppNavigationModel: ObservableObject {
+    @Published var selectedScreen: AppScreen = .coach
+}
+
 private extension MainTabView {
     var appBar: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ForEach(AppScreen.allCases, id: \.self) { screen in
                 AppBarButton(
                     title: screen.title,
                     systemImage: screen.systemImage,
-                    isSelected: selectedScreen == screen
+                    isSelected: navigation.selectedScreen == screen
                 ) {
                     select(screen)
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(7)
-        .smokedGlass(cornerRadius: 29, tint: .arSurface)
+        .frame(height: AppBottomBarMetrics.barHeight)
+        .background(Color.arBg)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.arBorder)
+                .frame(height: 1)
+        }
     }
 
     func select(_ screen: AppScreen) {
         withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.28, dampingFraction: 0.82)) {
-            selectedScreen = screen
+            navigation.selectedScreen = screen
         }
     }
 }
@@ -103,27 +110,19 @@ private struct AppBarButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
+            VStack(spacing: 4) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 16, weight: .medium))
                 Text(title)
-                    .font(.caption2.weight(.bold))
-                Capsule(style: .continuous)
+                    .font(.caption2.weight(.semibold))
+                Rectangle()
                     .fill(isSelected ? Color.arAccent : Color.clear)
-                    .frame(width: 16, height: 2)
+                    .frame(width: 20, height: 2)
             }
-            .foregroundStyle(isSelected ? .white : .arTextSecondary)
+            .foregroundStyle(isSelected ? .arTextPrimary : .arTextMuted)
             .frame(maxWidth: .infinity)
             .frame(minHeight: AppBottomBarMetrics.minimumHitTarget)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 21, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.09) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 21, style: .continuous)
-                    .stroke(isSelected ? Color.arBorderActive : .clear, lineWidth: 0.6)
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

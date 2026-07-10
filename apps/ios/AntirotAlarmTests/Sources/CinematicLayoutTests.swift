@@ -5,22 +5,24 @@ import XCTest
 final class CinematicLayoutTests: XCTestCase {
     func testCoachChatFloatsAboveBottomNavigation() {
         XCTAssertGreaterThan(AppBottomBarMetrics.coachChatClearance, AppBottomBarMetrics.bottomPadding)
-        XCTAssertEqual(AppBottomBarMetrics.horizontalPadding, 14, accuracy: 0.1)
-        XCTAssertEqual(AppBottomBarMetrics.coachChatClearance, 104, accuracy: 0.1)
+        XCTAssertEqual(AppBottomBarMetrics.horizontalPadding, 0, accuracy: 0.1)
+        XCTAssertEqual(AppBottomBarMetrics.coachChatClearance, 76, accuracy: 0.1)
+        XCTAssertEqual(AppBottomBarMetrics.barHeight, 64, accuracy: 0.1)
         XCTAssertGreaterThanOrEqual(AppBottomBarMetrics.minimumHitTarget, 44)
         XCTAssertFalse(AppBottomBarMetrics.usesFullScreenHitTestOverlay)
     }
 
-    func testSmokedGlassUsesApprovedWarmPalette() {
-        XCTAssertEqual(AntirotPaletteValues.backgroundRed, 0.082, accuracy: 0.001)
-        XCTAssertEqual(AntirotPaletteValues.backgroundGreen, 0.075, accuracy: 0.001)
-        XCTAssertEqual(AntirotPaletteValues.backgroundBlue, 0.067, accuracy: 0.001)
-        XCTAssertGreaterThan(AntirotPaletteValues.surfaceRed, AntirotPaletteValues.surfaceBlue)
+    func testEditorialSystemUsesApprovedInkPalette() {
+        XCTAssertEqual(AntirotEditorialPalette.inkRed, 8.0 / 255.0, accuracy: 0.001)
+        XCTAssertEqual(AntirotEditorialPalette.inkGreen, 8.0 / 255.0, accuracy: 0.001)
+        XCTAssertEqual(AntirotEditorialPalette.inkBlue, 7.0 / 255.0, accuracy: 0.001)
+        XCTAssertEqual(AntirotEditorialPalette.signalOrangeRed, 228.0 / 255.0, accuracy: 0.001)
     }
 
-    func testSmokedGlassUsesGenerousContinuousCorners() {
-        XCTAssertEqual(AntirotCinematicMetrics.cardRadius, 22, accuracy: 0.1)
-        XCTAssertEqual(AntirotCinematicMetrics.pillRadius, 28, accuracy: 0.1)
+    func testEditorialSystemCapsActiveCornerRadius() {
+        XCTAssertEqual(AntirotEditorialMetrics.maximumRadius, 16, accuracy: 0.1)
+        XCTAssertLessThanOrEqual(AntirotCinematicMetrics.cardRadius, 16)
+        XCTAssertLessThanOrEqual(AntirotCinematicMetrics.pillRadius, 16)
     }
 
     func testReferenceBottomBarHasFourTabs() {
