@@ -98,7 +98,7 @@ private extension HomeView {
                     .foregroundStyle(.arTextPrimary)
                 HStack(spacing: 7) {
                     StatusDot(color: .arSuccess, animated: !reduceMotion)
-                    Text("Antirot connected")
+                    Text("Backend connected")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.arTextSecondary)
                 }

@@ -74,9 +74,9 @@ struct TaskBoardView: View {
 
     private var taskOverviewStrip: some View {
         HStack(spacing: 0) {
-            taskOverviewMetric(value: "\(liveTasks.count)", label: "Active", tint: .arAccent)
+            taskOverviewMetric(value: "\(liveTasks.count)", label: "Live", tint: .arAccent)
             overviewDivider
-            taskOverviewMetric(value: "\(pendingTasks.count)", label: "Queued", tint: .arAmber)
+            taskOverviewMetric(value: "\(pendingTasks.count)", label: "Pending", tint: .arAmber)
             overviewDivider
             taskOverviewMetric(value: "\(doneTasks.count)", label: "Done", tint: .arSuccess)
         }
@@ -109,13 +109,14 @@ struct TaskBoardView: View {
             CinematicGlassCard(padding: 18, accent: item.tint) {
                 VStack(alignment: .leading, spacing: 14) {
                     CinematicKicker(
-                        title: item.status == .live ? "In progress" : "Next priority",
+                        title: statusTitle(for: item),
                         icon: item.systemImage,
                         tint: item.tint
                     )
 
                     Text(item.title)
-                        .font(.system(size: 23, weight: .bold, design: .rounded))
+                        .font(.title2.weight(.bold))
+                        .fontDesign(.rounded)
                         .foregroundStyle(.arTextPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -130,53 +131,46 @@ struct TaskBoardView: View {
                         Label(durationText(for: item), systemImage: "timer")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.arTextSecondary)
-                        Spacer()
-                        Text(item.status == .live ? "Stay on it" : "Ready when you are")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(item.tint)
                     }
                 }
             }
         }
     }
 
+    @ViewBuilder
     private var taskListCard: some View {
         let items = Array(scopedItems.dropFirst())
-        return CinematicGlassCard(padding: 0, accent: .arAccent) {
+
+        if scopedItems.isEmpty {
+            taskListSurface(items: [], emptyMessage: emptyText)
+        } else if !items.isEmpty {
+            taskListSurface(items: items, emptyMessage: nil)
+        }
+    }
+
+    private func taskListSurface(items: [TaskBoardItem], emptyMessage: String?) -> some View {
+        CinematicGlassCard(padding: 0, accent: .arAccent) {
             VStack(spacing: 0) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("QUEUE")
-                            .font(.caption2.weight(.bold))
-                            .tracking(1.1)
-                            .foregroundStyle(.arTextMuted)
-                        Text(dayTitle)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.arTextPrimary)
-                    }
+                    Text(dayTitle)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.arTextPrimary)
                     Spacer()
-                    Text("\(items.count) remaining")
+                    Text("\(focusMinutesText) Focus")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.arTextSecondary)
+                        .foregroundStyle(.arAccent)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
 
-                if scopedItems.isEmpty {
-                    Text(emptyText)
+                if let emptyMessage {
+                    Text(emptyMessage)
                         .font(.subheadline)
                         .foregroundStyle(.arTextMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
-                } else if items.isEmpty {
-                    Text("No other tasks behind the current priority.")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.arTextMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 18)
                 } else {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         referenceTaskRow(item)
@@ -225,12 +219,11 @@ struct TaskBoardView: View {
     private var quoteCard: some View {
         CinematicGlassCard(padding: 16, accent: .arAccent) {
             VStack(alignment: .leading, spacing: 10) {
-                CinematicKicker(title: "Coach standard", icon: "quote.opening", tint: .arAccent)
                 Text("Discipline is the bridge between goals and results.")
                     .font(.system(size: 19, weight: .semibold, design: .rounded))
                     .foregroundStyle(.arTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Antirot")
+                Text("- Antirot")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.arTextSecondary)
             }
@@ -334,6 +327,14 @@ struct TaskBoardView: View {
         switch item.status {
         case .live: return "120m"
         case .pending: return "45m"
+        case .done: return "Done"
+        }
+    }
+
+    private func statusTitle(for item: TaskBoardItem) -> String {
+        switch item.status {
+        case .live: return "Live"
+        case .pending: return "Pending"
         case .done: return "Done"
         }
     }

@@ -19,7 +19,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CinematicKicker(title: "Account", icon: "person.crop.circle", tint: .arAccent)
+            AntirotSectionHeader(title: "Settings", icon: "gearshape")
 
             // Account
             HStack(spacing: 12) {

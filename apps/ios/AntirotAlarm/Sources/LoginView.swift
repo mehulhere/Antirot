@@ -38,15 +38,9 @@ struct LoginView: View {
                     .font(.system(size: 38, weight: .bold, design: .rounded))
                     .tracking(2)
 
-                    VStack(spacing: 5) {
-                        Text("BEHAVIORAL OPERATING SYSTEM")
-                            .font(.caption2.weight(.bold))
-                            .tracking(1.25)
-                            .foregroundStyle(.arTextSecondary)
-                        Text("Standards up. Drift down.")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.arTextPrimary)
-                    }
+                    Text("Behavioral operating system")
+                        .font(.caption)
+                        .foregroundStyle(.arTextMuted)
 
                     SectionDivider()
 
@@ -56,11 +50,6 @@ struct LoginView: View {
                         Label("Continue with Google", systemImage: "arrow.right")
                     }
                     .buttonStyle(AntirotAccentButtonStyle(fullWidth: true))
-
-                    Text("Your coach state stays synced to your Antirot account.")
-                        .font(.caption)
-                        .foregroundStyle(.arTextMuted)
-                        .multilineTextAlignment(.center)
 
                     if !alarmCenter.lastMessage.isEmpty {
                         Text(alarmCenter.lastMessage)

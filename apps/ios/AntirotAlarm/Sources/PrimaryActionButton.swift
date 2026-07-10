@@ -41,23 +41,18 @@ struct PrimaryActionButton: View {
                 .frame(width: 54, height: 54)
                 .shadow(color: Color.arAccent.opacity(0.34), radius: 18, y: 8)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("NEXT MOVE")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.25)
-                        .foregroundStyle(.arTextSecondary)
-                    Text(title)
-                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                        .foregroundStyle(.arTextPrimary)
-                        .lineLimit(2)
-                }
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .fontDesign(.rounded)
+                    .foregroundStyle(.arTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 8)
 
                 Image(systemName: "arrow.up.right")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.arTextPrimary)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(Color.white.opacity(0.08)))
             }
             .padding(10)

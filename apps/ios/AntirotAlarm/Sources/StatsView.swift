@@ -126,16 +126,9 @@ struct StatsView: View {
     private func focusCard(_ today: StatsPeriodResponse) -> some View {
         CinematicGlassCard(padding: 18, accent: .arAccent) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Label("PERFORMANCE", systemImage: "scope")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.1)
-                        .foregroundStyle(.arAccent)
-                    Spacer()
-                    Text(statusText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.arTextMuted)
-                }
+                Text(statusText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.arTextMuted)
                 HStack(alignment: .center, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("FOCUS TIME")
@@ -166,25 +159,77 @@ struct StatsView: View {
                     .frame(width: 88, height: 88)
                 }
 
-                weekBars(today)
+                timeComposition(today)
             }
         }
     }
 
     private func metricGrid(_ period: StatsPeriodResponse) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            CinematicMetricTile(
-                title: "Completed",
-                value: "\(period.tasksDone)",
-                icon: "checkmark",
-                tint: .arSuccess
-            )
-            CinematicMetricTile(
-                title: "Current streak",
-                value: "\(max(period.tasksDone + 10, 12))d",
-                icon: "flame.fill",
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                metricTiles(period)
+            }
+
+            VStack(spacing: 12) {
+                metricTiles(period)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func metricTiles(_ period: StatsPeriodResponse) -> some View {
+        CinematicMetricTile(
+            title: "Check-ins",
+            value: "\(period.sessionsCompleted)",
+            icon: "checkmark",
+            tint: .arSuccess
+        )
+        .frame(minWidth: 148)
+        CinematicMetricTile(
+            title: "Completed today",
+            value: "\(period.tasksDone)",
+            icon: "checkmark.circle.fill",
+            tint: .arAccent
+        )
+        .frame(minWidth: 148)
+    }
+
+    private func timeComposition(_ period: StatsPeriodResponse) -> some View {
+        let rows = [
+            StatsCompositionRow(label: "Work", minutes: period.workMinutes, tint: .arAccent),
+            StatsCompositionRow(label: "Idle", minutes: period.idleMinutes, tint: .arTextSecondary),
+            StatsCompositionRow(
+                label: "Unproductive desk",
+                minutes: period.unproductiveDeskMinutes,
                 tint: .arAmber
             )
+        ]
+        let total = max(rows.map(\.minutes).reduce(0, +), 1)
+
+        return VStack(spacing: 10) {
+            ForEach(rows) { row in
+                VStack(spacing: 5) {
+                    HStack {
+                        Text(row.label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.arTextSecondary)
+                        Spacer()
+                        Text(formatMinutes(row.minutes))
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.arTextPrimary)
+                    }
+
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.07))
+                            Capsule()
+                                .fill(row.tint)
+                                .frame(width: proxy.size.width * CGFloat(row.minutes) / CGFloat(total))
+                        }
+                    }
+                    .frame(height: 6)
+                }
+            }
         }
     }
 
@@ -214,39 +259,6 @@ struct StatsView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-    }
-
-    private func weekBars(_ today: StatsPeriodResponse) -> some View {
-        let labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        let values: [CGFloat] = [0.48, 0.62, 0.80, 0.84, goalRatio(today), 0.76, 0.62]
-
-        return VStack(spacing: 8) {
-            HStack(alignment: .bottom, spacing: 12) {
-                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.arAccent.opacity(0.42 + Double(value) * 0.36),
-                                    Color(red: 0.735, green: 0.518, blue: 0.388).opacity(0.58)
-                                ],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 88 * value)
-                }
-            }
-            HStack(spacing: 0) {
-                ForEach(labels, id: \.self) { label in
-                    Text(label)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.arTextSecondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-        }
     }
 
     private func goalRatio(_ period: StatsPeriodResponse) -> CGFloat {
@@ -307,6 +319,14 @@ private enum StatsScope: CaseIterable {
         case .month: return "Month"
         }
     }
+}
+
+private struct StatsCompositionRow: Identifiable {
+    let label: String
+    let minutes: Int
+    let tint: Color
+
+    var id: String { label }
 }
 
 #Preview {

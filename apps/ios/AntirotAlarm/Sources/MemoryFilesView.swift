@@ -26,7 +26,7 @@ struct MemoryFilesView: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(selectedKey == key ? .white : .arTextSecondary)
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
+                                .frame(minHeight: 44)
                                 .background(
                                     Capsule(style: .continuous)
                                         .fill(

@@ -17,7 +17,6 @@ struct MemorySnapshotsView: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
-                    CinematicKicker(title: "Developer tool", icon: "archivebox", tint: .arAccent)
                     Text("Memory Snapshots")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.arTextPrimary)
@@ -44,7 +43,8 @@ struct MemorySnapshotsView: View {
                         Task { await loadSnapshots() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .frame(width: 34, height: 34)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(Color.white.opacity(0.07)))
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)

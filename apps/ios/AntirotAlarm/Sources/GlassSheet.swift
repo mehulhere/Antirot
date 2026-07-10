@@ -9,8 +9,8 @@ enum ChatSheetMetrics {
 
 enum ChatSheetDetents {
     static let collapsedHeight: CGFloat = 90
-    static let compactHandleHeight: CGFloat = 18
-    static let expandedHandleHeight: CGFloat = 44
+    static let compactHandleHeight: CGFloat = 44
+    static let expandedHandleHeight: CGFloat = 52
     static let collapsedPreviewAcceptsKeyboardInput = false
     static let fullFraction: CGFloat = 0.96
 

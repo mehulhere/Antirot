@@ -7,6 +7,14 @@ final class ChatSheetDetentsTests: XCTestCase {
         XCTAssertEqual(ChatSheetMetrics.minimumControlSize, 44, accuracy: 0.1)
         XCTAssertEqual(ChatSheetMetrics.collapsedCornerRadius, 24, accuracy: 0.1)
         XCTAssertEqual(ChatSheetMetrics.expandedCornerRadius, 30, accuracy: 0.1)
+        XCTAssertGreaterThanOrEqual(
+            ChatSheetDetents.handleHeight(isCollapsed: true),
+            ChatSheetMetrics.minimumControlSize
+        )
+        XCTAssertGreaterThanOrEqual(
+            ChatSheetDetents.handleHeight(isCollapsed: false),
+            ChatSheetMetrics.minimumControlSize
+        )
     }
 
     func testCollapsedSheetUsesCompactPreviewHeight() {
