@@ -3,8 +3,8 @@ import UIKit
 
 enum ChatSheetMetrics {
     static let minimumControlSize: CGFloat = 44
-    static let collapsedCornerRadius: CGFloat = 24
-    static let expandedCornerRadius: CGFloat = 30
+    static let collapsedCornerRadius: CGFloat = 12
+    static let expandedCornerRadius: CGFloat = 12
 }
 
 enum ChatSheetDetents {
@@ -88,10 +88,8 @@ enum ChatSheetDetents {
 
 // MARK: - Glass Chat Sheet
 
-/// A bottom-anchored, draggable, translucent glass chat sheet with two snap
-/// points (collapsed and full). The strong blur keeps the coach scene
-/// visible behind it while text stays readable. Voice-first composer at the
-/// bottom; the latest coach one-liner is shown when collapsed.
+/// A bottom-anchored command surface with two snap points. It stays opaque
+/// enough for legibility while retaining a compact footprint over the coach.
 struct GlassSheet: View {
     @Binding var height: CGFloat
 
@@ -164,16 +162,20 @@ struct GlassSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .smokedGlass(cornerRadius: cornerRadius, tint: .arSurface)
+        .background(Color.arSurface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.arBorder, lineWidth: 1)
+        }
     }
 
     private func dragHandle(full: CGFloat, available: CGFloat, isCompact: Bool) -> some View {
         let handleHeight = ChatSheetDetents.handleHeight(isCollapsed: isCompact)
 
         return ZStack {
-            Capsule(style: .continuous)
-                .fill(Color.white.opacity(isCompact ? 0.22 : 0.28))
-                .frame(width: isCompact ? 34 : 38, height: 5)
+            Rectangle()
+                .fill(Color.arTextSecondary.opacity(isCompact ? 0.55 : 0.72))
+                .frame(width: isCompact ? 32 : 38, height: 2)
                 .allowsHitTesting(false)
 
             ChatSheetHandleInput(
@@ -209,6 +211,11 @@ struct GlassSheet: View {
         .frame(height: handleHeight)
         .accessibilityLabel("Coach chat")
         .accessibilityHint("Tap to open or collapse. Drag up to open or drag down to collapse")
+        .accessibilityAction(named: Text(isCompact ? "Open chat" : "Collapse chat")) {
+            withAnimation(resolvedAnimation) {
+                height = isCompact ? full : ChatSheetDetents.collapsedHeight
+            }
+        }
     }
     // MARK: - Collapsed
 
@@ -244,7 +251,7 @@ struct GlassSheet: View {
                         width: ChatSheetMetrics.minimumControlSize,
                         height: ChatSheetMetrics.minimumControlSize
                     )
-                    .background(Circle().fill(Color.white.opacity(0.06)))
+                    .background(Color.arElevated, in: RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
         }
@@ -252,9 +259,6 @@ struct GlassSheet: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            openSheet(availableHeight: available)
-        }
     }
 
     // MARK: - Expanded
@@ -346,12 +350,12 @@ struct GlassSheet: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.arDeepBg.opacity(0.58))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color.arBorder, lineWidth: 1)
                 )
                 .onTapGesture {
                     isDraftFocused = true
@@ -368,7 +372,7 @@ struct GlassSheet: View {
                             width: ChatSheetMetrics.minimumControlSize,
                             height: ChatSheetMetrics.minimumControlSize
                         )
-                        .background(Circle().fill(Color.arAccent))
+                        .background(Color.arAccent, in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .disabled(isSending)
@@ -390,8 +394,8 @@ struct GlassSheet: View {
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
                 .background(
-                    Circle()
-                        .fill(isRecording ? Color.arDanger : Color.arAccent)
+                    isRecording ? Color.arDanger : Color.arAccent,
+                    in: RoundedRectangle(cornerRadius: 4)
                 )
                 .scaleEffect(isRecording && !reduceMotion ? 1.06 : 1.0)
                 .animation(
@@ -569,12 +573,12 @@ private struct GlassChatRow: View {
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isUser ? Color.arAccent.opacity(0.20) : Color.arElevated.opacity(0.58))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isUser ? Color.arAccent.opacity(0.24) : Color.arElevated)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isUser ? Color.arAccent.opacity(0.18) : Color.arBorder, lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(isUser ? Color.arAccent.opacity(0.50) : Color.arBorder, lineWidth: 1)
             )
 
             if !isUser { Spacer(minLength: 48) }

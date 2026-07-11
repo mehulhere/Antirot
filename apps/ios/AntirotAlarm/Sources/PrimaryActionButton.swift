@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - Primary Action Button
 
-/// The dominant state action: a substantial smoked-glass control with a
-/// decisive red core, clear label, and restrained physical depth.
+/// The dominant state action: one clear editorial block with no ornamental
+/// glass, glow, or competing controls.
 struct PrimaryActionButton: View {
     let title: String
     let systemImage: String
@@ -12,57 +12,28 @@ struct PrimaryActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient.antirotAccent)
-
-                    Circle()
-                        .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
-
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.30), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-
-                    if isBusy {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
+            HStack(spacing: 16) {
+                if isBusy {
+                    ProgressView()
+                        .tint(.arDeepBg)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 18, weight: .bold))
                 }
-                .frame(width: 54, height: 54)
-                .shadow(color: Color.arAccent.opacity(0.34), radius: 18, y: 8)
 
                 Text(title)
-                    .font(.title3.weight(.bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(.arTextPrimary)
+                    .font(.system(size: 26, weight: .semibold, design: .serif))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 8)
 
                 Image(systemName: "arrow.up.right")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.arTextPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.white.opacity(0.08)))
+                    .font(.system(size: 18, weight: .bold))
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 74)
-            .background(Color.arAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .smokedGlass(cornerRadius: 26, tint: .arSurface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(Color.arAccent.opacity(0.22), lineWidth: 0.7)
-            )
+            .foregroundStyle(.arDeepBg)
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .background(Color.arAccent, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
         .buttonStyle(PrimaryActionButtonStyle())
         .disabled(isBusy)
@@ -74,7 +45,7 @@ private struct PrimaryActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.975 : 1.0)
+            .opacity(configuration.isPressed ? 0.78 : 1.0)
             .animation(
                 reduceMotion ? .easeOut(duration: 0.1) : .spring(response: 0.28, dampingFraction: 0.72),
                 value: configuration.isPressed
@@ -84,8 +55,7 @@ private struct PrimaryActionButtonStyle: ButtonStyle {
 
 // MARK: - Secondary Action Button
 
-/// A visually quiet glass pill. Subordinate to the primary circle so the user
-/// always knows which action is dominant in the current state.
+/// A quiet text action subordinate to the primary block.
 struct SecondaryActionButton: View {
     let title: String
     let systemImage: String
@@ -95,14 +65,19 @@ struct SecondaryActionButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.caption2.weight(.bold))
-                Text(title)
                     .font(.caption.weight(.semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .textCase(.uppercase)
             }
-            .foregroundStyle(.arTextSecondary)
-            .padding(.horizontal, 14)
+            .foregroundStyle(.arTextPrimary)
+            .padding(.horizontal, 10)
             .frame(minHeight: 44)
-            .smokedGlass(cornerRadius: 22, tint: .arSurface, shadow: false)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.arBorder)
+                    .frame(height: 1)
+            }
         }
         .buttonStyle(.plain)
     }

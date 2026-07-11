@@ -3,10 +3,10 @@ import XCTest
 @testable import Antirot
 
 final class ChatSheetDetentsTests: XCTestCase {
-    func testSmokedChatControlsRemainThumbFriendly() {
+    func testEditorialChatControlsRemainThumbFriendly() {
         XCTAssertEqual(ChatSheetMetrics.minimumControlSize, 44, accuracy: 0.1)
-        XCTAssertEqual(ChatSheetMetrics.collapsedCornerRadius, 24, accuracy: 0.1)
-        XCTAssertEqual(ChatSheetMetrics.expandedCornerRadius, 30, accuracy: 0.1)
+        XCTAssertEqual(ChatSheetMetrics.collapsedCornerRadius, 12, accuracy: 0.1)
+        XCTAssertEqual(ChatSheetMetrics.expandedCornerRadius, 12, accuracy: 0.1)
         XCTAssertGreaterThanOrEqual(
             ChatSheetDetents.handleHeight(isCollapsed: true),
             ChatSheetMetrics.minimumControlSize

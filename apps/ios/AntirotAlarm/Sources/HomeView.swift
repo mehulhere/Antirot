@@ -7,10 +7,8 @@ enum HomeLayoutMetrics {
 
 // MARK: - Home (Coach Room)
 
-/// The cinematic coach room: a full-screen stylized coach, one dominant
-/// circular action button per runtime state, optional quiet secondary
-/// actions, and a draggable glass chat sheet pinned to the bottom. There is
-/// no dashboard clutter here; secondary surfaces live in the bottom app bar.
+/// The editorial coach room: a full-screen animated coach, one dominant
+/// state action, quiet secondary actions, and a compact command sheet.
 struct HomeView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
@@ -27,7 +25,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack(alignment: .bottom) {
                 CoachStage(emotion: coach.coachEmotion, isThinking: coach.isSending)
                     .ignoresSafeArea()
@@ -38,11 +36,6 @@ struct HomeView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, HomeLayoutMetrics.headerTopPadding)
                     .ignoresSafeArea(.keyboard)
-
-                Color.clear
-                    .contentShape(Rectangle())
-                    .ignoresSafeArea()
-                    .gesture(homeSwipeUpGesture(availableHeight: proxy.size.height))
 
                 actionStack
                     .padding(.bottom, min(sheetHeight, actionClearance) + chatBottomClearance + 22)
@@ -91,17 +84,16 @@ struct HomeView: View {
 
 private extension HomeView {
     var homeHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Coach")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                Text("COACH / LIVE")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(.arAccent)
+                Text("No excuses.")
+                    .font(.system(size: 34, weight: .semibold, design: .serif))
                     .foregroundStyle(.arTextPrimary)
-                HStack(spacing: 7) {
-                    StatusDot(color: .arSuccess, animated: !reduceMotion)
-                    Text("Backend connected")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.arTextSecondary)
-                }
+                    .accessibilityAddTraits(.isHeader)
             }
 
             Spacer(minLength: 8)
@@ -111,14 +103,21 @@ private extension HomeView {
                 isActive: coach.runtimeState.lowercased() != "unknown"
             )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .smokedGlass(cornerRadius: 26, tint: .arSurface)
+        .overlay(alignment: .bottomLeading) {
+            HStack(spacing: 7) {
+                StatusDot(color: connectionColor, animated: !reduceMotion)
+                Text(connectionLabel)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .tracking(0.8)
+                    .foregroundStyle(.arTextSecondary)
+            }
+            .offset(y: 24)
+        }
     }
 
     var actionStack: some View {
         let set = CoachStateActions.actions(for: coach.runtimeState)
-        return VStack(spacing: 14) {
+        return VStack(spacing: 12) {
             Spacer()
             if !set.secondary.isEmpty {
                 HStack(spacing: 10) {
@@ -159,6 +158,28 @@ private extension HomeView {
             return "Syncing state"
         default:
             return coach.runtimeState.capitalized
+        }
+    }
+
+    var connectionLabel: String {
+        switch coach.runtimeState.lowercased() {
+        case "unknown":
+            return "SYNCING"
+        case "offline":
+            return "OFFLINE"
+        default:
+            return "CONNECTED"
+        }
+    }
+
+    var connectionColor: Color {
+        switch coach.runtimeState.lowercased() {
+        case "unknown":
+            return .arWarning
+        case "offline":
+            return .arDanger
+        default:
+            return .arSuccess
         }
     }
 
@@ -217,17 +238,6 @@ private extension HomeView {
         }
         await coach.sendDraft(client: client)
         await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
-    }
-
-    func homeSwipeUpGesture(availableHeight: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                let vertical = value.translation.height
-                let horizontal = abs(value.translation.width)
-                guard ChatSheetDetents.isCollapsed(sheetHeight) else { return }
-                guard vertical < -36, abs(vertical) > horizontal * 1.2 else { return }
-                openChat(availableHeight: sheetAvailableHeight(availableHeight))
-            }
     }
 
     func sheetAvailableHeight(_ screenHeight: CGFloat) -> CGFloat {

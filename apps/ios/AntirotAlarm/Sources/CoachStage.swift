@@ -1,8 +1,8 @@
 import SwiftUI
 
 enum CoachStageLayoutMetrics {
-    static let backgroundAssetName = "AntirotCoachStageWarm"
-    static let imageVerticalPositionFraction: CGFloat = 0.50
+    static let backgroundAssetName = "AntirotCoachEditorial"
+    static let imageVerticalPositionFraction: CGFloat = 0.52
 }
 
 // MARK: - Coach Stage
@@ -24,27 +24,18 @@ struct CoachStage: View {
                 .overlay {
                     LinearGradient(
                         colors: [
-                            Color.arDeepBg.opacity(0.58),
-                            Color.black.opacity(0.08),
+                            Color.arDeepBg.opacity(0.32),
                             Color.clear,
-                            Color.arDeepBg.opacity(0.70)
+                            Color.clear,
+                            Color.arDeepBg.opacity(0.52)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                     .allowsHitTesting(false)
                 }
-                .overlay(alignment: .leading) {
-                    LinearGradient(
-                        colors: [Color.arDeepBg.opacity(0.34), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: proxy.size.width * 0.62)
-                    .allowsHitTesting(false)
-                }
         }
         .ignoresSafeArea()
-        .accessibilityLabel("Antirot coach")
+        .accessibilityHidden(true)
     }
 }
