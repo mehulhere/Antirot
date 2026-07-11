@@ -2,6 +2,25 @@ import XCTest
 @testable import Antirot
 
 final class TaskBoardParserTests: XCTestCase {
+    func testTaskPresentationNeverInventsDurations() {
+        let pending = TaskBoardItem(id: "pending", title: "Write brief", detail: nil, status: .pending)
+        let live = TaskBoardItem(id: "live", title: "Build", detail: "Estimated 35 minutes", status: .live)
+        let done = TaskBoardItem(id: "done", title: "Ship", detail: nil, status: .done)
+
+        XCTAssertNil(TaskBoardPresentation.durationText(for: pending))
+        XCTAssertEqual(TaskBoardPresentation.durationText(for: live), "35m")
+        XCTAssertEqual(TaskBoardPresentation.durationText(for: done), "Done")
+    }
+
+    func testFocusMinutesOnlyUseExplicitEstimates() {
+        let items = [
+            TaskBoardItem(id: "one", title: "One", detail: "Estimated 25 minutes", status: .live),
+            TaskBoardItem(id: "two", title: "Two", detail: nil, status: .done)
+        ]
+
+        XCTAssertEqual(TaskBoardPresentation.totalFocusMinutes(items: items), 25)
+    }
+
     func testParseSplitsPendingDoneAndLiveTasks() {
         let snapshot = TaskBoardParser.parse(
             tasksMarkdown: """

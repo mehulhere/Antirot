@@ -4,6 +4,7 @@ import SwiftUI
 struct TaskBoardView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var coach: CoachViewModel
+    @EnvironmentObject private var navigation: AppNavigationModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var liveTasks: [TaskBoardItem] = []
@@ -25,10 +26,9 @@ struct TaskBoardView: View {
         ) {
             taskScopePicker
             taskOverviewStrip
-            priorityTaskCard
-            taskListCard
-            taskSummaryCard
-            quoteCard
+            priorityTask
+            taskList
+            addTaskButton
         }
         .refreshable {
             await loadTasks()
@@ -42,7 +42,7 @@ struct TaskBoardView: View {
     }
 
     private var taskScopePicker: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 20) {
             ForEach(TaskScope.allCases, id: \.self) { scope in
                 Button {
                     withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.22, dampingFraction: 0.86)) {
@@ -50,95 +50,82 @@ struct TaskBoardView: View {
                     }
                 } label: {
                     Text(scope.title)
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .textCase(.uppercase)
                         .foregroundStyle(selectedScope == scope ? .arTextPrimary : .arTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(selectedScope == scope ? Color.white.opacity(0.10) : Color.clear)
-                        )
+                        .padding(.vertical, 10)
                         .overlay(alignment: .bottom) {
-                            Capsule(style: .continuous)
+                            Rectangle()
                                 .fill(selectedScope == scope ? Color.arAccent : Color.clear)
-                                .frame(width: 18, height: 2)
-                                .padding(.bottom, 4)
+                                .frame(height: 2)
                         }
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(5)
-        .smokedGlass(cornerRadius: AntirotCinematicMetrics.pillRadius, tint: .arSurface, shadow: false)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.arBorder).frame(height: 1)
+        }
     }
 
     private var taskOverviewStrip: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 18) {
             taskOverviewMetric(value: "\(liveTasks.count)", label: "Live", tint: .arAccent)
-            overviewDivider
             taskOverviewMetric(value: "\(pendingTasks.count)", label: "Pending", tint: .arAmber)
-            overviewDivider
             taskOverviewMetric(value: "\(doneTasks.count)", label: "Done", tint: .arSuccess)
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 12)
-        .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 
     private func taskOverviewMetric(value: String, label: String, tint: Color) -> some View {
-        VStack(spacing: 3) {
-            Text(value)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(tint)
-            Text(label.uppercased())
-                .font(.caption2.weight(.bold))
-                .tracking(0.8)
-                .foregroundStyle(.arTextSecondary)
+        HStack(spacing: 5) {
+            Text(value).foregroundStyle(tint)
+            Text(label.uppercased()).foregroundStyle(.arTextSecondary)
         }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var overviewDivider: some View {
-        Rectangle()
-            .fill(Color.arBorder)
-            .frame(width: 0.5, height: 34)
+        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+        .tracking(0.6)
     }
 
     @ViewBuilder
-    private var priorityTaskCard: some View {
+    private var priorityTask: some View {
         if let item = scopedItems.first {
-            CinematicGlassCard(padding: 18, accent: item.tint) {
-                VStack(alignment: .leading, spacing: 14) {
-                    CinematicKicker(
-                        title: statusTitle(for: item),
-                        icon: item.systemImage,
-                        tint: item.tint
-                    )
+            VStack(alignment: .leading, spacing: 12) {
+                Text(statusTitle(for: item).uppercased())
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .tracking(1.4)
+                    .foregroundStyle(item.tint)
 
-                    Text(item.title)
-                        .font(.title2.weight(.bold))
-                        .fontDesign(.rounded)
-                        .foregroundStyle(.arTextPrimary)
+                Text(item.title)
+                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .foregroundStyle(.arTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let detail = item.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if let detail = item.detail, !detail.isEmpty {
-                        Text(detail)
-                            .font(.subheadline)
-                            .foregroundStyle(.arTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    HStack {
-                        Label(durationText(for: item), systemImage: "timer")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.arTextSecondary)
-                    }
                 }
+
+                if let duration = TaskBoardPresentation.durationText(for: item) {
+                    Text(duration)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.arTextSecondary)
+                }
+            }
+            .padding(.leading, 16)
+            .padding(.vertical, 8)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Color.arAccent).frame(width: 3)
             }
         }
     }
 
     @ViewBuilder
-    private var taskListCard: some View {
+    private var taskList: some View {
         let items = Array(scopedItems.dropFirst())
 
         if scopedItems.isEmpty {
@@ -149,100 +136,53 @@ struct TaskBoardView: View {
     }
 
     private func taskListSurface(items: [TaskBoardItem], emptyMessage: String?) -> some View {
-        CinematicGlassCard(padding: 0, accent: .arAccent) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text(dayTitle)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
-                    Spacer()
-                    Text("\(focusMinutesText) Focus")
-                        .font(.caption.weight(.bold))
+        VStack(spacing: 0) {
+            HStack {
+                Text(dayTitle)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.arTextPrimary)
+                Spacer()
+                if totalFocusMinutes > 0 {
+                    Text("\(focusMinutesText) logged")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundStyle(.arAccent)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
+            }
+            .padding(.vertical, 12)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.arBorder).frame(height: 1)
+            }
 
-                if let emptyMessage {
-                    Text(emptyMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.arTextMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 18)
-                } else {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        referenceTaskRow(item)
-                        if index < items.count - 1 {
-                            SectionDivider()
-                                .padding(.leading, 56)
-                        }
+            if let emptyMessage {
+                Text(emptyMessage)
+                    .font(.system(size: 20, weight: .regular, design: .serif))
+                    .foregroundStyle(.arTextMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 28)
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    referenceTaskRow(item)
+                    if index < items.count - 1 {
+                        Rectangle().fill(Color.arBorder).frame(height: 1)
                     }
                 }
             }
         }
     }
 
-    private var taskSummaryCard: some View {
-        CinematicGlassCard(padding: 16, accent: .arAccent) {
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Today's Focus")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
-                    Text("\(focusMinutesText) / 4h 0m")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.arTextPrimary)
-                    ProgressView(value: min(Double(totalFocusMinutes) / 240.0, 1.0))
-                        .tint(.arAccent)
-                }
-
-                Spacer(minLength: 8)
-
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.08), lineWidth: 7)
-                    Circle()
-                        .trim(from: 0, to: min(CGFloat(totalFocusMinutes) / 240.0, 1.0))
-                        .stroke(Color.arAccent, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Text("\(Int(min(Double(totalFocusMinutes) / 240.0, 1.0) * 100))%")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.arTextPrimary)
-                }
-                .frame(width: 68, height: 68)
-            }
+    private var addTaskButton: some View {
+        Button {
+            coach.draft = "Add a new task."
+            navigation.selectedScreen = .coach
+        } label: {
+            Label("Add task with Coach", systemImage: "plus")
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .textCase(.uppercase)
+                .foregroundStyle(.arDeepBg)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(Color.arAccent, in: RoundedRectangle(cornerRadius: 4))
         }
-    }
-
-    private var quoteCard: some View {
-        CinematicGlassCard(padding: 16, accent: .arAccent) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Discipline is the bridge between goals and results.")
-                    .font(.system(size: 19, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.arTextPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("- Antirot")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.arTextSecondary)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            Button {
-                coach.draft = "Add a new task."
-            } label: {
-                Image(systemName: "plus")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 58, height: 58)
-                    .background(Circle().fill(Color.arAccent))
-                    .shadow(color: Color.arAccent.opacity(0.32), radius: 20, y: 8)
-            }
-            .buttonStyle(.plain)
-            .offset(y: 28)
-        }
-        .padding(.bottom, 30)
+        .buttonStyle(.plain)
     }
 
     private func referenceTaskRow(_ item: TaskBoardItem) -> some View {
@@ -268,16 +208,17 @@ struct TaskBoardView: View {
 
             Spacer(minLength: 8)
 
-            Text(durationText(for: item))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.arTextSecondary)
+            if let duration = TaskBoardPresentation.durationText(for: item) {
+                Text(duration)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.arTextSecondary)
+            }
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.arTextMuted)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
     }
 
     private var scopedItems: [TaskBoardItem] {
@@ -308,9 +249,7 @@ struct TaskBoardView: View {
     }
 
     private var totalFocusMinutes: Int {
-        let liveEstimate = liveTasks.compactMap { estimatedMinutes(from: $0.detail) }.reduce(0, +)
-        let doneEstimate = doneTasks.count * 45
-        return max(liveEstimate + doneEstimate, liveTasks.isEmpty ? 0 : 30)
+        TaskBoardPresentation.totalFocusMinutes(items: liveTasks + doneTasks)
     }
 
     private var focusMinutesText: String {
@@ -320,29 +259,12 @@ struct TaskBoardView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    private func durationText(for item: TaskBoardItem) -> String {
-        if let minutes = estimatedMinutes(from: item.detail) {
-            return "\(minutes)m"
-        }
-        switch item.status {
-        case .live: return "120m"
-        case .pending: return "45m"
-        case .done: return "Done"
-        }
-    }
-
     private func statusTitle(for item: TaskBoardItem) -> String {
         switch item.status {
         case .live: return "Live"
         case .pending: return "Pending"
         case .done: return "Done"
         }
-    }
-
-    private func estimatedMinutes(from detail: String?) -> Int? {
-        guard let detail else { return nil }
-        let digits = detail.filter { $0.isNumber }
-        return Int(digits)
     }
 
     @MainActor
@@ -386,7 +308,7 @@ struct TaskBoardView: View {
 }
 
 struct TaskBoardItem: Identifiable, Equatable {
-    enum Status {
+    enum Status: Equatable {
         case live
         case pending
         case done
@@ -417,6 +339,28 @@ struct TaskBoardItem: Identifiable, Equatable {
         case .done:
             return .arSuccess
         }
+    }
+}
+
+enum TaskBoardPresentation {
+    static func durationText(for item: TaskBoardItem) -> String? {
+        if item.status == .done {
+            return "Done"
+        }
+        guard let minutes = estimatedMinutes(from: item.detail) else {
+            return nil
+        }
+        return "\(minutes)m"
+    }
+
+    static func totalFocusMinutes(items: [TaskBoardItem]) -> Int {
+        items.compactMap { estimatedMinutes(from: $0.detail) }.reduce(0, +)
+    }
+
+    private static func estimatedMinutes(from detail: String?) -> Int? {
+        guard let detail else { return nil }
+        let digits = detail.filter { $0.isNumber }
+        return Int(digits)
     }
 }
 
@@ -574,4 +518,5 @@ enum TaskBoardParser {
     TaskBoardView()
         .environmentObject(SettingsStore())
         .environmentObject(CoachViewModel())
+        .environmentObject(AppNavigationModel())
 }
