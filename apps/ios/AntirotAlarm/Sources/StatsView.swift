@@ -24,32 +24,42 @@ struct StatsView: View {
         ) {
             if let stats {
                 periodPicker
-                focusCard(period)
-                metricGrid(period)
-                settingsRows
+                focusReport(period)
+                metricStrip(period)
 
-                CinematicGlassCard(padding: 0, accent: .arAccent) {
-                    CinematicActionRow(
-                        title: isSummarizing ? "Summarizing..." : "Summarize today",
-                        subtitle: "Ask the coach what actually moved.",
-                        icon: isSummarizing ? "hourglass" : "sparkles",
-                        tint: .arAccent
-                    ) {
-                        Task { await summarizeToday() }
+                Button {
+                    Task { await summarizeToday() }
+                } label: {
+                    HStack {
+                        Image(systemName: isSummarizing ? "hourglass" : "sparkles")
+                        Text(isSummarizing ? "Summarizing..." : "Summarize today")
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
                     }
-                    .disabled(isSummarizing)
-                    .padding(14)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.arDeepBg)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Color.arAccent, in: RoundedRectangle(cornerRadius: 4))
                 }
+                .buttonStyle(.plain)
+                .disabled(isSummarizing)
 
                 if !summaryText.isEmpty {
-                    CinematicGlassCard(padding: 16, accent: .arCyan) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            CinematicKicker(title: "Coach Review", icon: "quote.bubble", tint: .arCyan)
-                            Text(summaryText)
-                                .font(.subheadline)
-                                .foregroundStyle(.arTextSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("COACH REVIEW")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .tracking(1.2)
+                            .foregroundStyle(.arAccent)
+                        Text(summaryText)
+                            .font(.system(size: 18, design: .serif))
+                            .foregroundStyle(.arTextPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.leading, 16)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.arAccent).frame(width: 3)
                     }
                 }
 
@@ -59,11 +69,11 @@ struct StatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
             } else {
-                CinematicGlassCard(padding: 16, accent: .arWarning) {
-                    Text("Stats unavailable.")
-                        .font(.subheadline)
-                        .foregroundStyle(.arTextSecondary)
-                }
+                Text(isLoading ? "Loading stats..." : statusText)
+                    .font(.system(size: 20, design: .serif))
+                    .foregroundStyle(.arTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 32)
             }
         }
         .refreshable {
@@ -93,7 +103,7 @@ struct StatsView: View {
     }
 
     private var periodPicker: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 22) {
             ForEach(StatsScope.allCases, id: \.self) { scope in
                 Button {
                     withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .spring(response: 0.22, dampingFraction: 0.86)) {
@@ -101,97 +111,92 @@ struct StatsView: View {
                     }
                 } label: {
                     Text(scope.title)
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .textCase(.uppercase)
                         .foregroundStyle(selectedPeriod == scope ? .arTextPrimary : .arTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(selectedPeriod == scope ? Color.white.opacity(0.10) : Color.clear)
-                        )
+                        .padding(.vertical, 10)
                         .overlay(alignment: .bottom) {
-                            Capsule(style: .continuous)
+                            Rectangle()
                                 .fill(selectedPeriod == scope ? Color.arAccent : Color.clear)
-                                .frame(width: 18, height: 2)
-                                .padding(.bottom, 4)
+                                .frame(height: 2)
                         }
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(5)
-        .smokedGlass(cornerRadius: AntirotCinematicMetrics.pillRadius, tint: .arSurface, shadow: false)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.arBorder).frame(height: 1)
+        }
     }
 
-    private func focusCard(_ today: StatsPeriodResponse) -> some View {
-        CinematicGlassCard(padding: 18, accent: .arAccent) {
-            VStack(alignment: .leading, spacing: 18) {
-                Text(statusText)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.arTextMuted)
-                HStack(alignment: .center, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("FOCUS TIME")
-                            .font(.caption.weight(.bold))
-                            .tracking(1.0)
-                            .foregroundStyle(.arTextSecondary)
-                        Text(formatMinutes(today.workMinutes))
-                            .font(.system(size: 32, weight: .regular, design: .rounded))
-                            .foregroundStyle(.arTextPrimary)
-                        Text("/ 4h 0m goal")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.arTextSecondary)
-                    }
-
-                    Spacer(minLength: 10)
-
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 8)
-                        Circle()
-                            .trim(from: 0, to: goalRatio(today))
-                            .stroke(Color.arAccent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Text("\(Int(goalRatio(today) * 100))%")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.arTextPrimary)
-                    }
-                    .frame(width: 88, height: 88)
+    private func focusReport(_ period: StatsPeriodResponse) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(statusText.uppercased())
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(.arTextMuted)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("FOCUS TIME")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .tracking(1.2)
+                        .foregroundStyle(.arAccent)
+                    Text(formatMinutes(period.workMinutes))
+                        .font(.system(size: 58, weight: .regular, design: .serif))
+                        .foregroundStyle(.arTextPrimary)
+                    Text("of 4h goal")
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
                 }
 
-                timeComposition(today)
+                Spacer(minLength: 12)
+
+                Text("\(Int(StatsPresentation.goalRatio(workMinutes: period.workMinutes) * 100))%")
+                    .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.arTextPrimary)
+                    .accessibilityLabel("Goal progress")
+                    .accessibilityValue("\(Int(StatsPresentation.goalRatio(workMinutes: period.workMinutes) * 100)) percent")
             }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Color.arBorder)
+                    Rectangle()
+                        .fill(Color.arAccent)
+                        .frame(width: proxy.size.width * StatsPresentation.goalRatio(workMinutes: period.workMinutes))
+                }
+            }
+            .frame(height: 3)
+
+            timeComposition(period)
         }
+        .padding(.vertical, 8)
     }
 
-    private func metricGrid(_ period: StatsPeriodResponse) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                metricTiles(period)
-            }
-
-            VStack(spacing: 12) {
-                metricTiles(period)
-            }
+    private func metricStrip(_ period: StatsPeriodResponse) -> some View {
+        HStack(spacing: 0) {
+            reportMetric(value: period.sessionsCompleted, label: "Check-ins")
+            Rectangle().fill(Color.arBorder).frame(width: 1, height: 54)
+            reportMetric(value: period.tasksDone, label: "Completed")
         }
+        .padding(.vertical, 14)
+        .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
     }
 
-    @ViewBuilder
-    private func metricTiles(_ period: StatsPeriodResponse) -> some View {
-        CinematicMetricTile(
-            title: "Check-ins",
-            value: "\(period.sessionsCompleted)",
-            icon: "checkmark",
-            tint: .arSuccess
-        )
-        .frame(minWidth: 148)
-        CinematicMetricTile(
-            title: "Completed today",
-            value: "\(period.tasksDone)",
-            icon: "checkmark.circle.fill",
-            tint: .arAccent
-        )
-        .frame(minWidth: 148)
+    private func reportMetric(value: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(value)")
+                .font(.system(size: 28, weight: .semibold, design: .serif))
+                .foregroundStyle(.arTextPrimary)
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(.arTextSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
     }
 
     private func timeComposition(_ period: StatsPeriodResponse) -> some View {
@@ -221,8 +226,8 @@ struct StatsView: View {
 
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.07))
-                            Capsule()
+                            Rectangle().fill(Color.arBorder)
+                            Rectangle()
                                 .fill(row.tint)
                                 .frame(width: proxy.size.width * CGFloat(row.minutes) / CGFloat(total))
                         }
@@ -231,38 +236,6 @@ struct StatsView: View {
                 }
             }
         }
-    }
-
-    private var settingsRows: some View {
-        CinematicGlassCard(padding: 0, accent: .arAccent) {
-            VStack(spacing: 0) {
-                statsLinkRow(title: "Settings", icon: "gearshape", tint: .arTextSecondary)
-                SectionDivider()
-                statsLinkRow(title: "Developer", icon: "chevron.left.forwardslash.chevron.right", tint: .arTextSecondary)
-            }
-        }
-    }
-
-    private func statsLinkRow(title: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(tint)
-                .frame(width: 28)
-            Text(title)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.arTextPrimary)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.arTextMuted)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-    }
-
-    private func goalRatio(_ period: StatsPeriodResponse) -> CGFloat {
-        min(max(CGFloat(period.workMinutes) / 240.0, 0.05), 1.0)
     }
 
     @MainActor
@@ -304,6 +277,12 @@ struct StatsView: View {
         let hours = minutes / 60
         let remainder = minutes % 60
         return remainder == 0 ? "\(hours)h" : "\(hours)h \(remainder)m"
+    }
+}
+
+enum StatsPresentation {
+    static func goalRatio(workMinutes: Int) -> CGFloat {
+        min(max(CGFloat(workMinutes) / 240.0, 0), 1)
     }
 }
 

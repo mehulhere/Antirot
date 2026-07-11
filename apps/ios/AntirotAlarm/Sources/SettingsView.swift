@@ -18,16 +18,12 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            AntirotSectionHeader(title: "Settings", icon: "gearshape")
-
-            // Account
+        VStack(alignment: .leading, spacing: 24) {
             HStack(spacing: 12) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 30))
                     .foregroundStyle(.arTextPrimary)
                     .frame(width: 48, height: 48)
-                    .background(Circle().fill(Color.white.opacity(0.08)))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Signed in")
@@ -45,11 +41,15 @@ struct SettingsView: View {
                 }
                 .buttonStyle(AntirotDestructiveButtonStyle())
             }
-            .minimalCard(cornerRadius: 20, padding: 14)
+            .padding(.vertical, 14)
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
 
-            // Permissions — compact 3-dot row
             VStack(alignment: .leading, spacing: 10) {
-                CinematicKicker(title: "Permissions", icon: "checkmark.shield", tint: .arAmber)
+                Text("PERMISSIONS")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(.arAccent)
 
                 HStack(spacing: 8) {
                     permissionDot(
@@ -81,9 +81,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            .minimalCard(cornerRadius: 20, padding: 14)
+            .padding(.vertical, 4)
 
-            // System info
             VStack(spacing: 0) {
                 infoRow(
                     label: "Device ID",
@@ -95,9 +94,9 @@ struct SettingsView: View {
                     value: URL(string: settings.effectiveServerURL)?.host() ?? "api.antirot.org"
                 )
             }
-            .minimalCard(cornerRadius: 20, padding: 0)
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
 
-            // Developer (hidden toggle)
             VStack(spacing: 0) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -160,8 +159,7 @@ struct SettingsView: View {
                             }
                         }
                         .tint(.arAccent)
-                        .padding(12)
-                        .smokedGlass(cornerRadius: 16, tint: .arElevated, shadow: false)
+                        .padding(.vertical, 12)
 
                         Button {
                             Task { await copyDiagnostics() }
@@ -187,8 +185,8 @@ struct SettingsView: View {
                                 .foregroundStyle(.arTextPrimary)
                                 .padding(10)
                                 .background(Color.arDeepBg.opacity(0.56))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.arBorder, lineWidth: 0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.arBorder, lineWidth: 1))
                         }
 
                         VStack(alignment: .leading, spacing: 4) {
@@ -200,15 +198,16 @@ struct SettingsView: View {
                                 .foregroundStyle(.arTextPrimary)
                                 .padding(10)
                                 .background(Color.arDeepBg.opacity(0.56))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.arBorder, lineWidth: 0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.arBorder, lineWidth: 1))
                         }
                     }
                     .padding(14)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .minimalCard(cornerRadius: 20, padding: 0)
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
         }
         .alert("Full Error", isPresented: $showFullError) {
             Button("OK", role: .cancel) {}
@@ -292,7 +291,9 @@ struct SettingsView: View {
                 .foregroundStyle(.arTextSecondary)
         }
         .padding(12)
-        .smokedGlass(cornerRadius: 16, tint: .arElevated, shadow: false)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.arBorder).frame(height: 1)
+        }
     }
 
     // MARK: - Helpers

@@ -36,11 +36,11 @@ struct CurrentTaskWidgetView: View {
     private var modeColor: Color {
         switch entry.snapshot.mode.lowercased() {
         case "working", "routine":
-            return Color(red: 0.902, green: 0.224, blue: 0.275) // accent red
+            return Color(red: 0.894, green: 0.357, blue: 0.173)
         case "idle":
-            return Color(red: 0.486, green: 0.455, blue: 0.435) // warm muted stone
+            return Color(red: 0.690, green: 0.663, blue: 0.607)
         default:
-            return Color(red: 0.914, green: 0.604, blue: 0.286) // warm amber
+            return Color(red: 0.894, green: 0.357, blue: 0.173)
         }
     }
 
@@ -50,10 +50,7 @@ struct CurrentTaskWidgetView: View {
                 Text(entry.snapshot.mode.uppercased())
                     .font(.system(size: 9, weight: .bold))
                     .tracking(0.8)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(modeColor))
+                    .foregroundStyle(modeColor)
 
                 Spacer()
 
@@ -86,21 +83,7 @@ struct CurrentTaskWidgetView: View {
             }
         }
         .containerBackground(for: .widget) {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.105, green: 0.093, blue: 0.082),
-                    Color(red: 0.035, green: 0.031, blue: 0.028)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-                .overlay(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.08), modeColor.opacity(0.10), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            Color(red: 0.031, green: 0.031, blue: 0.027)
         }
     }
 }

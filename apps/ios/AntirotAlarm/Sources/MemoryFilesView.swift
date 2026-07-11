@@ -28,14 +28,14 @@ struct MemoryFilesView: View {
                                 .padding(.horizontal, 12)
                                 .frame(minHeight: 44)
                                 .background(
-                                    Capsule(style: .continuous)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(
                                             selectedKey == key
                                                 ? Color.arAccent.opacity(0.82)
                                                 : Color.arElevated.opacity(0.58)
                                         )
                                 )
-                                .overlay(Capsule().stroke(Color.arBorder, lineWidth: 0.5))
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.arBorder, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
@@ -58,7 +58,7 @@ struct MemoryFilesView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color.white.opacity(0.07)))
+                        .background(Color.arElevated, in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
@@ -69,7 +69,7 @@ struct MemoryFilesView: View {
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color.white.opacity(0.07)))
+                        .background(Color.arElevated, in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
             }
@@ -83,7 +83,8 @@ struct MemoryFilesView: View {
                     .textSelection(.enabled)
                     .padding(14)
             }
-            .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
+            .background(Color.arSurface, in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.arBorder, lineWidth: 1))
             .padding(.horizontal, 20)
         }
         .padding(.vertical, 18)

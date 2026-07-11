@@ -12,35 +12,23 @@ struct LoginView: View {
         ZStack {
             CinematicBackdrop()
 
-            Circle()
-                .fill(Color.arAccent.opacity(0.08))
-                .frame(width: 260, height: 260)
-                .blur(radius: 100)
-                .offset(x: -150, y: 300)
-
-            VStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 24) {
                 Spacer()
 
-                VStack(spacing: 18) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 58, height: 58)
-                        .background(Circle().fill(LinearGradient.antirotAccent))
-                        .shadow(color: Color.arAccent.opacity(0.30), radius: 22, y: 8)
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("ANTIROT / OPERATING SYSTEM")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(.arAccent)
 
-                    HStack(spacing: 0) {
-                        Text("Anti")
-                            .foregroundStyle(.arTextPrimary)
-                        Text("rot")
-                            .foregroundStyle(.arAccent)
-                    }
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
-                    .tracking(2)
+                    Text("Stop negotiating\nwith yourself.")
+                        .font(.system(size: 46, weight: .semibold, design: .serif))
+                        .foregroundStyle(.arTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text("Behavioral operating system")
-                        .font(.caption)
-                        .foregroundStyle(.arTextMuted)
+                        .font(.subheadline)
+                        .foregroundStyle(.arTextSecondary)
 
                     SectionDivider()
 
@@ -67,12 +55,11 @@ struct LoginView: View {
                         .transition(.opacity)
                     }
                 }
-                .padding(24)
-                .smokedGlass(cornerRadius: 30, tint: .arSurface)
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared || reduceMotion ? 0 : 12)
             .animation(reduceMotion ? .easeOut(duration: 0.1) : .easeOut(duration: 0.5), value: appeared)

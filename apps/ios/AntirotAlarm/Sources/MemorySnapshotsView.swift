@@ -44,7 +44,7 @@ struct MemorySnapshotsView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .frame(width: 44, height: 44)
-                            .background(Circle().fill(Color.white.opacity(0.07)))
+                            .background(Color.arElevated, in: RoundedRectangle(cornerRadius: 4))
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
@@ -56,7 +56,8 @@ struct MemorySnapshotsView: View {
                             .font(.subheadline)
                             .foregroundStyle(.arTextMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .minimalCard(cornerRadius: 20, padding: 14)
+                            .padding(.vertical, 18)
+                            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
                     } else {
                         ForEach(snapshots) { snapshot in
                             snapshotCard(snapshot)
@@ -102,7 +103,7 @@ struct MemorySnapshotsView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(Color.arElevated)
-                    .clipShape(Capsule(style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
 
                 if let state = snapshot.runtimeState?.state {
                     Text(state)
@@ -111,7 +112,7 @@ struct MemorySnapshotsView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(Color.arElevated)
-                        .clipShape(Capsule(style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
 
                 Spacer()
@@ -133,7 +134,8 @@ struct MemorySnapshotsView: View {
                 .disabled(isLoading || restoringSnapshotId != nil)
             }
         }
-        .minimalCard(cornerRadius: 20, padding: 14)
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
     }
 
     private func snapshotSubtitle(_ snapshot: MemorySnapshotSummary) -> String {
