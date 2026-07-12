@@ -12,7 +12,7 @@ struct TaskBoardView: View {
     @State private var doneTasks: [TaskBoardItem] = []
     @State private var statusText = "Loading tasks..."
     @State private var isLoading = false
-    @State private var selectedScope: TaskScope = .today
+    @State private var selectedScope: TaskScope = .inProgress
 
     private var client: APIClient {
         APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
@@ -99,7 +99,7 @@ struct TaskBoardView: View {
                     .foregroundStyle(item.tint)
 
                 Text(item.title)
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .font(.system(.title, design: .serif, weight: .semibold))
                     .foregroundStyle(.arTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -138,7 +138,7 @@ struct TaskBoardView: View {
     private func taskListSurface(items: [TaskBoardItem], emptyMessage: String?) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text(dayTitle)
+                Text(selectedScope.title.uppercased())
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.arTextPrimary)
                 Spacer()
@@ -214,42 +214,28 @@ struct TaskBoardView: View {
                     .foregroundStyle(.arTextSecondary)
             }
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.arTextMuted)
         }
         .padding(.vertical, 14)
     }
 
     private var scopedItems: [TaskBoardItem] {
         switch selectedScope {
-        case .today:
-            let base = liveTasks + Array(pendingTasks.prefix(4))
-            return base.isEmpty ? pendingTasks : Array(base)
-        case .upcoming:
-            return Array(pendingTasks.dropFirst(min(4, pendingTasks.count)))
-        case .backlog:
-            return pendingTasks
+        case .inProgress: return liveTasks
+        case .pending: return pendingTasks
+        case .done: return doneTasks
         }
     }
 
     private var emptyText: String {
         switch selectedScope {
-        case .today:
-            return "No tasks for today."
-        case .upcoming:
-            return "No upcoming tasks."
-        case .backlog:
-            return "No backlog."
+        case .inProgress: return "Nothing in progress."
+        case .pending: return "No pending tasks."
+        case .done: return "No completed tasks."
         }
     }
 
-    private var dayTitle: String {
-        Date().formatted(.dateTime.weekday(.wide).day().month(.wide))
-    }
-
     private var totalFocusMinutes: Int {
-        TaskBoardPresentation.totalFocusMinutes(items: liveTasks + doneTasks)
+        TaskBoardPresentation.totalRecordedMinutes(items: doneTasks)
     }
 
     private var focusMinutesText: String {
@@ -344,23 +330,38 @@ struct TaskBoardItem: Identifiable, Equatable {
 
 enum TaskBoardPresentation {
     static func durationText(for item: TaskBoardItem) -> String? {
-        if item.status == .done {
-            return "Done"
+        if let minutes = recordedMinutes(from: item.detail) {
+            return "\(minutes)m recorded"
         }
-        guard let minutes = estimatedMinutes(from: item.detail) else {
-            return nil
+        if let minutes = estimatedMinutes(from: item.detail) {
+            return "Estimated \(minutes)m"
         }
-        return "\(minutes)m"
+        return item.status == .done ? "Done" : nil
     }
 
-    static func totalFocusMinutes(items: [TaskBoardItem]) -> Int {
-        items.compactMap { estimatedMinutes(from: $0.detail) }.reduce(0, +)
+    static func totalRecordedMinutes(items: [TaskBoardItem]) -> Int {
+        items.compactMap { recordedMinutes(from: $0.detail) }.reduce(0, +)
     }
 
     private static func estimatedMinutes(from detail: String?) -> Int? {
-        guard let detail else { return nil }
-        let digits = detail.filter { $0.isNumber }
-        return Int(digits)
+        firstInteger(in: detail, pattern: #"Estimated\s+(\d+)\s+minutes"#)
+    }
+
+    private static func recordedMinutes(from detail: String?) -> Int? {
+        firstInteger(in: detail, pattern: #"(\d+)\s+actual\s+mins"#)
+    }
+
+    private static func firstInteger(in detail: String?, pattern: String) -> Int? {
+        guard let detail,
+              let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(
+                in: detail,
+                range: NSRange(detail.startIndex..., in: detail)
+              ),
+              let range = Range(match.range(at: 1), in: detail) else {
+            return nil
+        }
+        return Int(detail[range])
     }
 }
 
@@ -371,15 +372,15 @@ struct TaskBoardSnapshot: Equatable {
 }
 
 private enum TaskScope: CaseIterable {
-    case today
-    case upcoming
-    case backlog
+    case inProgress
+    case pending
+    case done
 
     var title: String {
         switch self {
-        case .today: return "Today"
-        case .upcoming: return "Upcoming"
-        case .backlog: return "Backlog"
+        case .inProgress: return "In progress"
+        case .pending: return "Pending"
+        case .done: return "Done"
         }
     }
 }

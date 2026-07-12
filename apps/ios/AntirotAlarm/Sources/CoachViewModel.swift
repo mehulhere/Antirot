@@ -15,6 +15,7 @@ final class CoachViewModel: ObservableObject {
     @Published var statusText = "Ready"
     @Published var runtimeState = "unknown"
     @Published var runtimeMetadata: String?
+    @Published private(set) var isBackendReachable: Bool?
     @Published var coachEmotion: CoachEmotion = .watching
     @Published var showConfetti = false
     @Published private(set) var diagnosticEvents: [ReportEventPayload] = []
@@ -70,6 +71,7 @@ final class CoachViewModel: ObservableObject {
         let previous = runtimeState
         do {
             let response = try await client.fetchRuntimeState(deviceId: deviceId)
+            isBackendReachable = true
             if let payload = response.runtimeState, let nextState = payload.state, !nextState.isEmpty {
                 runtimeState = nextState
                 runtimeMetadata = payload.metadata
@@ -82,6 +84,7 @@ final class CoachViewModel: ObservableObject {
                 )
             }
         } catch {
+            isBackendReachable = false
             recordDiagnosticEvent(
                 kind: "state.refresh_failed",
                 summary: "Runtime refresh failed; keeping \(runtimeState).",

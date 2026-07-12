@@ -4,7 +4,7 @@ import UIKit
 enum ChatSheetMetrics {
     static let minimumControlSize: CGFloat = 44
     static let collapsedCornerRadius: CGFloat = 12
-    static let expandedCornerRadius: CGFloat = 12
+    static let expandedCornerRadius: CGFloat = 0
 }
 
 enum ChatSheetDetents {
@@ -12,7 +12,7 @@ enum ChatSheetDetents {
     static let compactHandleHeight: CGFloat = 44
     static let expandedHandleHeight: CGFloat = 52
     static let collapsedPreviewAcceptsKeyboardInput = false
-    static let fullFraction: CGFloat = 0.96
+    static let fullFraction: CGFloat = 1
 
     static func fullHeight(availableHeight: CGFloat) -> CGFloat {
         availableHeight * fullFraction
@@ -112,7 +112,7 @@ struct GlassSheet: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let available = max(1, proxy.size.height - bottomInset)
+            let available = max(1, proxy.size.height)
             let full = ChatSheetDetents.fullHeight(availableHeight: available)
             let resolved = min(max(height, ChatSheetDetents.collapsedHeight), full)
             let showCollapsedContent = ChatSheetDetents.showsCollapsedContent(
@@ -129,8 +129,8 @@ struct GlassSheet: View {
                 )
                     .frame(maxWidth: .infinity, alignment: .top)
                     .frame(height: resolved, alignment: .top)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, bottomInset + 10)
+                    .padding(.horizontal, showCollapsedContent ? 16 : 0)
+                    .padding(.bottom, showCollapsedContent ? bottomInset + 10 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }

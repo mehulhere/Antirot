@@ -143,31 +143,13 @@ struct StatsView: View {
                         .tracking(1.2)
                         .foregroundStyle(.arAccent)
                     Text(formatMinutes(period.workMinutes))
-                        .font(.system(size: 58, weight: .regular, design: .serif))
+                        .font(.system(.largeTitle, design: .serif))
                         .foregroundStyle(.arTextPrimary)
-                    Text("of 4h goal")
+                    Text("recorded focus")
                         .font(.subheadline)
                         .foregroundStyle(.arTextSecondary)
                 }
-
-                Spacer(minLength: 12)
-
-                Text("\(Int(StatsPresentation.goalRatio(workMinutes: period.workMinutes) * 100))%")
-                    .font(.system(size: 24, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.arTextPrimary)
-                    .accessibilityLabel("Goal progress")
-                    .accessibilityValue("\(Int(StatsPresentation.goalRatio(workMinutes: period.workMinutes) * 100)) percent")
             }
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Color.arBorder)
-                    Rectangle()
-                        .fill(Color.arAccent)
-                        .frame(width: proxy.size.width * StatsPresentation.goalRatio(workMinutes: period.workMinutes))
-                }
-            }
-            .frame(height: 3)
 
             timeComposition(period)
         }
@@ -188,7 +170,7 @@ struct StatsView: View {
     private func reportMetric(value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("\(value)")
-                .font(.system(size: 28, weight: .semibold, design: .serif))
+                .font(.system(.title, design: .serif, weight: .semibold))
                 .foregroundStyle(.arTextPrimary)
             Text(label.uppercased())
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -229,7 +211,12 @@ struct StatsView: View {
                             Rectangle().fill(Color.arBorder)
                             Rectangle()
                                 .fill(row.tint)
-                                .frame(width: proxy.size.width * CGFloat(row.minutes) / CGFloat(total))
+                                .frame(
+                                    width: proxy.size.width * StatsPresentation.compositionRatio(
+                                        minutes: row.minutes,
+                                        total: total
+                                    )
+                                )
                         }
                     }
                     .frame(height: 6)
@@ -281,8 +268,9 @@ struct StatsView: View {
 }
 
 enum StatsPresentation {
-    static func goalRatio(workMinutes: Int) -> CGFloat {
-        min(max(CGFloat(workMinutes) / 240.0, 0), 1)
+    static func compositionRatio(minutes: Int, total: Int) -> CGFloat {
+        guard total > 0 else { return 0 }
+        return min(max(CGFloat(minutes) / CGFloat(total), 0), 1)
     }
 }
 

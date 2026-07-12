@@ -6,7 +6,7 @@ final class ChatSheetDetentsTests: XCTestCase {
     func testEditorialChatControlsRemainThumbFriendly() {
         XCTAssertEqual(ChatSheetMetrics.minimumControlSize, 44, accuracy: 0.1)
         XCTAssertEqual(ChatSheetMetrics.collapsedCornerRadius, 12, accuracy: 0.1)
-        XCTAssertEqual(ChatSheetMetrics.expandedCornerRadius, 12, accuracy: 0.1)
+        XCTAssertEqual(ChatSheetMetrics.expandedCornerRadius, 0, accuracy: 0.1)
         XCTAssertGreaterThanOrEqual(
             ChatSheetDetents.handleHeight(isCollapsed: true),
             ChatSheetMetrics.minimumControlSize
@@ -35,7 +35,7 @@ final class ChatSheetDetentsTests: XCTestCase {
             availableHeight: availableHeight
         )
 
-        XCTAssertEqual(full, 768, accuracy: 0.1)
+        XCTAssertEqual(full, 800, accuracy: 0.1)
     }
 
     func testDownwardSwipeCollapsesDirectly() {
@@ -106,7 +106,7 @@ final class ChatSheetDetentsTests: XCTestCase {
 
         XCTAssertEqual(
             ChatSheetDetents.nearestHeight(to: 730, availableHeight: availableHeight),
-            768,
+            800,
             accuracy: 0.1
         )
     }

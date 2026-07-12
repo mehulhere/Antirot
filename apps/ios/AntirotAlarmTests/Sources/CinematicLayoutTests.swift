@@ -41,6 +41,12 @@ final class CinematicLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(HomeLayoutMetrics.headerTopPadding, 40)
     }
 
+    func testConnectionCopyDoesNotInferReachabilityFromRuntimeState() {
+        XCTAssertEqual(BackendConnectionPresentation.label(isReachable: nil), "SYNCING")
+        XCTAssertEqual(BackendConnectionPresentation.label(isReachable: false), "OFFLINE")
+        XCTAssertEqual(BackendConnectionPresentation.label(isReachable: true), "CONNECTED")
+    }
+
     func testCoachScreenDoesNotShowTopMenuShortcut() {
         XCTAssertFalse(AppChromeMetrics.showsCoachTopMenuShortcut)
     }

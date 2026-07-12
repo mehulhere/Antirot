@@ -22,7 +22,7 @@ struct LoginView: View {
                         .foregroundStyle(.arAccent)
 
                     Text("Stop negotiating\nwith yourself.")
-                        .font(.system(size: 46, weight: .semibold, design: .serif))
+                        .font(.system(.largeTitle, design: .serif, weight: .semibold))
                         .foregroundStyle(.arTextPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 

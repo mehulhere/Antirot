@@ -54,6 +54,7 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     permissionDot(
                         label: "Notifications",
+                        status: notificationStatusLabel,
                         color: notificationStatusColor
                     ) {
                         Task { await alarmCenter.requestNotificationPermission() }
@@ -61,6 +62,7 @@ struct SettingsView: View {
 
                     permissionDot(
                         label: "AlarmKit",
+                        status: alarmCenter.alarmKitStatus.contains("authorized") ? "Authorized" : "Needs attention",
                         color: alarmCenter.alarmKitStatus.contains("authorized")
                             ? .arSuccess : .arDanger
                     ) {
@@ -69,6 +71,7 @@ struct SettingsView: View {
 
                     permissionDot(
                         label: "Screen Time",
+                        status: screenTimeStatusLabel,
                         color: screenTimeStatusColor
                     ) {
                         Task {
@@ -242,17 +245,29 @@ struct SettingsView: View {
     // MARK: - Components
 
     @ViewBuilder
-    private func permissionDot(label: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func permissionDot(
+        label: String,
+        status: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 6) {
                 StatusDot(color: color, animated: false)
                 Text(label)
                     .font(.caption2)
+                    .foregroundStyle(.arTextPrimary)
+                Text(status)
+                    .font(.caption2)
                     .foregroundStyle(.arTextSecondary)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(status)
     }
 
     private func infoRow(label: String, value: String) -> some View {
@@ -309,6 +324,14 @@ struct SettingsView: View {
         }
     }
 
+    private var notificationStatusLabel: String {
+        switch alarmCenter.notificationStatus {
+        case .authorized: return "Authorized"
+        case .provisional: return "Provisional"
+        default: return "Needs attention"
+        }
+    }
+
     private var screenTimeStatusColor: Color {
         if screenTimeMessage.contains("authorized") {
             return .arSuccess
@@ -316,6 +339,16 @@ struct SettingsView: View {
             return .arWarning
         } else {
             return .arDanger
+        }
+    }
+
+    private var screenTimeStatusLabel: String {
+        if screenTimeMessage.contains("authorized") {
+            return "Authorized"
+        } else if screenTimeMessage == "Not requested" {
+            return "Not requested"
+        } else {
+            return "Needs attention"
         }
     }
 

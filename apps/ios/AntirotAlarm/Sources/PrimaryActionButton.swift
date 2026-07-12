@@ -22,7 +22,7 @@ struct PrimaryActionButton: View {
                 }
 
                 Text(title)
-                    .font(.system(size: 26, weight: .semibold, design: .serif))
+                    .font(.system(.title2, design: .serif, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 8)

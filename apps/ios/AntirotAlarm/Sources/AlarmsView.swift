@@ -16,8 +16,8 @@ struct AlarmsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.arTextMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .smokedGlass(cornerRadius: 20, tint: .arSurface, shadow: false)
+                    .padding(.vertical, 18)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(alarmCenter.scheduledAlarms.enumerated()), id: \.element.id) { index, alarm in
@@ -29,7 +29,8 @@ struct AlarmsView: View {
                         }
                     }
                 }
-                .minimalCard(cornerRadius: 20, padding: 0)
+                .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
             }
 
             // Sound config — single row
@@ -56,7 +57,8 @@ struct AlarmsView: View {
                 .frame(minHeight: 50)
             }
             .buttonStyle(.plain)
-            .minimalCard(cornerRadius: 20, padding: 0)
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
 
             // Test alarm — single row
             Button {
@@ -79,7 +81,7 @@ struct AlarmsView: View {
                 .frame(minHeight: 50)
             }
             .buttonStyle(.plain)
-            .minimalCard(cornerRadius: 20, padding: 0)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
         }
         .fileImporter(isPresented: $isImportingSound, allowedContentTypes: [.audio]) { result in
             switch result {

@@ -5,6 +5,16 @@ enum HomeLayoutMetrics {
     static let headerTopPadding: CGFloat = 24
 }
 
+enum BackendConnectionPresentation {
+    static func label(isReachable: Bool?) -> String {
+        switch isReachable {
+        case .some(true): return "CONNECTED"
+        case .some(false): return "OFFLINE"
+        case .none: return "SYNCING"
+        }
+    }
+}
+
 // MARK: - Home (Coach Room)
 
 /// The editorial coach room: a full-screen animated coach, one dominant
@@ -86,12 +96,12 @@ private extension HomeView {
     var homeHeader: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("COACH / LIVE")
+                Text("COACH / \(connectionLabel)")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .tracking(1.2)
                     .foregroundStyle(.arAccent)
                 Text("No excuses.")
-                    .font(.system(size: 34, weight: .semibold, design: .serif))
+                    .font(.system(.largeTitle, design: .serif, weight: .semibold))
                     .foregroundStyle(.arTextPrimary)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -162,24 +172,14 @@ private extension HomeView {
     }
 
     var connectionLabel: String {
-        switch coach.runtimeState.lowercased() {
-        case "unknown":
-            return "SYNCING"
-        case "offline":
-            return "OFFLINE"
-        default:
-            return "CONNECTED"
-        }
+        BackendConnectionPresentation.label(isReachable: coach.isBackendReachable)
     }
 
     var connectionColor: Color {
-        switch coach.runtimeState.lowercased() {
-        case "unknown":
-            return .arWarning
-        case "offline":
-            return .arDanger
-        default:
-            return .arSuccess
+        switch coach.isBackendReachable {
+        case .some(true): return .arSuccess
+        case .some(false): return .arDanger
+        case .none: return .arWarning
         }
     }
 

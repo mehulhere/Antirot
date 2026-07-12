@@ -22,7 +22,8 @@ struct PlanView: View {
                         actionRow(action)
                     }
                 }
-                .minimalCard(cornerRadius: 20, padding: 0)
+                .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
             }
 
             if !routineItems.isEmpty {
@@ -57,7 +58,8 @@ struct PlanView: View {
                         }
                     }
                 }
-                .minimalCard(cornerRadius: 20, padding: 0)
+                .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
             }
 
             // Review
@@ -81,13 +83,15 @@ struct PlanView: View {
             }
             .buttonStyle(.plain)
             .disabled(isReviewing)
-            .minimalCard(cornerRadius: 20, padding: 0)
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
 
             if !reviewText.isEmpty {
                 Text(reviewText)
                     .font(.subheadline)
                     .foregroundStyle(.arTextSecondary)
-                    .minimalCard(cornerRadius: 20, padding: 14)
+                    .padding(.vertical, 14)
+                    .overlay(alignment: .leading) { Rectangle().fill(Color.arAccent).frame(width: 3) }
             }
         }
         .task {
