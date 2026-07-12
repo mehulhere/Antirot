@@ -133,6 +133,10 @@ struct GlassSheet: View {
                     .padding(.bottom, showCollapsedContent ? bottomInset + 10 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .onChange(of: full) { _, nextFullHeight in
+                guard !ChatSheetDetents.isCollapsed(height) else { return }
+                height = nextFullHeight
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
@@ -555,7 +559,7 @@ private struct GlassChatRow: View {
                         onPlayVoiceMessage(audioFileURL)
                     } label: {
                         Label("Voice message", systemImage: "play.circle.fill")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.callout.weight(.medium))
                             .foregroundStyle(.arTextPrimary)
                     }
                     .buttonStyle(.plain)
@@ -564,7 +568,7 @@ private struct GlassChatRow: View {
                     .accessibilityHint("Plays the recorded voice check-in")
                 } else {
                     Text(message.text)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.body)
                         .foregroundStyle(.arTextPrimary)
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)

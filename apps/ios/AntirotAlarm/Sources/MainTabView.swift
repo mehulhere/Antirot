@@ -37,7 +37,9 @@ struct MainTabView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .environmentObject(navigation)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            appBar
+            if !navigation.isAppBarHidden {
+                appBar
+            }
         }
         .background(Color.arBg)
     }
@@ -70,6 +72,7 @@ enum AppScreen: CaseIterable {
 
 final class AppNavigationModel: ObservableObject {
     @Published var selectedScreen: AppScreen = .coach
+    @Published var isAppBarHidden = false
 }
 
 private extension MainTabView {

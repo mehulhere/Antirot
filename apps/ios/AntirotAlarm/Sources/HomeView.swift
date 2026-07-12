@@ -23,6 +23,7 @@ struct HomeView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
+    @EnvironmentObject private var navigation: AppNavigationModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var onboardingName = ""
@@ -78,6 +79,18 @@ struct HomeView: View {
         }
         .onChange(of: coach.runtimeState) { _, _ in
             presentNamePromptIfNeeded()
+        }
+        .onChange(of: sheetHeight) { _, nextHeight in
+            if navigation.isAppBarHidden {
+                if ChatSheetDetents.isCollapsed(nextHeight) {
+                    navigation.isAppBarHidden = false
+                }
+            } else if nextHeight > UIScreen.main.bounds.height * 0.72 {
+                navigation.isAppBarHidden = true
+            }
+        }
+        .onDisappear {
+            navigation.isAppBarHidden = false
         }
         .alert("Your name", isPresented: $showNamePrompt) {
             TextField("Name", text: $onboardingName)
@@ -290,4 +303,5 @@ private extension HomeView {
         .environmentObject(SettingsStore())
         .environmentObject(AlarmCenter())
         .environmentObject(CoachViewModel())
+        .environmentObject(AppNavigationModel())
 }

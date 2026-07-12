@@ -194,7 +194,7 @@ struct TaskBoardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(.arTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 

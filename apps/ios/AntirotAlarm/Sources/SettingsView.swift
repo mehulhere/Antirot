@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var alarmCenter: AlarmCenter
     @EnvironmentObject private var coach: CoachViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var screenTimeMessage = "Not requested"
     @State private var showDeveloperSettings = false
     @State private var showFullError = false
@@ -51,7 +52,7 @@ struct SettingsView: View {
                     .tracking(1.2)
                     .foregroundStyle(.arAccent)
 
-                HStack(spacing: 8) {
+                permissionLayout {
                     permissionDot(
                         label: "Notifications",
                         status: notificationStatusLabel,
@@ -62,7 +63,7 @@ struct SettingsView: View {
 
                     permissionDot(
                         label: "AlarmKit",
-                        status: alarmCenter.alarmKitStatus.contains("authorized") ? "Authorized" : "Needs attention",
+                        status: alarmKitStatusLabel,
                         color: alarmCenter.alarmKitStatus.contains("authorized")
                             ? .arSuccess : .arDanger
                     ) {
@@ -85,6 +86,38 @@ struct SettingsView: View {
                 }
             }
             .padding(.vertical, 4)
+
+            VStack(spacing: 0) {
+                NavigationLink {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        AlarmsView()
+                            .padding(20)
+                    }
+                    .background(Color.arBg)
+                    .navigationTitle("Alarms")
+                    .navigationBarTitleDisplayMode(.inline)
+                } label: {
+                    settingsDestinationRow(title: "Alarm controls", icon: "bell")
+                }
+                .buttonStyle(.plain)
+
+                SectionDivider()
+
+                NavigationLink {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        PlanView()
+                            .padding(20)
+                    }
+                    .background(Color.arBg)
+                    .navigationTitle("Plan")
+                    .navigationBarTitleDisplayMode(.inline)
+                } label: {
+                    settingsDestinationRow(title: "Daily plan", icon: "list.bullet")
+                }
+                .buttonStyle(.plain)
+            }
+            .overlay(alignment: .top) { Rectangle().fill(Color.arBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.arBorder).frame(height: 1) }
 
             VStack(spacing: 0) {
                 infoRow(
@@ -217,6 +250,9 @@ struct SettingsView: View {
         } message: {
             Text(alarmCenter.lastErrorDetails ?? "No error details.")
         }
+        .task {
+            screenTimeMessage = ScreenTimeCenter.authorizationLabel()
+        }
         .sheet(isPresented: $showDiagnosticsPreview) {
             NavigationStack {
                 ScrollView(.vertical, showsIndicators: true) {
@@ -260,7 +296,7 @@ struct SettingsView: View {
                 Text(status)
                     .font(.caption2)
                     .foregroundStyle(.arTextSecondary)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, minHeight: 54)
         }
@@ -283,6 +319,28 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private var permissionLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+    }
+
+    private func settingsDestinationRow(title: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(.arAccent)
+                .frame(width: 24)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.arTextPrimary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.arTextMuted)
+        }
+        .padding(.vertical, 14)
     }
 
     private func developerRow(title: String, subtitle: String, icon: String, trailing: String) -> some View {
@@ -330,6 +388,15 @@ struct SettingsView: View {
         case .provisional: return "Provisional"
         default: return "Needs attention"
         }
+    }
+
+    private var alarmKitStatusLabel: String {
+        let status = alarmCenter.alarmKitStatus.lowercased()
+        if status.contains("authorized") { return "Authorized" }
+        if status.contains("denied") { return "Denied" }
+        if status.contains("notdetermined") || status == "unknown" { return "Not requested" }
+        if status.contains("unavailable") { return "Unavailable" }
+        return "Unknown"
     }
 
     private var screenTimeStatusColor: Color {

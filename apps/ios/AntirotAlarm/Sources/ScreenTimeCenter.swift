@@ -5,6 +5,20 @@ import FamilyControls
 #endif
 
 enum ScreenTimeCenter {
+    static func authorizationLabel() -> String {
+        #if canImport(FamilyControls)
+        if #available(iOS 16.0, *) {
+            switch AuthorizationCenter.shared.authorizationStatus {
+            case .approved: return "Authorized"
+            case .denied: return "Denied"
+            case .notDetermined: return "Not requested"
+            @unknown default: return "Unknown"
+            }
+        }
+        #endif
+        return "Unavailable"
+    }
+
     static func requestAuthorization() async -> String {
         #if canImport(FamilyControls)
         if #available(iOS 16.0, *) {
