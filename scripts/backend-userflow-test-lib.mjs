@@ -349,6 +349,14 @@ export async function runTool(baseUrl, userId, name, args = {}) {
     });
 }
 
+export async function runToolWithFailure(baseUrl, userId, name, args = {}) {
+    return await api(baseUrl, "/v1/test/tool", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ userId, name, args, failureAfterCanonical: true })
+    });
+}
+
 export async function snapshot(baseUrl, userId, deviceId) {
     return await api(baseUrl, `/v1/test/state?userId=${encodeURIComponent(userId)}&deviceId=${encodeURIComponent(deviceId)}`, {
         headers: authHeaders()

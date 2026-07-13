@@ -10,6 +10,10 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class AlarmActivity extends android.app.Activity {
     private MediaPlayer player;
@@ -76,8 +80,52 @@ public class AlarmActivity extends android.app.Activity {
         if (manager != null) {
             manager.cancel(alarm.id.hashCode());
         }
-        new AntirotApiClient(this).acknowledge(alarm.id, action, minutes, message -> {});
-        finish();
+        new AntirotApiClient(this).acknowledge(alarm.id, action, minutes, message -> runOnUiThread(() -> {
+            if (message.startsWith("🔴 FALLBACK:")) {
+                Toast.makeText(this, "Alarm action failed; tap again to retry. " + message, Toast.LENGTH_LONG).show();
+                startSound();
+                return;
+            }
+            new AlarmScheduler(this).cancelSeries(java.util.Collections.singleton(alarm.seriesId));
+            reconcileAfterAction();
+        }));
+    }
+
+    private void reconcileAfterAction() {
+        AntirotApiClient api = new AntirotApiClient(this);
+        api.fetchPendingAlarms(new AntirotApiClient.AlarmCallback() {
+            @Override
+            public void onAlarms(List<AlarmJob> alarms, List<String> cancelledSeriesIds, List<String> cancelledAlarmIds) {
+                AlarmScheduler scheduler = new AlarmScheduler(AlarmActivity.this);
+                scheduler.cancelSeries(cancelledSeriesIds);
+                for (String alarmId : cancelledAlarmIds) {
+                    scheduler.cancelAlarm(alarmId);
+                }
+                List<AlarmJob> scheduled = new ArrayList<>();
+                for (AlarmJob pending : alarms) {
+                    AlarmScheduler.ScheduleResult result = scheduler.schedule(pending);
+                    if (result.scheduled) {
+                        scheduled.add(pending);
+                    }
+                }
+                api.reconcileAlarms(scheduled, cancelledSeriesIds, result -> runOnUiThread(() -> {
+                    if (result.startsWith("🔴 FALLBACK:")) {
+                        Toast.makeText(AlarmActivity.this, "Alarm reconciliation will retry. " + result, Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    finish();
+                }));
+            }
+
+            @Override
+            public void onResult(String message) {
+                runOnUiThread(() -> Toast.makeText(
+                        AlarmActivity.this,
+                        "Alarm replacement will retry. " + message,
+                        Toast.LENGTH_LONG
+                ).show());
+            }
+        });
     }
 
     private void startSound() {

@@ -8,6 +8,8 @@
 - Programmatically verify Scenarios A through M using the `test-scenarios` script to validate all 13 behavioral coaching loops.
 - Manually verify onboarding asks for goals/projects, divides them into levels 1-4, prompts the user for confirmation, and writes them to memory files via `save_onboarding_answers`.
 - Manually verify the simplified humorous coach-style onboarding prompt and confirmation flow in a backend app flow.
+- Manually verify the revised Antirot voice in onboarding and state actions: ruthless clarity, short replies, dry humor, no therapy cadence, no fake drill-sergeant tone.
+- Manually verify onboarding/routine replies use natural planned-work wording instead of leaking context labels or storage-sounding phrases.
 - Build and run `apps/ios` on a real iPhone to verify Antirot registration, notification permission, normal/loud test alarms, alarm actions, and Screen Time authorization.
 - Run the GitHub Actions `Build iOS IPA` workflow and install the uploaded unsigned IPA through SideStore/AltStore for no-Mac iPhone testing.
 - Build and run `apps/android` on a real Android phone to verify Antirot registration, exact alarm permission, normal/loud alarms, alarm actions, and last-30-minute usage access.
@@ -108,3 +110,9 @@
 - Review the latest Crof judge report after onboarding LLM runs and manually verify LLM-20 writes pending missing onboarding questions to coach_todo.txt without broad schedule drift.
 - On an iPhone simulator or TestFlight device, verify the warm smoked-glass Coach, Tasks, Stats, Settings, sign-in, chat detents/keyboard, Dynamic Type, VoiceOver order, and Reduce Motion behavior.
 - On TestFlight, verify the editorial black/ivory/orange redesign, animated angry Coach crop and motion, truthful connection status, full-screen chat, status-based task filters, recorded-time labels, Stats values, permission text, and flat Alarm/Plan surfaces.
+- With two disposable device tokens, verify each device gets HTTP 401 when it requests or mutates the other device's alarms, and verify a non-admin token gets HTTP 401 from subscription mutation.
+- Send two simultaneous chat requests with the same `requestId`, then verify both return the same reply and `/v1/chat/history` contains exactly one visible user/assistant pair with no tool-protocol messages.
+- On one iPhone and one Android device, start and then acknowledge a coached session; verify each phone schedules the leased alarm generation once, cancels every obsolete sibling after acknowledgement, and retries after a simulated offline scheduling/action failure.
+- On physical iPhone and Android devices, verify push wakes trigger `/v1/alarms/pending` reconciliation, successful local scheduling is confirmed once, obsolete siblings cancel after acknowledgement, and offline push/scheduling failures retry.
+- Against disposable PostgreSQL, run the ignored migration integration test plus `npm run test:backend-userflows` and verify concurrent startup records v1-v5 once, partial baselines fail closed, provider quotas persist, and pending/expired APNs effects back off without chat.
+- Set a test account to a non-UTC IANA timezone, write memory around local midnight, then verify the local-day log/stats key, provider-independent canonical save, and snapshot restore of both memory and runtime alarm generation on a PostgreSQL-backed environment.

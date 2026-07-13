@@ -10,6 +10,8 @@ import android.content.Intent;
 public class AlarmReceiver extends BroadcastReceiver {
     public static final String EXTRA_ID = "id";
     public static final String EXTRA_KIND = "kind";
+    public static final String EXTRA_SERIES_ID = "seriesId";
+    public static final String EXTRA_GENERATION = "generation";
     public static final String EXTRA_SEVERITY = "severity";
     public static final String EXTRA_TITLE = "title";
     public static final String EXTRA_MESSAGE = "message";
@@ -55,6 +57,8 @@ public class AlarmReceiver extends BroadcastReceiver {
     static void putAlarm(Intent intent, AlarmJob alarm) {
         intent.putExtra(EXTRA_ID, alarm.id);
         intent.putExtra(EXTRA_KIND, alarm.kind);
+        intent.putExtra(EXTRA_SERIES_ID, alarm.seriesId);
+        intent.putExtra(EXTRA_GENERATION, alarm.generation);
         intent.putExtra(EXTRA_SEVERITY, alarm.severity);
         intent.putExtra(EXTRA_TITLE, alarm.title);
         intent.putExtra(EXTRA_MESSAGE, alarm.message);
@@ -65,6 +69,9 @@ public class AlarmReceiver extends BroadcastReceiver {
         return new AlarmJob(
                 intent.getStringExtra(EXTRA_ID),
                 intent.getStringExtra(EXTRA_KIND),
+                intent.getStringExtra(EXTRA_SERIES_ID),
+                intent.getLongExtra(EXTRA_GENERATION, 1L),
+                null,
                 intent.getStringExtra(EXTRA_SEVERITY),
                 intent.getStringExtra(EXTRA_TITLE),
                 intent.getStringExtra(EXTRA_MESSAGE),

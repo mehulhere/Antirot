@@ -6,13 +6,56 @@ struct HealthResponse: Codable {
 }
 
 struct AlarmJob: Codable, Identifiable, Equatable {
-    enum Kind: String, Codable {
-        case normalWake = "normal_wake"
-        case loudWake = "loud_wake"
-        case routineOverdue = "routine_overdue"
-        case sessionOverdue = "session_overdue"
-        case nonResponse = "non_response"
+    enum Kind: Codable, Equatable {
+        case normalWake
+        case loudWake
+        case routineOverdue
+        case sessionOverdue
+        case nonResponse
+        case sessionAlarm
+        case breakAlarm
+        case wakeAlarm
+        case idleAlarm
         case test
+        case unknown(String)
+
+        init(from decoder: Decoder) throws {
+            let value = try decoder.singleValueContainer().decode(String.self)
+            self = switch value {
+            case "normal_wake": .normalWake
+            case "loud_wake": .loudWake
+            case "routine_overdue": .routineOverdue
+            case "session_overdue": .sessionOverdue
+            case "non_response": .nonResponse
+            case "session_alarm": .sessionAlarm
+            case "break_alarm": .breakAlarm
+            case "wake_alarm": .wakeAlarm
+            case "idle_alarm": .idleAlarm
+            case "test": .test
+            default: .unknown(value)
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+
+        var rawValue: String {
+            switch self {
+            case .normalWake: "normal_wake"
+            case .loudWake: "loud_wake"
+            case .routineOverdue: "routine_overdue"
+            case .sessionOverdue: "session_overdue"
+            case .nonResponse: "non_response"
+            case .sessionAlarm: "session_alarm"
+            case .breakAlarm: "break_alarm"
+            case .wakeAlarm: "wake_alarm"
+            case .idleAlarm: "idle_alarm"
+            case .test: "test"
+            case .unknown(let value): value
+            }
+        }
     }
 
     enum Severity: String, Codable {
@@ -23,6 +66,9 @@ struct AlarmJob: Codable, Identifiable, Equatable {
 
     var id: String
     var kind: Kind
+    var seriesId: String
+    var generation: Int
+    var deliveryToken: String?
     var severity: Severity
     var title: String
     var message: String
@@ -35,6 +81,9 @@ struct AlarmJob: Codable, Identifiable, Equatable {
         AlarmJob(
             id: "local-test-\(UUID().uuidString)",
             kind: .test,
+            seriesId: "local-test",
+            generation: 1,
+            deliveryToken: nil,
             severity: severity,
             title: severity == .normal ? "Antirot test" : "Antirot loud test",
             message: severity == .normal ? "Normal alarm test. Wake up, champ." : "Loud test. Enough disappearing.",
@@ -44,6 +93,44 @@ struct AlarmJob: Codable, Identifiable, Equatable {
             expiresAt: Date().addingTimeInterval(300)
         )
     }
+}
+
+struct PendingAlarmsResponse: Codable {
+    var alarms: [AlarmJob]
+    var cancelledSeriesIds: [String]
+    var cancelledAlarmIds: [String]
+    var cancellations: [AlarmCancellationTombstone]
+}
+
+struct AlarmCancellationTombstone: Codable {
+    var seriesId: String
+    var localAlarmIds: [String]
+}
+
+struct AlarmActionResponse: Codable {
+    var ok: Bool
+    var alarmId: String
+    var status: String
+    var cancelledSeriesIds: [String]
+    var replacementAlarm: AlarmJob?
+}
+
+struct ScheduledAlarmConfirmation: Codable {
+    var alarmId: String
+    var deliveryToken: String
+    var localAlarmId: String
+}
+
+struct AlarmReconcileRequest: Codable {
+    var deviceId: String
+    var scheduled: [ScheduledAlarmConfirmation]
+    var cancelledSeriesIds: [String]
+}
+
+struct AlarmReconcileResponse: Codable {
+    var ok: Bool
+    var scheduledCount: Int
+    var cancellationCount: Int
 }
 
 struct DeviceRegistrationRequest: Codable {
@@ -59,6 +146,7 @@ struct DeviceRegistrationRequest: Codable {
 struct DeviceRegistrationResponse: Codable {
     var ok: Bool
     var deviceId: String
+    var deviceToken: String?
     var message: String?
 }
 
@@ -106,6 +194,7 @@ struct AlarmActionRequest: Codable {
 
 struct ChatCoachRequest: Codable {
     var message: String
+    var requestId: String
 }
 
 struct ChatCoachResponse: Codable {
@@ -133,6 +222,18 @@ struct ChatCoachResponse: Codable {
 struct RuntimeStateResponse: Codable {
     var ok: Bool?
     var runtimeState: RuntimeStatePayload?
+}
+
+struct OnboardingProfileRequest: Codable {
+    var name: String
+    var timezone: String
+}
+
+struct OnboardingProfileResponse: Codable {
+    var ok: Bool
+    var name: String
+    var timezone: String
+    var reply: String
 }
 
 struct MemoryResponse: Codable {

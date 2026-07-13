@@ -32,6 +32,7 @@ struct StopAntirotAlarmIntent: LiveActivityIntent {
         let deviceId = defaults.string(forKey: "deviceId") ?? "unknown-device"
         try await APIClient(baseURL: serverURL, apiToken: apiToken)
             .acknowledge(alarmId: alarmID, deviceId: deviceId, action: "ack")
+        await AlarmActionReconciler.reconcile()
         return .result()
     }
 }
@@ -56,6 +57,7 @@ struct SnoozeAntirotAlarmIntent: LiveActivityIntent {
         let deviceId = defaults.string(forKey: "deviceId") ?? "unknown-device"
         try await APIClient(baseURL: serverURL, apiToken: apiToken)
             .acknowledge(alarmId: alarmID, deviceId: deviceId, action: "snooze", minutes: 9)
+        await AlarmActionReconciler.reconcile()
         return .result()
     }
 }
@@ -93,6 +95,26 @@ enum AlarmKitCenter {
                 return false
             }
             return try await scheduleAuthorized(alarm, soundName: soundName)
+        }
+        #endif
+        return false
+    }
+
+    static func cancel(_ alarm: AlarmJob) async -> Bool {
+        await cancel(alarmId: alarm.id)
+    }
+
+    static func cancel(alarmId: String) async -> Bool {
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) {
+            let id = UUID(uuidString: stableUuidString(alarmId)) ?? UUID()
+            do {
+                try AlarmManager.shared.cancel(id: id)
+                return true
+            } catch {
+                print("🔴 FALLBACK: AlarmKit cancellation failed - Reason: \(error.localizedDescription) - Impact: an obsolete alarm may remain visible until reconciliation retries")
+                return false
+            }
         }
         #endif
         return false

@@ -1,5 +1,8 @@
 name: Build iOS IPA
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 
@@ -13,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Select Xcode
         run: |
@@ -37,9 +40,12 @@ jobs:
 
       - name: Install XcodeGen
         run: |
-          if ! command -v xcodegen >/dev/null 2>&1; then
-            brew install xcodegen
-          fi
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/yonaskolb/XcodeGen "${RUNNER_TEMP}/XcodeGen"
+          git -C "${RUNNER_TEMP}/XcodeGen" checkout --detach 21ac9944b0ab546a07422dbed86f33dd2ebd76f8
+          swift build -c release --package-path "${RUNNER_TEMP}/XcodeGen"
+          sudo install -m 755 "${RUNNER_TEMP}/XcodeGen/.build/release/xcodegen" /usr/local/bin/xcodegen
+          test "$(xcodegen --version)" = "2.44.1"
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -73,7 +79,7 @@ jobs:
           /usr/bin/zip -qry Antirot-unsigned.ipa Payload
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Antirot-unsigned-ipa
           path: apps/ios/Antirot-unsigned.ipa

@@ -21,6 +21,13 @@
         "test:misc-task-capture-llm": "node scripts/test-misc-task-capture-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
         "test:action-buttons": "node scripts/test-action-button-maps.mjs",
+        "test:memory-timezone-contracts": "node scripts/test-memory-timezone-contracts.mjs",
+        "test:production-contracts": "node scripts/test-production-contracts.mjs",
+        "test:device-auth-boundaries": "node scripts/test-device-auth-boundaries.mjs",
+        "test:frontend-secret-boundaries": "node scripts/test-frontend-secret-boundaries.mjs",
+        "test:website-tester-security": "node scripts/test-website-tester-security.mjs",
+        "test:alarm-reconciliation-contracts": "node scripts/test-alarm-reconciliation-contracts.mjs",
+        "test:ci-security-contracts": "node scripts/test-ci-security-contracts.mjs",
         "test:testflight-upload-check": "node scripts/test-testflight-upload-check.mjs",
         "scenario": "node scripts/run-antirot-scenario.mjs",
         "check:env": "node scripts/check-env.mjs",
@@ -37,7 +44,7 @@
     "dependencies": {
         "@ricky0123/vad-web": "^0.0.30",
         "lucide-react": "^0.468.0",
-        "next": "^15.0.4",
+        "next": "^15.5.20",
         "react": "^19.0.0",
         "react-dom": "^19.0.0"
     },
@@ -49,5 +56,8 @@
         "eslint": "^9.39.1",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.46.4"
+    },
+    "overrides": {
+        "postcss": "^8.5.10"
     }
 }

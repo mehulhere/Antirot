@@ -10,11 +10,11 @@ const checks = [
     },
     {
         label: "Android APK download is present",
-        pass: html.includes('href="releases/antirot.apk"'),
+        pass: html.includes('href="https://github.com/mehulhere/Antirot/releases/latest/download/antirot.apk"'),
     },
     {
         label: "iOS IPA download is present",
-        pass: html.includes('href="releases/Antirot-unsigned.ipa"'),
+        pass: html.includes('href="https://testflight.apple.com"'),
     },
     {
         label: "new phone mockup visual is present",

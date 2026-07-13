@@ -8,11 +8,14 @@ struct APIClient {
         static let speechTranscription: TimeInterval = 60
     }
 
+    private static let maxAudioUploadBytes = 25 * 1024 * 1024
+
     enum APIError: Error, LocalizedError {
         case missingServerURL
         case invalidResponse(status: Int, body: String)
         case decodeFailed(body: String)
         case transportFailed(url: String, underlying: String)
+        case audioUploadTooLarge(bytes: Int, max: Int)
 
         var errorDescription: String? {
             switch self {
@@ -24,6 +27,8 @@ struct APIClient {
                 "Antirot backend returned unexpected JSON: \(body)"
             case let .transportFailed(url, underlying):
                 "Could not complete Antirot backend request at \(url). Network failed before an HTTP response or the backend took too long to reply. \(underlying)"
+            case let .audioUploadTooLarge(bytes, max):
+                "Voice note is too large (\(bytes) bytes). Keep uploads under \(max) bytes."
             }
         }
 
@@ -37,6 +42,8 @@ struct APIClient {
                 "The device reached the backend, but the app and backend disagree on the response shape. Rebuild the app from the latest code."
             case .transportFailed:
                 "Open https://api.antirot.org/v1/health on this iPhone. If Safari works but chat still times out, retry once on the same network and share this full error including the NSURLError code."
+            case .audioUploadTooLarge:
+                "Record a shorter voice note and retry."
             }
         }
 
@@ -50,13 +57,14 @@ struct APIClient {
                 "Backend response did not match the app"
             case .transportFailed:
                 "Backend network check failed"
+            case .audioUploadTooLarge:
+                "Voice note exceeds 25 MB"
             }
         }
     }
 
     var baseURL: URL?
     var apiToken: String
-    var userId: String = "admin"
 
     func checkHealth() async throws -> HealthResponse {
         let url = try Self.endpointURL(baseURL: effectiveBaseURL(), path: "/v1/health")
@@ -77,7 +85,7 @@ struct APIClient {
 
     func registerDevice(_ request: DeviceRegistrationRequest) async throws -> DeviceRegistrationResponse {
         try await send(
-            path: "/devices/register",
+            path: "/v1/devices/register",
             method: "POST",
             body: request,
             response: DeviceRegistrationResponse.self
@@ -104,10 +112,14 @@ struct APIClient {
         )
     }
 
-    func fetchPendingAlarms(deviceId: String) async throws -> [AlarmJob] {
+    func fetchPendingAlarms(deviceId: String) async throws -> PendingAlarmsResponse {
         let baseURL = effectiveBaseURL()
-        var components = URLComponents(url: try Self.endpointURL(baseURL: baseURL, path: "/alarms/pending"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "deviceId", value: deviceId)]
+        var components = URLComponents(url: try Self.endpointURL(baseURL: baseURL, path: "/v1/alarms/pending"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "deviceId", value: deviceId),
+            URLQueryItem(name: "reconcile", value: "true"),
+            URLQueryItem(name: "limit", value: "200")
+        ]
         guard let url = components?.url else { throw APIError.missingServerURL }
         var request = URLRequest(url: url)
         addAuth(to: &request)
@@ -117,27 +129,36 @@ struct APIClient {
             throw APIError.invalidResponse(status: statusCode, body: responseBody(data))
         }
         do {
-            return try JSONDecoder.antirot.decode([AlarmJob].self, from: data)
+            return try JSONDecoder.antirot.decode(PendingAlarmsResponse.self, from: data)
         } catch {
             throw APIError.decodeFailed(body: responseBody(data))
         }
     }
 
-    func acknowledge(alarmId: String, deviceId: String, action: String, minutes: Int? = nil) async throws {
-        let payload = AlarmActionRequest(deviceId: deviceId, action: action, at: Date(), minutes: minutes)
-        _ = try await send(
-            path: "/alarms/\(alarmId)/\(action)",
+    func reconcileAlarms(_ request: AlarmReconcileRequest) async throws -> AlarmReconcileResponse {
+        try await send(
+            path: "/v1/alarms/reconcile",
             method: "POST",
-            body: payload,
-            response: EmptyResponse.self
+            body: request,
+            response: AlarmReconcileResponse.self
         )
     }
 
-    func chat(message: String) async throws -> ChatCoachResponse {
+    func acknowledge(alarmId: String, deviceId: String, action: String, minutes: Int? = nil) async throws -> AlarmActionResponse {
+        let payload = AlarmActionRequest(deviceId: deviceId, action: action, at: Date(), minutes: minutes)
+        return try await send(
+            path: "/v1/alarms/\(alarmId)/\(action)",
+            method: "POST",
+            body: payload,
+            response: AlarmActionResponse.self
+        )
+    }
+
+    func chat(message: String, requestId: String = UUID().uuidString) async throws -> ChatCoachResponse {
         try await send(
             path: "/v1/chat",
             method: "POST",
-            body: ChatCoachRequest(message: message),
+            body: ChatCoachRequest(message: message, requestId: requestId),
             response: ChatCoachResponse.self,
             timeoutInterval: RequestTimeout.chat
         )
@@ -157,6 +178,15 @@ struct APIClient {
         } catch {
             throw APIError.decodeFailed(body: responseBody(data))
         }
+    }
+
+    func saveOnboardingProfile(name: String, timezone: String) async throws -> OnboardingProfileResponse {
+        try await send(
+            path: "/v1/profile/onboarding",
+            method: "POST",
+            body: OnboardingProfileRequest(name: name, timezone: timezone),
+            response: OnboardingProfileResponse.self
+        )
     }
 
     func fetchStats() async throws -> StatsResponse {
@@ -254,6 +284,10 @@ struct APIClient {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         addAuth(to: &request)
 
+        let fileSize = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard fileSize <= Self.maxAudioUploadBytes else {
+            throw APIError.audioUploadTooLarge(bytes: fileSize, max: Self.maxAudioUploadBytes)
+        }
         let audioData = try Data(contentsOf: fileURL)
         var body = Data()
         body.appendMultipartFieldStart(
@@ -389,6 +423,17 @@ struct APIClient {
     private func responseBody(_ data: Data) -> String {
         let text = String(data: data, encoding: .utf8) ?? "<non-utf8 response>"
         return text.isEmpty ? "<empty response>" : String(text.prefix(300))
+    }
+}
+
+@MainActor
+enum AlarmActionReconciler {
+    static func reconcile() async {
+        let settings = SettingsStore()
+        guard !settings.apiToken.isEmpty else { return }
+        let center = AlarmCenter()
+        await center.configure(settings: settings)
+        await center.reconcileAlarms()
     }
 }
 

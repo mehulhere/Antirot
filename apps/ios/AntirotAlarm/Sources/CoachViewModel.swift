@@ -28,6 +28,7 @@ final class CoachViewModel: ObservableObject {
     private var chatQueueProcessing = false
     private var pendingVoiceSegments: [URL] = []
     private var voiceQueueProcessing = false
+    var reconcileAlarms: (() async -> Void)?
 
     var isRecording: Bool {
         recorder.isRecording
@@ -184,7 +185,11 @@ final class CoachViewModel: ObservableObject {
         } else {
             visibleText = trimmed
         }
-        pendingChatMessages.append(QueuedChatMessage(text: trimmed, visibleText: visibleText))
+        pendingChatMessages.append(QueuedChatMessage(
+            text: trimmed,
+            visibleText: visibleText,
+            requestId: UUID().uuidString
+        ))
         recordDiagnosticEvent(
             kind: "chat.enqueued",
             summary: "Queued user message.",
@@ -207,11 +212,14 @@ final class CoachViewModel: ObservableObject {
             statusText = pendingChatMessages.isEmpty ? "Thinking" : "Thinking (\(pendingChatMessages.count) queued)"
 
             do {
-                let response = try await client.chat(message: queued.text)
+                let response = try await client.chat(message: queued.text, requestId: queued.requestId)
                 messages.append(CoachMessage(role: .coach, text: response.reply))
                 statusText = "Ready"
                 recordDiagnosticEvent(kind: "chat.reply", summary: "Coach reply received.", detail: response.reply)
                 applyRuntimeState(from: response)
+                if let reconcileAlarms {
+                    await reconcileAlarms()
+                }
                 applyEmotion(from: response)
                 if let preface = response.voicePreface?.trimmingCharacters(in: .whitespacesAndNewlines), !preface.isEmpty {
                     await speak(preface, client: client)
@@ -308,6 +316,7 @@ final class CoachViewModel: ObservableObject {
 private struct QueuedChatMessage {
     var text: String
     var visibleText: String?
+    var requestId: String
 }
 
 private enum VoicePlaybackError: LocalizedError {

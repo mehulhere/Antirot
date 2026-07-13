@@ -10,7 +10,7 @@ struct MemorySnapshotsView: View {
     @State private var restoringSnapshotId: String?
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
     var body: some View {

@@ -20,11 +20,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MicVAD } from "@ricky0123/vad-web";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_ANTIROT_BACKEND_URL || "https://api.antirot.org";
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN || "test-admin-token";
-const DEVICE_TOKEN = process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN || "test-device-token";
 const GOOGLE_WEB_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
-const USER_ID = "admin";
 const DEVICE_ID = "frontend-lab-device";
+const DEVICE_TOKEN_STORAGE_KEY = "antirot:deviceToken";
 const VAD_SAMPLE_RATE = 16000;
 const VAD_MIN_UPLOAD_SECONDS = 10;
 const VAD_PREFERRED_UPLOAD_SECONDS = 30;
@@ -156,6 +154,12 @@ type LabAction = {
     icon: React.ReactNode;
     tool: string;
     args: Record<string, string | number | boolean | undefined>;
+    message: string;
+};
+
+type GoogleAuthBackendResponse = {
+    deviceToken: string;
+    userId: string;
 };
 
 type QuickMessage = {
@@ -267,9 +271,9 @@ function nowLabel() {
 
 function todayWorkKey() {
     const today = new Date();
-    const year = today.getUTCFullYear();
-    const month = String(today.getUTCMonth() + 1).padStart(2, "0");
-    const date = String(today.getUTCDate()).padStart(2, "0");
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const date = String(today.getDate()).padStart(2, "0");
     return `work_log_${year}_${month}_${date}`;
 }
 
@@ -287,10 +291,18 @@ function runtimeStateName(state?: string): RuntimeStateName {
     return "unknown";
 }
 
-async function backendJson<T>(path: string, init: RequestInit = {}, authToken = ADMIN_TOKEN): Promise<T> {
+function currentDeviceToken() {
+    if (typeof window !== "undefined") {
+        return window.localStorage.getItem(DEVICE_TOKEN_STORAGE_KEY) || "";
+    }
+    return "";
+}
+
+async function backendJson<T>(path: string, init: RequestInit = {}, authToken?: string): Promise<T> {
     const headers = new Headers(init.headers);
-    if (authToken) {
-        headers.set("Authorization", `Bearer ${authToken}`);
+    const scopedToken = authToken === undefined ? currentDeviceToken() : authToken;
+    if (scopedToken) {
+        headers.set("Authorization", `Bearer ${scopedToken}`);
     }
     if (init.body && !(init.body instanceof FormData)) {
         headers.set("Content-Type", "application/json");
@@ -326,18 +338,6 @@ function concatFloat32(chunks: Float32Array[]) {
     return combined;
 }
 
-function onboardingMessage(name: string) {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
-    return [
-        "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
-        "Silent client context is available below for scheduling only.",
-        "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-        "First onboarding message: I'm Antirot. I've coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let's see what you've got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you're planning to get done today.",
-        `Name: ${name || "not provided"}`,
-        `Silent device timezone: ${timezone}`
-    ].join("\n");
-}
-
 function loadCachedOnboardingName() {
     if (typeof window === "undefined") {
         return "";
@@ -349,7 +349,7 @@ function loadCachedNamePromptSent() {
     if (typeof window === "undefined") {
         return false;
     }
-    return window.localStorage.getItem(ONBOARDING_NAME_SENT_STORAGE_KEY) === "true" || Boolean(loadCachedOnboardingName());
+    return window.localStorage.getItem(ONBOARDING_NAME_SENT_STORAGE_KEY) === "true";
 }
 
 function normalizeForReport(value: unknown) {
@@ -501,35 +501,40 @@ export default function AntirotLabPage() {
                 label: "Start Work",
                 icon: <Play size={14} />,
                 tool: "start_session",
-                args: { task_id: "Frontend lab validation", estimated_minutes: 25 }
+                args: { task_id: "Frontend lab validation", estimated_minutes: 25 },
+                message: "Start a 25 minute session for Frontend lab validation."
             },
             {
                 id: "extend-work",
                 label: "Extend",
                 icon: <RefreshCw size={14} />,
                 tool: "extend_session",
-                args: { extension_minutes: 10 }
+                args: { extension_minutes: 10 },
+                message: "Extend my current session by 10 minutes."
             },
             {
                 id: "done",
                 label: "Done",
                 icon: <Check size={14} />,
                 tool: "end_session",
-                args: { actual_minutes: 25, productive_level: 80 }
+                args: { actual_minutes: 25, productive_level: 80 },
+                message: "End my session. I worked 25 minutes at about 80 percent productivity."
             },
             {
                 id: "break",
                 label: "Break",
                 icon: <Coffee size={14} />,
                 tool: "start_break",
-                args: { duration_minutes: 10 }
+                args: { duration_minutes: 10 },
+                message: "Start a 10 minute break."
             },
             {
                 id: "wake",
                 label: "Awake",
                 icon: <Moon size={14} />,
                 tool: "log_wake",
-                args: { sleep_quality: 4 }
+                args: { sleep_quality: 4 },
+                message: "I am awake. Sleep quality was 4 out of 5."
             },
         ],
         []
@@ -657,7 +662,7 @@ export default function AntirotLabPage() {
         recordEvent("auth.google.token", `Google credential received (${credential.length} chars).`);
 
         try {
-            const result = await backendJson<unknown>(
+            const result = await backendJson<GoogleAuthBackendResponse>(
                 "/v1/auth/google",
                 {
                     method: "POST",
@@ -672,6 +677,7 @@ export default function AntirotLabPage() {
                 },
                 ""
             );
+            window.localStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, result.deviceToken);
             setGoogleStatus("Backend Google login succeeded.");
             setGoogleResult(JSON.stringify(result, null, 2));
             recordEvent("auth.google.success", "Backend Google login succeeded.", normalizeForReport(result));
@@ -697,6 +703,13 @@ export default function AntirotLabPage() {
             ...reportEventsRef.current.filter((event) => new Date(event.at).getTime() >= cutoff),
             nextEvent
         ];
+    }
+
+    function recordFallback(scope: string, error: unknown, impact: string) {
+        const reason = error instanceof Error ? error.message : String(error);
+        const message = `🔴 FALLBACK: ${scope} - Reason: ${reason} - Impact: ${impact}`;
+        setLastError(message);
+        recordEvent("fallback", message);
     }
 
     function trackSnapshotChange(source: string, next: Snapshot) {
@@ -748,38 +761,22 @@ export default function AntirotLabPage() {
         setOnboardingName("");
         setNamePromptSent(false);
         setSpeechStatus("VAD speech chunks ready.");
-        setMemoryContent("Resetting backend fixture and memory files...");
+        setMemoryContent("Local conversation reset. Server memory was preserved.");
         pendingTranscriptResultsRef.current.clear();
         nextTranscriptSequenceRef.current = nextSpeechSequenceRef.current;
 
-        setBusy(true);
-        try {
-            const reset = await backendJson<Snapshot>("/v1/test/reset", {
-                method: "POST",
-                body: JSON.stringify({
-                    userId: USER_ID,
-                    deviceId: DEVICE_ID,
-                    deviceToken: DEVICE_TOKEN
-                })
-            });
-            setSnapshot(reset);
-            trackSnapshotChange("backend fixture reset", reset);
-            setTestMode("ok");
-            setMessages([
-                ...initialMessages,
-                {
-                    id: `reset-${Date.now()}`,
-                    role: "system",
-                    text: "Browser conversation and backend memory files reset.",
-                    at: nowLabel()
-                }
-            ]);
-            await refreshAll();
-        } catch (error) {
-            handleError(error, "Backend memory reset failed");
-        } finally {
-            setBusy(false);
-        }
+        setSnapshot(null);
+        setTestMode("ok");
+        setMessages([
+            ...initialMessages,
+            {
+                id: `reset-${Date.now()}`,
+                role: "system",
+                text: "Browser conversation reset. Canonical backend memory was not modified.",
+                at: nowLabel()
+            }
+        ]);
+        await refreshAll();
     }
 
     function handleError(error: unknown, fallback: string) {
@@ -806,27 +803,7 @@ export default function AntirotLabPage() {
             return;
         }
 
-        try {
-            const reset = await backendJson<Snapshot>("/v1/test/reset", {
-                method: "POST",
-                body: JSON.stringify({
-                    userId: USER_ID,
-                    deviceId: DEVICE_ID,
-                    deviceToken: DEVICE_TOKEN
-                })
-            });
-            setSnapshot(reset);
-            trackSnapshotChange("boot test reset", reset);
-            setTestMode("ok");
-            pushMessage("system", "Test fixture reset. Direct state actions are enabled.");
-        } catch (error) {
-            setTestMode("fail");
-            const authHint = ADMIN_TOKEN === "test-admin-token"
-                ? " Start the lab with ANTIROT_ADMIN_TOKEN/NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN set."
-                : "";
-            handleError(error, `Test endpoints are not available.${authHint}`);
-        }
-
+        setTestMode(currentDeviceToken() ? "ok" : "loading");
         await refreshAll();
     }
 
@@ -836,26 +813,25 @@ export default function AntirotLabPage() {
 
     async function loadSnapshot() {
         try {
-            const state = await backendJson<Snapshot>(
-                `/v1/test/state?userId=${encodeURIComponent(USER_ID)}&deviceId=${encodeURIComponent(DEVICE_ID)}`
-            );
-            setSnapshot(state);
-            trackSnapshotChange("state refresh", state);
-        } catch {
+            const state = await backendJson<{ runtimeState?: Snapshot["runtimeState"] }>("/v1/state");
+            const snapshot = { runtimeState: state.runtimeState } as Snapshot;
+            setSnapshot(snapshot);
+            trackSnapshotChange("state refresh", snapshot);
+        } catch (error) {
             setSnapshot((current) => current);
+            recordFallback("runtime snapshot refresh failed", error, "the last known state remains visible");
         }
     }
 
     async function loadPendingAlarms() {
         try {
             const alarms = await backendJson<PendingAlarm[]>(
-                `/v1/alarms/pending?device_id=${encodeURIComponent(DEVICE_ID)}`,
-                {},
-                DEVICE_TOKEN
+                `/v1/alarms/pending?device_id=${encodeURIComponent(DEVICE_ID)}`
             );
             setPendingAlarms(alarms);
-        } catch {
+        } catch (error) {
             setPendingAlarms([]);
+            recordFallback("pending alarm refresh failed", error, "the alarm panel is empty until the next successful refresh");
         }
     }
 
@@ -863,7 +839,7 @@ export default function AntirotLabPage() {
         const targetKey = key === "work" ? todayWorkKey() : key;
         setMemoryKey(key);
         try {
-            const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(targetKey)}`, {}, DEVICE_TOKEN);
+            const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(targetKey)}`);
             setMemoryContent(memory.content || "# Empty\n");
             trackMemoryObservation(targetKey, memory.content || "# Empty\n", "memory tab load");
         } catch (error) {
@@ -872,15 +848,8 @@ export default function AntirotLabPage() {
     }
 
     async function loadDiagnostics() {
-        try {
-            const report = await backendJson<ContextReport>(
-                `/v1/admin/context?userId=${encodeURIComponent(USER_ID)}&provider=gemini&model=gemini-3.5-flash`
-            );
-            setDiagnostics(report);
-            recordEvent("diagnostics.prompt", `Diagnostics loaded: ${report.report.systemPromptChars} prompt chars, ${report.report.toolCount} tools.`);
-        } catch {
-            setDiagnostics(null);
-        }
+        setDiagnostics(null);
+        recordEvent("diagnostics.disabled", "Admin prompt diagnostics are intentionally unavailable in browser code.");
     }
 
     async function sendChat(text: string, visibleText?: string) {
@@ -888,6 +857,7 @@ export default function AntirotLabPage() {
         if (!trimmed || busy) {
             return;
         }
+        const requestId = crypto.randomUUID();
         const visible = visibleText === undefined ? trimmed : visibleText.trim();
         setBusy(true);
         setDraft("");
@@ -900,7 +870,7 @@ export default function AntirotLabPage() {
         try {
             const reply = await backendJson<{ ok: boolean; reply: string }>("/v1/chat", {
                 method: "POST",
-                body: JSON.stringify({ message: trimmed })
+                body: JSON.stringify({ message: trimmed, requestId })
             });
             recordEvent("llm.reply", "Coach LLM reply received.", reply.reply);
             pushMessage("coach", reply.reply);
@@ -928,33 +898,29 @@ export default function AntirotLabPage() {
         }
         recordEvent("onboarding.name", `Onboarding name submitted: ${name}`);
         window.localStorage.setItem(ONBOARDING_NAME_STORAGE_KEY, name);
-        window.localStorage.setItem(ONBOARDING_NAME_SENT_STORAGE_KEY, "true");
-        setNamePromptSent(true);
-        await sendChat(onboardingMessage(name), "");
+        setBusy(true);
+        try {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+            const response = await backendJson<{ ok: boolean; name: string; timezone: string; reply: string }>("/v1/profile/onboarding", {
+                method: "POST",
+                body: JSON.stringify({ name, timezone })
+            });
+            window.localStorage.setItem(ONBOARDING_NAME_SENT_STORAGE_KEY, "true");
+            setNamePromptSent(true);
+            pushMessage("coach", response.reply);
+            await refreshAll();
+        } catch (error) {
+            window.localStorage.removeItem(ONBOARDING_NAME_SENT_STORAGE_KEY);
+            setNamePromptSent(false);
+            handleError(error, "Onboarding profile failed");
+        } finally {
+            setBusy(false);
+        }
     }
 
     async function runTool(action: LabAction) {
         recordEvent("button.stateAction", `${action.label} pressed.`, normalizeForReport({ tool: action.tool, args: action.args }));
-        setBusy(true);
-        try {
-            const result = await backendJson<{ ok: boolean; result: string; snapshot: Snapshot }>("/v1/test/tool", {
-                method: "POST",
-                body: JSON.stringify({
-                    userId: USER_ID,
-                    name: action.tool,
-                    args: action.args
-                })
-            });
-            setSnapshot(result.snapshot);
-            trackSnapshotChange(`tool ${action.tool}`, result.snapshot);
-            recordEvent("tool.result", `${action.label}: ${result.result}`);
-            pushMessage("system", `${action.label}: ${result.result}`);
-            await refreshAll();
-        } catch (error) {
-            handleError(error, `${action.label} failed`);
-        } finally {
-            setBusy(false);
-        }
+        await sendChat(action.message, action.label);
     }
 
     async function acknowledgeAlarm(alarmId: string, action: "ack" | "dismiss" | "snooze" | "clear") {
@@ -967,7 +933,7 @@ export default function AntirotLabPage() {
                     action,
                     at: new Date().toISOString()
                 })
-            }, DEVICE_TOKEN);
+            });
             await refreshAll();
         } catch (error) {
             handleError(error, "Alarm action failed");
@@ -1194,7 +1160,7 @@ export default function AntirotLabPage() {
         for (const tab of memoryTabs) {
             const key = tab.key === "work" ? todayWorkKey() : tab.key;
             try {
-                const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(key)}`, {}, DEVICE_TOKEN);
+                const memory = await backendJson<MemoryResponse>(`/v1/memory/${encodeURIComponent(key)}`);
                 const content = memory.content || "# Empty\n";
                 const previous = memorySnapshotsRef.current.get(key);
                 const summary = previous === undefined
@@ -1258,7 +1224,7 @@ export default function AntirotLabPage() {
             `Created: ${reportCreated}`,
             `Window: ${windowStart} -> ${reportCreated}`,
             `Backend: ${BACKEND_URL}`,
-            `User ID: ${USER_ID}`,
+            "User ID: authenticated device account",
             `Device ID: ${DEVICE_ID}`,
             `Observed memory files: ${observedMemoryKeys}`,
             "",
@@ -1335,7 +1301,7 @@ export default function AntirotLabPage() {
                         detail
                     }))
                 })
-            }, DEVICE_TOKEN);
+            });
 
             setReportStatus("Copying report to clipboard...");
             try {

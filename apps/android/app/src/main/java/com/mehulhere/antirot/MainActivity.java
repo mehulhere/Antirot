@@ -19,12 +19,20 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+
 import java.io.File;
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends android.app.Activity {
     private static final int PICK_ALARM_SOUND_REQUEST = 42;
+    private static final int GOOGLE_SIGN_IN_REQUEST = 43;
     private static final long QUICK_ACTION_REFRESH_MS = 60_000L;
 
     private SettingsStore settings;
@@ -71,6 +79,7 @@ public class MainActivity extends android.app.Activity {
         super.onResume();
         quickActionRefreshHandler.removeCallbacks(quickActionRefreshRunnable);
         quickActionRefreshHandler.post(quickActionRefreshRunnable);
+        AlarmSyncWorker.runNow(this);
     }
 
     @Override
@@ -108,18 +117,21 @@ public class MainActivity extends android.app.Activity {
 
         renderCoachSurface();
 
-        root.addView(button("Register device", this::registerDevice));
+        root.addView(button("Sign in with Google", this::signInWithGoogle));
         root.addView(button("Reset local login", this::resetBackendSession));
         root.addView(button("Use auto normal/loud sounds", () -> setAlarmSoundMode(SettingsStore.SOUND_AUTO)));
         root.addView(button("Use bundled normal sound", () -> setAlarmSoundMode(SettingsStore.SOUND_NORMAL)));
         root.addView(button("Use bundled loud sound", () -> setAlarmSoundMode(SettingsStore.SOUND_LOUD)));
         root.addView(button("Choose custom alarm sound", this::chooseAlarmSound));
+        root.addView(button("Grant exact alarm permission", this::openExactAlarmPermission));
         root.addView(button("Schedule normal test alarm", () -> scheduleTest("normal")));
         root.addView(button("Schedule loud test alarm", () -> scheduleTest("loud")));
         root.addView(button("Poll pending VPS alarms", this::pollPending));
         root.addView(button("Open usage access settings", () -> new UsageStatsHelper(this).openUsageAccessSettings()));
         root.addView(button("Show last 30 min usage", this::showUsage));
-        root.addView(button("Developer settings", this::toggleDeveloperSettings));
+        if (BuildConfig.DEBUG) {
+            root.addView(button("Developer settings", this::toggleDeveloperSettings));
+        }
 
         status = new TextView(this);
         status.setTextColor(0xFFF5F7FA);
@@ -231,7 +243,11 @@ public class MainActivity extends android.app.Activity {
             return;
         }
         String visible = visibleMessage == null ? null : visibleMessage.trim();
-        chatQueue.add(new QueuedChatMessage(trimmed, visible == null || visible.isEmpty() ? null : visible));
+        chatQueue.add(new QueuedChatMessage(
+                trimmed,
+                visible == null || visible.isEmpty() ? null : visible,
+                UUID.randomUUID().toString()
+        ));
         processChatQueue();
     }
 
@@ -246,20 +262,31 @@ public class MainActivity extends android.app.Activity {
             appendCoach("you", queued.visibleMessage);
         }
         status.setText(chatQueue.isEmpty() ? "Thinking" : "Thinking (" + chatQueue.size() + " queued)");
-        new AntirotApiClient(this).chat(message, reply -> runOnUiThread(() -> {
-            if (reply.startsWith("Failed:")) {
-                status.setText(reply);
-                appendCoach("system", reply);
-                chatQueueProcessing = false;
-                processChatQueue();
-                return;
+        new AntirotApiClient(this).chat(message, queued.requestId, new AntirotApiClient.ChatCallback() {
+            @Override
+            public void onChat(String reply, String nextRuntimeState) {
+                runOnUiThread(() -> {
+                    appendCoach("coach", reply);
+                    if (nextRuntimeState != null && !nextRuntimeState.trim().isEmpty()) {
+                        runtimeState = nextRuntimeState.trim();
+                    }
+                    status.setText("Ready");
+                    chatQueueProcessing = false;
+                    reconcileAlarms();
+                    processChatQueue();
+                });
             }
-            appendCoach("coach", reply);
-            status.setText("Ready");
-            chatQueueProcessing = false;
-            refreshRuntimeState();
-            processChatQueue();
-        }));
+
+            @Override
+            public void onResult(String message) {
+                runOnUiThread(() -> {
+                    status.setText(message);
+                    appendCoach("system", message);
+                    chatQueueProcessing = false;
+                    processChatQueue();
+                });
+            }
+        });
     }
 
     private void appendCoach(String speaker, String message) {
@@ -313,7 +340,7 @@ public class MainActivity extends android.app.Activity {
         new AntirotApiClient(this).transcribeAudio(file, text -> runOnUiThread(() -> {
             file.delete();
             String trimmed = text == null ? "" : text.trim();
-            if (trimmed.startsWith("Failed:")) {
+            if (trimmed.startsWith("🔴 FALLBACK:")) {
                 status.setText(trimmed);
                 appendCoach("system", trimmed);
                 file.delete();
@@ -378,17 +405,17 @@ public class MainActivity extends android.app.Activity {
                     }
                     onboardingName = name;
                     namePromptSent = true;
-                    sendCoachMessage(onboardingMessage(name), null);
+                    new AntirotApiClient(this).saveOnboardingProfile(name, reply -> runOnUiThread(() -> {
+                        if (reply.startsWith("🔴 FALLBACK:")) {
+                            namePromptSent = false;
+                            status.setText(reply);
+                            return;
+                        }
+                        appendCoach("coach", reply);
+                        status.setText("Ready");
+                    }));
                 })
                 .show();
-    }
-
-    private String onboardingMessage(String name) {
-        return "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.\n" +
-                "First onboarding message: I’m Antirot. I’ve coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\n" +
-                "So let’s see what you’ve got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\n" +
-                "Tell me what your day looks like and what you’re planning to get done today.\n" +
-                "Name: " + name;
     }
 
     private void appendVoiceMessage(File file) {
@@ -415,10 +442,12 @@ public class MainActivity extends android.app.Activity {
     private static final class QueuedChatMessage {
         final String message;
         final String visibleMessage;
+        final String requestId;
 
-        QueuedChatMessage(String message, String visibleMessage) {
+        QueuedChatMessage(String message, String visibleMessage, String requestId) {
             this.message = message;
             this.visibleMessage = visibleMessage;
+            this.requestId = requestId;
         }
     }
 
@@ -437,9 +466,56 @@ public class MainActivity extends android.app.Activity {
         new AntirotApiClient(this).registerDevice(message -> runOnUiThread(() -> status.setText(message)));
     }
 
+    private void signInWithGoogle() {
+        if (BuildConfig.GOOGLE_WEB_CLIENT_ID.trim().isEmpty()) {
+            status.setText("Google sign-in is not configured in this build.");
+            return;
+        }
+        GoogleSignInOptions options = new GoogleSignInOptions.Builder(
+                GoogleSignInOptions.DEFAULT_SIGN_IN
+        )
+                .requestEmail()
+                .requestIdToken(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                .build();
+        GoogleSignInClient client = GoogleSignIn.getClient(this, options);
+        startActivityForResult(client.getSignInIntent(), GOOGLE_SIGN_IN_REQUEST);
+    }
+
+    private void finishGoogleSignIn(Intent data) {
+        try {
+            GoogleSignInAccount account = GoogleSignIn
+                    .getSignedInAccountFromIntent(data)
+                    .getResult(ApiException.class);
+            String idToken = account.getIdToken();
+            if (idToken == null || idToken.trim().isEmpty()) {
+                status.setText("Google returned no ID token.");
+                return;
+            }
+            status.setText("Completing Google sign-in...");
+            new AntirotApiClient(this).signInWithGoogle(idToken, message -> runOnUiThread(() -> {
+                status.setText(message);
+                if (!message.startsWith("🔴 FALLBACK:")) {
+                    AlarmSyncWorker.schedule(this);
+                    AlarmSyncWorker.runNow(this);
+                    refreshRuntimeState();
+                }
+            }));
+        } catch (ApiException error) {
+            status.setText("Google sign-in failed: " + error.getStatusCode());
+        }
+    }
+
     private void scheduleTest(String severity) {
-        String message = new AlarmScheduler(this).schedule(AlarmJob.test(severity));
-        status.setText(message);
+        AlarmScheduler.ScheduleResult result = new AlarmScheduler(this).schedule(AlarmJob.test(severity));
+        status.setText(result.message);
+    }
+
+    private void openExactAlarmPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM));
+        } else {
+            status.setText("Exact alarm permission is already available on this Android version.");
+        }
     }
 
     private void chooseAlarmSound() {
@@ -468,14 +544,35 @@ public class MainActivity extends android.app.Activity {
 
     private void pollPending() {
         saveSettings();
-        new AntirotApiClient(this).fetchPendingAlarms(new AntirotApiClient.AlarmCallback() {
+        reconcileAlarms();
+    }
+
+    private void reconcileAlarms() {
+        AntirotApiClient api = new AntirotApiClient(this);
+        api.fetchPendingAlarms(new AntirotApiClient.AlarmCallback() {
             @Override
-            public void onAlarms(List<AlarmJob> alarms) {
+            public void onAlarms(List<AlarmJob> alarms, List<String> cancelledSeriesIds, List<String> cancelledAlarmIds) {
                 AlarmScheduler scheduler = new AlarmScheduler(MainActivity.this);
-                for (AlarmJob alarm : alarms) {
-                    scheduler.schedule(alarm);
+                scheduler.cancelSeries(cancelledSeriesIds);
+                for (String alarmId : cancelledAlarmIds) {
+                    scheduler.cancelAlarm(alarmId);
                 }
-                runOnUiThread(() -> status.setText("Scheduled " + alarms.size() + " pending alarm(s)."));
+                List<AlarmJob> scheduled = new java.util.ArrayList<>();
+                for (AlarmJob alarm : alarms) {
+                    AlarmScheduler.ScheduleResult result = scheduler.schedule(alarm);
+                    if (result.scheduled) {
+                        scheduled.add(alarm);
+                    } else {
+                        runOnUiThread(() -> status.setText("Alarm scheduling will retry: " + result.message));
+                    }
+                }
+                api.reconcileAlarms(scheduled, cancelledSeriesIds, message -> runOnUiThread(() -> {
+                    if (message.startsWith("🔴 FALLBACK:")) {
+                        status.setText("Alarm reconciliation will retry: " + message);
+                    } else {
+                        status.setText("Scheduled " + scheduled.size() + " alarm(s); cancelled obsolete series.");
+                    }
+                }));
             }
 
             @Override
@@ -511,6 +608,10 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void renderDeveloperSettings() {
+        if (!BuildConfig.DEBUG) {
+            showDeveloperSettings = false;
+            return;
+        }
         if (root == null) {
             return;
         }
@@ -528,7 +629,8 @@ public class MainActivity extends android.app.Activity {
         root.addView(heading);
 
         serverUrl = input("Antirot backend URL", settings.getServerUrl());
-        apiToken = input("API token from /etc/antirot/backend.env", settings.getApiToken());
+        apiToken = input("Development API token", settings.getApiToken());
+        apiToken.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         root.addView(serverUrl);
         root.addView(apiToken);
         root.addView(button("Save developer settings", this::saveSettings));
@@ -548,13 +650,17 @@ public class MainActivity extends android.app.Activity {
         settings.resetBackendSession();
         serverUrl = null;
         apiToken = null;
-        status.setText("Backend session reset. Sign in again when Google login is wired here.");
+        status.setText("Backend session reset. Sign in with Google again.");
         setContentView(buildView());
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == GOOGLE_SIGN_IN_REQUEST) {
+            finishGoogleSignIn(data);
+            return;
+        }
         if (requestCode != PICK_ALARM_SOUND_REQUEST || resultCode != RESULT_OK || data == null) {
             return;
         }

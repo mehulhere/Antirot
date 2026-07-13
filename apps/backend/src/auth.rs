@@ -4,17 +4,25 @@ use deadpool_postgres::Pool;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 
 pub const SESSION_COOKIE_NAME: &str = "antirot_session";
 pub const SESSION_DAYS: i64 = 30;
+const SESSION_ISSUER: &str = "https://api.antirot.org";
+const SESSION_AUDIENCE: &str = "antirot-clients";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionClaims {
     pub sub: String,
     pub device_id: String,
+    pub ver: i64,
+    pub jti: String,
+    pub iat: usize,
+    pub iss: String,
+    pub aud: String,
     pub exp: usize,
 }
 
@@ -27,37 +35,9 @@ pub fn require_admin_auth(headers: &HeaderMap, config: &Config) -> AppResult<()>
     }
 }
 
-pub async fn require_device_auth(
-    headers: &HeaderMap,
-    config: &Config,
-    pool: &Pool,
-) -> AppResult<()> {
-    if let Some(token) = bearer_token(headers) {
-        if constant_time_eq(token, &config.device_token)
-            || constant_time_eq(token, &config.admin_token)
-        {
-            return Ok(());
-        }
-
-        let client = pool.get().await?;
-        let token_hash = token_hash(token);
-        let exists = client
-            .query_opt(
-                "SELECT 1 FROM devices WHERE api_token_hash = $1",
-                &[&token_hash],
-            )
-            .await?
-            .is_some();
-        if exists {
-            return Ok(());
-        }
-    }
-
-    if session_from_headers(headers, config).is_some() {
-        Ok(())
-    } else {
-        Err(AppError::Unauthorized)
-    }
+pub fn is_legacy_device_bootstrap(headers: &HeaderMap, config: &Config) -> bool {
+    config.allow_legacy_device_bootstrap
+        && bearer_token(headers).is_some_and(|token| constant_time_eq(token, &config.device_token))
 }
 
 pub async fn require_device_auth_for(
@@ -67,9 +47,7 @@ pub async fn require_device_auth_for(
     device_id: &str,
 ) -> AppResult<()> {
     if let Some(token) = bearer_token(headers) {
-        if constant_time_eq(token, &config.device_token)
-            || constant_time_eq(token, &config.admin_token)
-        {
+        if constant_time_eq(token, &config.admin_token) {
             return Ok(());
         }
 
@@ -87,7 +65,10 @@ pub async fn require_device_auth_for(
         }
     }
 
-    if session_from_headers(headers, config).is_some_and(|claims| claims.device_id == device_id) {
+    if validated_session_from_headers(headers, config, pool)
+        .await
+        .is_some_and(|claims| claims.device_id == device_id)
+    {
         Ok(())
     } else {
         Err(AppError::Unauthorized)
@@ -127,9 +108,7 @@ pub async fn get_user_id_from_auth(
     pool: &Pool,
 ) -> AppResult<String> {
     if let Some(token) = bearer_token(headers) {
-        if constant_time_eq(token, &config.admin_token)
-            || constant_time_eq(token, &config.device_token)
-        {
+        if constant_time_eq(token, &config.admin_token) {
             return Ok("admin".to_string());
         }
 
@@ -150,18 +129,29 @@ pub async fn get_user_id_from_auth(
         }
     }
 
-    if let Some(claims) = session_from_headers(headers, config) {
+    if let Some(claims) = validated_session_from_headers(headers, config, pool).await {
         return Ok(claims.sub);
     }
 
     Err(AppError::Unauthorized)
 }
 
-pub fn issue_session_jwt(config: &Config, user_id: &str, device_id: &str) -> AppResult<String> {
+pub fn issue_session_jwt(
+    config: &Config,
+    user_id: &str,
+    device_id: &str,
+    session_version: i64,
+) -> AppResult<String> {
+    let issued_at = Utc::now();
     let expires_at = Utc::now() + Duration::days(SESSION_DAYS);
     let claims = SessionClaims {
         sub: user_id.to_string(),
         device_id: device_id.to_string(),
+        ver: session_version,
+        jti: Uuid::new_v4().to_string(),
+        iat: issued_at.timestamp() as usize,
+        iss: SESSION_ISSUER.to_string(),
+        aud: SESSION_AUDIENCE.to_string(),
         exp: expires_at.timestamp() as usize,
     };
     encode(
@@ -184,13 +174,35 @@ pub fn expired_session_cookie_header() -> String {
 
 pub fn session_from_headers(headers: &HeaderMap, config: &Config) -> Option<SessionClaims> {
     let token = session_cookie(headers)?;
+    let mut validation = Validation::default();
+    validation.set_issuer(&[SESSION_ISSUER]);
+    validation.set_audience(&[SESSION_AUDIENCE]);
     decode::<SessionClaims>(
         token,
         &DecodingKey::from_secret(config.jwt_secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )
     .ok()
     .map(|data| data.claims)
+}
+
+pub async fn validated_session_from_headers(
+    headers: &HeaderMap,
+    config: &Config,
+    pool: &Pool,
+) -> Option<SessionClaims> {
+    let claims = session_from_headers(headers, config)?;
+    let client = pool.get().await.ok()?;
+    let valid = client
+        .query_opt(
+            "SELECT 1 FROM devices
+             WHERE device_id=$1 AND user_id=$2 AND session_version=$3",
+            &[&claims.device_id, &claims.sub, &claims.ver],
+        )
+        .await
+        .ok()?
+        .is_some();
+    valid.then_some(claims)
 }
 
 fn session_cookie(headers: &HeaderMap) -> Option<&str> {

@@ -121,13 +121,13 @@ node --check scripts/check-env.mjs
 node --check scripts/test-backend-integrations.mjs
 ```
 
-To test the VPS backend from the frontend lab without visible backend settings fields:
+To test the VPS backend from the frontend lab:
 
 ```bash
-NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN=<admin-token> NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN=<device-token> npm run frontend:dev
+NEXT_PUBLIC_ANTIROT_BACKEND_URL=https://api.antirot.org npm run frontend:dev
 ```
 
-Use tokens from `/etc/antirot/backend.env` on the VPS. Do not commit real token values.
+Authenticate through the lab's normal sign-in flow. Never expose backend admin, device, or JWT secrets through `NEXT_PUBLIC_*` variables or static browser files.
 
 ## LLM Regression Gotchas
 

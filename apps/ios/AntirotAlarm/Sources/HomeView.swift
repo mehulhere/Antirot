@@ -32,7 +32,7 @@ struct HomeView: View {
     private let actionClearance: CGFloat = 132
     private let chatBottomClearance = AppBottomBarMetrics.coachChatClearance
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
     var body: some View {
@@ -278,22 +278,19 @@ private extension HomeView {
             return
         }
         settings.onboardingName = name
-        settings.onboardingNameSent = true
-        showNamePrompt = false
-        await coach.send(onboardingMessage(name: name), visibleText: "", client: client)
-        await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
-    }
-
-    func onboardingMessage(name: String) -> String {
         let timezone = TimeZone.current.identifier
-        return [
-            "The user just shared their name during onboarding. Return the deterministic Antirot first onboarding message exactly.",
-            "Silent client context is available below for scheduling only.",
-            "Do not mention timezone, profile setup, profile updates, saved fields, or that anything was saved unless the user explicitly asks.",
-            "First onboarding message: I'm Antirot. I've coached plenty of people like you: smart, intense, full of plans, and somehow still one bad hour away from drifting off the thing they claim matters.\n\nSo let's see what you've got. I need to build your profile. Give me a gist of your long-term and short-term goals. You can update this later as well. Because obviously, ambition is not a gift everyone has.\n\nTell me what your day looks like and what you're planning to get done today.",
-            "Name: \(name)",
-            "Silent device timezone: \(timezone)"
-        ].joined(separator: "\n")
+        do {
+            let response = try await client.saveOnboardingProfile(name: name, timezone: timezone)
+            settings.onboardingNameSent = true
+            showNamePrompt = false
+            coach.messages.append(CoachMessage(role: .coach, text: response.reply))
+            coach.recordDiagnosticEvent(kind: "onboarding.profile_saved", summary: "Onboarding profile captured.")
+            await coach.refreshRuntimeState(client: client, deviceId: settings.deviceId)
+        } catch {
+            settings.onboardingNameSent = false
+            showNamePrompt = true
+            coach.recordDiagnosticEvent(kind: "onboarding.profile_failed", summary: "Onboarding profile failed.", detail: error.localizedDescription)
+        }
     }
 }
 // MARK: - Preview

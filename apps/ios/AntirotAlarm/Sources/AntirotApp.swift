@@ -16,6 +16,9 @@ struct AntirotApp: App {
                 .environmentObject(coach)
                 .task {
                     await alarmCenter.configure(settings: settings)
+                    coach.reconcileAlarms = { [weak alarmCenter] in
+                        await alarmCenter?.reconcileAlarms()
+                    }
                 }
                 .onOpenURL { url in
                     _ = GoogleAuthCenter.handle(url: url)
@@ -54,6 +57,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     pushProvider: "apns",
                     pushToken: settings.pushToken.isEmpty ? nil : settings.pushToken
                 ))
+                if let deviceToken = response.deviceToken {
+                    settings.apiToken = deviceToken
+                }
                 settings.registered = response.ok
                 settings.statusMessage = response.message ?? "Registered as \(response.deviceId)"
             } catch {

@@ -41,39 +41,6 @@ function readDotEnv(filePath) {
     return env;
 }
 
-function readVpsEnv() {
-    if (process.env.ANTIROT_FRONTEND_USE_VPS_ENV === "0") {
-        return {};
-    }
-    const result = spawnSync(
-        "ssh",
-        [
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "ConnectTimeout=8",
-            "antirot@antirot.org",
-            "python3 - <<'PY'\nfrom pathlib import Path\nkeys = {'ANTIROT_ADMIN_TOKEN', 'ANTIROT_DEVICE_TOKEN'}\ntry:\n    text = Path('/etc/antirot/backend.env').read_text()\nexcept Exception:\n    raise SystemExit(0)\nfor line in text.splitlines():\n    if '=' not in line or line.lstrip().startswith('#'):\n        continue\n    key, value = line.split('=', 1)\n    if key in keys:\n        print(f'{key}={value}')\nPY"
-        ],
-        {
-            cwd: repoRoot,
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"]
-        }
-    );
-    if (result.status !== 0 || !result.stdout.trim()) {
-        return {};
-    }
-    const env = {};
-    for (const line of result.stdout.split(/\r?\n/)) {
-        const index = line.indexOf("=");
-        if (index > 0) {
-            env[line.slice(0, index)] = line.slice(index + 1);
-        }
-    }
-    return env;
-}
-
 function isLocalHost(hostname) {
     return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
@@ -232,21 +199,6 @@ async function ensureLocalPostgres(databaseUrl) {
 const localEnv = readDotEnv(path.join(repoRoot, ".env"));
 const backendEnv = readDotEnv(path.join(repoRoot, "apps", "backend", ".env"));
 await ensureLocalPostgres(process.env.DATABASE_URL || localEnv.DATABASE_URL || backendEnv.DATABASE_URL || "");
-const vpsEnv = readVpsEnv();
-const adminToken =
-    process.env.NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN ||
-    vpsEnv.ANTIROT_ADMIN_TOKEN ||
-    process.env.ANTIROT_ADMIN_TOKEN ||
-    localEnv.ANTIROT_ADMIN_TOKEN ||
-    backendEnv.ANTIROT_ADMIN_TOKEN ||
-    "";
-const deviceToken =
-    process.env.NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN ||
-    vpsEnv.ANTIROT_DEVICE_TOKEN ||
-    process.env.ANTIROT_DEVICE_TOKEN ||
-    localEnv.ANTIROT_DEVICE_TOKEN ||
-    backendEnv.ANTIROT_DEVICE_TOKEN ||
-    "";
 const googleWebClientId =
     process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
     process.env.GOOGLE_WEB_CLIENT_ID ||
@@ -259,16 +211,14 @@ const googleWebClientId =
 const nextEnv = {
     ...process.env,
     NEXT_PUBLIC_ANTIROT_BACKEND_URL: backendUrl,
-    NEXT_PUBLIC_ANTIROT_ADMIN_TOKEN: adminToken,
-    NEXT_PUBLIC_ANTIROT_DEVICE_TOKEN: deviceToken,
     NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID: googleWebClientId
 };
-
-const tokenSource = vpsEnv.ANTIROT_ADMIN_TOKEN ? "VPS env" : adminToken ? "local env" : "missing";
 console.log(`Antirot Lab backend: ${backendUrl}`);
-console.log(`Antirot Lab auth source: ${tokenSource}`);
+console.log("Antirot Lab auth source: Google sign-in");
 
-const nextArgs = mode === "build" ? ["next", "build"] : ["next", "dev", "-p", port];
+const nextArgs = mode === "build"
+    ? ["next", "build"]
+    : ["next", "dev", "-H", "127.0.0.1", "-p", port];
 const child = spawn("npx", nextArgs, {
     cwd: frontendDir,
     env: nextEnv,

@@ -1,5 +1,8 @@
 name: Deploy Backend VPS
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -24,15 +27,18 @@ jobs:
       - name: Configure SSH
         env:
           ANTIROT_VPS_SSH_KEY: ${{ secrets.ANTIROT_VPS_SSH_KEY }}
+          ANTIROT_VPS_HOST_KEY: ${{ secrets.ANTIROT_VPS_HOST_KEY }}
           ANTIROT_VPS_HOST: ${{ vars.ANTIROT_VPS_HOST || 'antirot.org' }}
         run: |
           set -euo pipefail
           test -n "$ANTIROT_VPS_SSH_KEY"
+          test -n "$ANTIROT_VPS_HOST_KEY"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$ANTIROT_VPS_SSH_KEY" > ~/.ssh/antirot_vps
           chmod 600 ~/.ssh/antirot_vps
-          ssh-keyscan -T 10 -H "$ANTIROT_VPS_HOST" >> ~/.ssh/known_hosts || true
+          printf '%s\n' "$ANTIROT_VPS_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy backend
         env:
@@ -41,7 +47,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/antirot_vps \
             -o BatchMode=yes \
-            -o StrictHostKeyChecking=accept-new \
+            -o StrictHostKeyChecking=yes \
             "$ANTIROT_VPS_USER@$ANTIROT_VPS_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
 

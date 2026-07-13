@@ -11,6 +11,7 @@ final class AlarmCenter: ObservableObject {
     @Published var lastErrorDetails: String?
 
     private var settings: SettingsStore?
+    private var localAdapterIds: [String: String] = [:]
 
     var nextReminderAlarms: [AlarmJob] {
         var nextByReminder: [String: AlarmJob] = [:]
@@ -62,6 +63,9 @@ final class AlarmCenter: ObservableObject {
                 pushProvider: settings.pushToken.isEmpty ? nil : "apns",
                 pushToken: settings.pushToken.isEmpty ? nil : settings.pushToken
             ))
+            if let deviceToken = response.deviceToken {
+                settings.apiToken = deviceToken
+            }
             settings.registered = response.ok
             settings.statusMessage = response.message ?? "Registered as \(response.deviceId)"
             lastMessage = settings.statusMessage
@@ -77,28 +81,91 @@ final class AlarmCenter: ObservableObject {
         guard let settings else { return }
         let client = APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
         do {
-            let alarms = try await client.fetchPendingAlarms(deviceId: settings.deviceId)
-            for alarm in alarms {
-                try await schedule(alarm)
+            let response = try await client.fetchPendingAlarms(deviceId: settings.deviceId)
+            let cancellationResult = await cancelObsoleteSeries(response.cancellations)
+            var confirmations: [ScheduledAlarmConfirmation] = []
+            for alarm in response.alarms {
+                let localAlarmId = try await schedule(alarm)
+                if let deliveryToken = alarm.deliveryToken {
+                    confirmations.append(ScheduledAlarmConfirmation(
+                        alarmId: alarm.id,
+                        deliveryToken: deliveryToken,
+                        localAlarmId: localAlarmId
+                    ))
+                }
             }
-            lastMessage = alarms.isEmpty ? "No pending alarms" : "Scheduled \(alarms.count) alarm(s)"
-            lastErrorDetails = nil
+            _ = try await client.reconcileAlarms(AlarmReconcileRequest(
+                deviceId: settings.deviceId,
+                scheduled: confirmations,
+                cancelledSeriesIds: cancellationResult.confirmedSeriesIds
+            ))
+            if cancellationResult.failedLocalIds.isEmpty {
+                lastMessage = response.alarms.isEmpty ? "Alarms reconciled" : "Scheduled \(response.alarms.count) alarm(s)"
+                lastErrorDetails = nil
+            } else {
+                lastMessage = "Some obsolete alarms could not be cancelled; reconciliation will retry"
+                lastErrorDetails = "🔴 FALLBACK: local alarm cancellation failed - Reason: required adapter rejected \(cancellationResult.failedLocalIds.joined(separator: ", ")) - Impact: tombstone remains unconfirmed and will retry"
+            }
         } catch {
             recordError("Poll failed", error)
         }
     }
 
+    func reconcileAlarms() async {
+        await pollPendingAlarms()
+    }
+
+    private func cancelObsoleteSeries(_ tombstones: [AlarmCancellationTombstone]) async -> CancellationResult {
+        var confirmedSeriesIds: [String] = []
+        var failedLocalIds: [String] = []
+        for tombstone in tombstones {
+            var succeeded = true
+            for localAlarmId in tombstone.localAlarmIds {
+                if !(await cancelLocalAlarm(localAlarmId)) {
+                    succeeded = false
+                    failedLocalIds.append(localAlarmId)
+                }
+            }
+            if succeeded {
+                confirmedSeriesIds.append(tombstone.seriesId)
+                scheduledAlarms.removeAll { $0.seriesId == tombstone.seriesId }
+                localAdapterIds = localAdapterIds.filter { _, localAdapterId in
+                    !tombstone.localAlarmIds.contains(localAdapterId)
+                }
+            }
+        }
+        return CancellationResult(
+            confirmedSeriesIds: confirmedSeriesIds,
+            failedLocalIds: failedLocalIds
+        )
+    }
+
+    private func cancelLocalAlarm(_ localAlarmId: String) async -> Bool {
+        if localAlarmId.hasPrefix("alarmkit:") {
+            return await AlarmKitCenter.cancel(
+                alarmId: String(localAlarmId.dropFirst("alarmkit:".count))
+            )
+        }
+        if localAlarmId.hasPrefix("notification:") {
+            let alarmId = String(localAlarmId.dropFirst("notification:".count))
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [alarmId])
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [alarmId])
+            return true
+        }
+        return false
+    }
+
     func scheduleTestAlarm(severity: AlarmJob.Severity) async {
         do {
-            try await schedule(.test(severity: severity))
+            _ = try await schedule(.test(severity: severity))
         } catch {
             recordError("Test alarm failed", error)
         }
     }
 
-    func schedule(_ alarm: AlarmJob) async throws {
-        if scheduledAlarms.contains(where: { $0.id == alarm.id }) {
-            return
+    func schedule(_ alarm: AlarmJob) async throws -> String {
+        if let localAdapterId = localAdapterIds[alarm.id] {
+            return localAdapterId
         }
 
         let soundChoice = alarmSoundChoice(for: alarm.severity)
@@ -110,7 +177,9 @@ final class AlarmCenter: ObservableObject {
             alarmKitStatus = AlarmKitCenter.authorizationLabel()
             let soundMessage = "Real AlarmKit alarm scheduled with \(soundChoice.label)"
             lastMessage = widgetUpdated ? soundMessage : "\(soundMessage). Widget app-group storage unavailable."
-            return
+            let localAdapterId = "alarmkit:\(alarm.id)"
+            localAdapterIds[alarm.id] = localAdapterId
+            return localAdapterId
         }
 
         let content = UNMutableNotificationContent()
@@ -125,9 +194,12 @@ final class AlarmCenter: ObservableObject {
         let request = UNNotificationRequest(identifier: alarm.id, content: content, trigger: trigger)
         try await UNUserNotificationCenter.current().add(request)
         scheduledAlarms.append(alarm)
+        let localAdapterId = "notification:\(alarm.id)"
+        localAdapterIds[alarm.id] = localAdapterId
         let widgetUpdated = writeCurrentTaskSnapshot(for: alarm)
         let scheduleMessage = "AlarmKit unavailable; scheduled notification fallback with \(soundChoice.label)"
         lastMessage = widgetUpdated ? scheduleMessage : "\(scheduleMessage). Widget app-group storage unavailable."
+        return localAdapterId
     }
 
     func refreshAuthorizationStatus() async {
@@ -188,12 +260,14 @@ final class AlarmCenter: ObservableObject {
             "Wake up. Day does not start by negotiating with the pillow."
         case .routineOverdue:
             "Routine window is over. Come back."
-        case .sessionOverdue:
+        case .sessionOverdue, .sessionAlarm, .breakAlarm, .wakeAlarm, .idleAlarm:
             alarm.message
         case .nonResponse:
             "You vanished. Fix that."
         case .test:
             "Test alarm scheduled. Nothing heroic yet."
+        case .unknown:
+            alarm.message
         }
         return SharedTaskStore.write(CurrentTaskSnapshot(
             title: alarm.title,
@@ -211,6 +285,11 @@ final class AlarmCenter: ObservableObject {
             String(describing: error)
         ].joined(separator: "\n\n")
     }
+}
+
+private struct CancellationResult {
+    var confirmedSeriesIds: [String]
+    var failedLocalIds: [String]
 }
 
 private extension String {

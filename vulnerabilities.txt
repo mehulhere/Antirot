@@ -1,0 +1,75 @@
+Antirot Security Remediation Report
+Date: 2026-07-13
+Scope: Current dirty working tree, including backend, migrations, LLM/memory orchestration, iOS, Android, frontend lab, public website, dependencies, and GitHub Actions.
+
+Outcome
+
+All 23 findings from the 2026-07-13 repository audit have a source-level remediation and regression contract. No product secret or generated credential was added. Production deployment still requires the documented environment secrets, database migration, signed release credentials, and physical-device verification listed below.
+
+Remediated findings
+
+1. Chat request idempotency: /v1/chat now requires a UUID requestId. iOS, Android, and the frontend create it when queueing a message and reuse that queued value for the request.
+
+2. Multi-tool atomicity: a provider tool batch executes under one fenced PostgreSQL transaction. A typed failure rolls back every mutation in that batch before any result is committed.
+
+3. Speech abuse/cost: STT and TTS require an active entitlement, enforce IP and user rate limits, reserve persistent daily byte/character quotas, and share a bounded global provider semaphore.
+
+4. Memory amplification: canonical documents are capped at 100,000 characters and aggregate user memory at 1,000,000 characters. Chunking hard-splits oversized lines, embedding calls have a persistent daily budget, leases renew during indexing, and derived failures retain lexical search.
+
+5. Database pool starvation: chat provider concurrency is bounded, pool acquisition has a five-second wait timeout, and chat releases its database connection for the complete provider network/response wait.
+
+6. Android onboarding/background delivery: Android now supports Google ID-token sign-in, stores the returned device credential, schedules periodic and immediate WorkManager alarm reconciliation, and restores the worker after reboot/package replacement.
+
+7. Stale public binaries: the checked-in APK and unsigned IPA were deleted. The website points Android to the signed GitHub release channel and iOS to TestFlight. Tagged Android releases publish a verified signed APK, SHA-256 file, and source/run metadata.
+
+8. Browser admin credential: the frontend launcher no longer SSHes to the VPS or reads backend.env. No admin token is exported to browser JavaScript, and browser code no longer calls admin/test routes.
+
+9. TestFlight APNs environment: project and entitlement sources use production APNs, the backend defaults to production unless sandbox is explicit, and TestFlight CI rejects an exported app whose signed aps-environment is not production.
+
+10. APNs reliability: APNs calls have a 15-second timeout, request handlers never synchronously drain the outbox after commit, response bodies are not logged, and retries use bounded exponential backoff with jitter and dead-letter after ten failures.
+
+11. Session revocation: session JWTs include issuer, audience, issued-at, JTI, and device session version. Every cookie request validates current device ownership/version; logout increments the server-side version.
+
+12. Android credential protection: Android uses Keystore-backed EncryptedSharedPreferences, disables backup and cleartext traffic, masks the development token field, and excludes manual token controls from release builds.
+
+13. BYOK protection/provider routing: BYOK credentials are AES-256-GCM encrypted with a versioned envelope and a dedicated 32-byte environment key. Plaintext legacy values fail closed and must be re-saved. Provider names are allowlisted and cannot fall through to OpenAI.
+
+14. BYOK embedding privacy: BYOK accounts use lexical memory indexing and recall; their messages and memories are not sent to the server's Gemini/Voyage embedding subprocessors.
+
+15. Migration baselining: an existing database is baselined only when the complete required v1 object manifest exists. Partial schemas stop startup and list missing objects. New changes are forward-only migrations v3-v5.
+
+16. Google account linkage: immutable provider subject is the only automatic identity key. A new subject that collides with an existing email is rejected and requires an authenticated explicit account-link flow.
+
+17. Provider error exposure: LLM, speech, APNs, Google, and Vertex failure paths no longer return/log upstream bodies. Stable client errors are separated from internal logs. Google/Vertex clients are timeout-bounded and Vertex access tokens are cached until near expiry.
+
+18. Alarm reconciliation growth: scheduling and cancellation arrays are capped at 200 entries. Cancellation tombstones are ordered and capped at 500 per response; abandoned unconfirmed tombstones expire after 90 days.
+
+19. Memory queue starvation: failed jobs receive exponential delayed retries, the worker continues draining other work, and poison jobs dead-letter after five attempts with a bounded last error.
+
+20. Build/deploy supply chain: GitHub Actions use immutable commit SHAs and explicit permissions; Gradle 9.1.0 and XcodeGen 2.44.1 source commit are pinned; Android dependencies are locked and checksum-verified; VPS deploys require a reviewed known_hosts entry and StrictHostKeyChecking=yes.
+
+21. Pairing brute force: six-digit codes were replaced with 128-bit hexadecimal secrets. Claims remain rate-limited and the matched session records its claim attempt.
+
+22. PostgreSQL transport: Unix/loopback databases use NoTls; any remote TCP database uses rustls with the system WebPKI root set.
+
+23. Alarm contract gate: test:alarm-reconciliation-contracts is exposed through npm and runs in backend CI alongside the production/auth/CI security contracts.
+
+Verification completed
+
+- cargo test: 105 passed, 1 ignored database integration test.
+- cargo check: passed.
+- Android debug APK: built successfully with Gradle 9.1.0, Temurin JDK 21, compileSdk 36, locked dependencies, and strict checksum verification.
+- Frontend TypeScript and targeted ESLint: passed.
+- Frontend production build: passed; only the existing onnxruntime dynamic-require warnings remain.
+- Production, device-auth, frontend-secret, website-security, website landing, alarm-reconciliation, memory/timezone, and CI/release source contracts: passed.
+- npm audit: zero known advisories across 181 dependencies in the final verification pass.
+- cargo audit: zero known RustSec advisories across 310 crate dependencies in the final verification pass.
+
+Required deployment and physical verification
+
+- Configure ANTIROT_BYOK_ENCRYPTION_KEY_HEX before accepting BYOK keys. Existing plaintext BYOK values must be re-saved through the protected admin flow.
+- Configure ANTIROT_VPS_HOST_KEY with a trusted, manually verified known_hosts line before the next backend workflow deploy.
+- Configure Android Google OAuth and signing variables, then publish a version tag so the website's latest-release URL resolves to the new signed APK.
+- Run migrations v3-v5 against a disposable PostgreSQL database first, then production. The ignored concurrency/migration test requires ANTIROT_MIGRATION_TEST_DATABASE_URL.
+- Build/export TestFlight and confirm the workflow's signed production entitlement gate passes.
+- On physical iPhone and Android devices, verify Google sign-in, background/offline alarm reconciliation, obsolete-series cancellation, reboot recovery, and notification/exact-alarm permissions.

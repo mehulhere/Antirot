@@ -8,7 +8,7 @@ struct PlanView: View {
     @State private var routineItems = RoutinePlanItem.defaultItems
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
     var body: some View {

@@ -57,6 +57,7 @@ enum AlarmNotificationActions {
             default:
                 try await client.acknowledge(alarmId: alarmId, deviceId: deviceId, action: "clear")
             }
+            await AlarmActionReconciler.reconcile()
         } catch {
             print("🔴 FALLBACK: alarm callback failed - Reason: \(error.localizedDescription) - Impact: backend may not know the phone action succeeded")
         }

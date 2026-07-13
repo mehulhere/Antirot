@@ -10,10 +10,28 @@ pub struct Config {
     pub admin_token: String,
     pub device_token: String,
     pub jwt_secret: String,
+    pub allow_anonymous_sessions: bool,
+    pub allow_legacy_device_bootstrap: bool,
+    pub cors_allowed_origins: Vec<String>,
     pub google_allowed_client_ids: Vec<String>,
     pub apns: Option<ApnsConfig>,
     pub memory_embeddings: MemoryEmbeddingConfig,
     pub speech: SpeechConfig,
+    pub chat_concurrency_limit: usize,
+    pub speech_concurrency_limit: usize,
+    pub speech_daily_stt_bytes: i64,
+    pub speech_daily_tts_chars: i64,
+    pub memory_daily_embedding_calls: i64,
+    pub byok_encryption_key: Option<ByokEncryptionKey>,
+}
+
+#[derive(Clone)]
+pub struct ByokEncryptionKey(pub [u8; 32]);
+
+impl std::fmt::Debug for ByokEncryptionKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ByokEncryptionKey([REDACTED])")
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -59,10 +77,33 @@ impl Config {
         let device_token =
             env::var("ANTIROT_DEVICE_TOKEN").context("ANTIROT_DEVICE_TOKEN is required")?;
         let jwt_secret = env::var("ANTIROT_JWT_SECRET").unwrap_or_else(|_| admin_token.clone());
+        let allow_anonymous_sessions =
+            env::var("ANTIROT_ALLOW_ANONYMOUS_SESSIONS").ok().as_deref() == Some("1");
+        let allow_legacy_device_bootstrap = env::var("ANTIROT_ALLOW_LEGACY_DEVICE_BOOTSTRAP")
+            .ok()
+            .as_deref()
+            == Some("1");
+        let cors_allowed_origins =
+            parse_cors_allowed_origins(env::var("ANTIROT_CORS_ALLOWED_ORIGINS").ok().as_deref())?;
         let google_allowed_client_ids = google_allowed_client_ids();
         let apns = apns_config();
         let memory_embeddings = memory_embedding_config();
         let speech = speech_config();
+        let chat_concurrency_limit =
+            bounded_usize_env("ANTIROT_CHAT_CONCURRENCY_LIMIT", 12, 1, 64)?;
+        let speech_concurrency_limit =
+            bounded_usize_env("ANTIROT_SPEECH_CONCURRENCY_LIMIT", 4, 1, 32)?;
+        let speech_daily_stt_bytes = bounded_i64_env(
+            "ANTIROT_SPEECH_DAILY_STT_BYTES",
+            100 * 1024 * 1024,
+            1,
+            10_000_000_000,
+        )?;
+        let speech_daily_tts_chars =
+            bounded_i64_env("ANTIROT_SPEECH_DAILY_TTS_CHARS", 50_000, 1, 10_000_000)?;
+        let memory_daily_embedding_calls =
+            bounded_i64_env("ANTIROT_MEMORY_DAILY_EMBEDDING_CALLS", 500, 0, 100_000)?;
+        let byok_encryption_key = byok_encryption_key()?;
 
         Ok(Self {
             bind,
@@ -70,12 +111,98 @@ impl Config {
             admin_token,
             device_token,
             jwt_secret,
+            allow_anonymous_sessions,
+            allow_legacy_device_bootstrap,
+            cors_allowed_origins,
             google_allowed_client_ids,
             apns,
             memory_embeddings,
             speech,
+            chat_concurrency_limit,
+            speech_concurrency_limit,
+            speech_daily_stt_bytes,
+            speech_daily_tts_chars,
+            memory_daily_embedding_calls,
+            byok_encryption_key,
         })
     }
+}
+
+fn byok_encryption_key() -> Result<Option<ByokEncryptionKey>> {
+    let Some(raw) = env::var("ANTIROT_BYOK_ENCRYPTION_KEY_HEX")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    else {
+        return Ok(None);
+    };
+    let decoded = hex::decode(raw.trim())
+        .context("ANTIROT_BYOK_ENCRYPTION_KEY_HEX must be exactly 64 hexadecimal characters")?;
+    let bytes: [u8; 32] = decoded.try_into().map_err(|_| {
+        anyhow::anyhow!("ANTIROT_BYOK_ENCRYPTION_KEY_HEX must decode to exactly 32 bytes")
+    })?;
+    Ok(Some(ByokEncryptionKey(bytes)))
+}
+
+fn bounded_usize_env(name: &str, default: usize, min: usize, max: usize) -> Result<usize> {
+    let value = match env::var(name) {
+        Ok(raw) => raw
+            .parse::<usize>()
+            .with_context(|| format!("{name} must be an integer between {min} and {max}"))?,
+        Err(_) => default,
+    };
+    anyhow::ensure!(
+        (min..=max).contains(&value),
+        "{name} must be between {min} and {max}"
+    );
+    Ok(value)
+}
+
+fn bounded_i64_env(name: &str, default: i64, min: i64, max: i64) -> Result<i64> {
+    let value = match env::var(name) {
+        Ok(raw) => raw
+            .parse::<i64>()
+            .with_context(|| format!("{name} must be an integer between {min} and {max}"))?,
+        Err(_) => default,
+    };
+    anyhow::ensure!(
+        (min..=max).contains(&value),
+        "{name} must be between {min} and {max}"
+    );
+    Ok(value)
+}
+
+fn parse_cors_allowed_origins(raw: Option<&str>) -> Result<Vec<String>> {
+    const DEFAULT_ORIGINS: &str = "https://antirot.org,https://www.antirot.org,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001";
+    let mut origins = Vec::new();
+
+    for value in raw.unwrap_or(DEFAULT_ORIGINS).split(',') {
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        anyhow::ensure!(
+            value != "*",
+            "ANTIROT_CORS_ALLOWED_ORIGINS cannot contain *"
+        );
+        let url =
+            reqwest::Url::parse(value).with_context(|| format!("invalid CORS origin {value}"))?;
+        anyhow::ensure!(
+            matches!(url.scheme(), "http" | "https")
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && url.path() == "/",
+            "CORS origin must contain only an http(s) scheme, host, and optional port: {value}"
+        );
+        let origin = url.origin().ascii_serialization();
+        anyhow::ensure!(origin != "null", "invalid CORS origin {value}");
+        if !origins.contains(&origin) {
+            origins.push(origin);
+        }
+    }
+
+    Ok(origins)
 }
 
 fn speech_config() -> SpeechConfig {
@@ -146,8 +273,8 @@ fn apns_config() -> Option<ApnsConfig> {
 
 fn apns_endpoint_for_environment(environment: &str) -> &'static str {
     match environment {
-        "production" | "prod" => "https://api.push.apple.com",
-        _ => "https://api.sandbox.push.apple.com",
+        "sandbox" | "development" | "dev" => "https://api.sandbox.push.apple.com",
+        _ => "https://api.push.apple.com",
     }
 }
 
@@ -175,11 +302,14 @@ fn google_allowed_client_ids() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apns_endpoint_for_environment, memory_embedding_config, speech_config};
+    use super::{
+        apns_endpoint_for_environment, memory_embedding_config, parse_cors_allowed_origins,
+        speech_config,
+    };
     use std::env;
 
     #[test]
-    fn apns_endpoint_uses_sandbox_by_default_for_unknown_values() {
+    fn apns_endpoint_uses_sandbox_only_when_explicit() {
         assert_eq!(
             apns_endpoint_for_environment("sandbox"),
             "https://api.sandbox.push.apple.com"
@@ -190,7 +320,7 @@ mod tests {
         );
         assert_eq!(
             apns_endpoint_for_environment(""),
-            "https://api.sandbox.push.apple.com"
+            "https://api.push.apple.com"
         );
     }
 
@@ -243,5 +373,30 @@ mod tests {
         assert_eq!(config.inworld_api_key, None);
         assert_eq!(config.inworld_tts_model, "inworld-tts-1.5-mini");
         assert_eq!(config.inworld_tts_voice_id, Some("Dennis".to_string()));
+    }
+
+    #[test]
+    fn cors_defaults_to_known_product_and_local_lab_origins() {
+        assert_eq!(
+            parse_cors_allowed_origins(None).unwrap(),
+            vec![
+                "https://antirot.org",
+                "https://www.antirot.org",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3001",
+            ]
+        );
+    }
+
+    #[test]
+    fn cors_allowlist_rejects_wildcards_and_deduplicates_origins() {
+        assert!(parse_cors_allowed_origins(Some("*")).is_err());
+        assert_eq!(
+            parse_cors_allowed_origins(Some("https://lab.antirot.org, https://lab.antirot.org"))
+                .unwrap(),
+            vec!["https://lab.antirot.org"]
+        );
     }
 }

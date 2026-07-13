@@ -4,7 +4,6 @@ use std::time::Duration as StdDuration;
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
-use rand::Rng;
 use uuid::Uuid;
 
 use crate::auth::token_hash;
@@ -55,7 +54,7 @@ async fn create_pairing_session(
     workspace_id: &str,
     timeout_secs: u64,
 ) -> Result<PairingSession> {
-    let code = format!("{:06}", rand::rng().random_range(0..1_000_000));
+    let code = Uuid::new_v4().simple().to_string();
     let code_hash = token_hash(&code);
     let id = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + Duration::seconds(timeout_secs as i64);

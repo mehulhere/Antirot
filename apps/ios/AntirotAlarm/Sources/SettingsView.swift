@@ -15,7 +15,7 @@ struct SettingsView: View {
     @State private var showDiagnosticsPreview = false
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
     var body: some View {

@@ -7,5 +7,7 @@ public class AntirotApplication extends Application {
     public void onCreate() {
         super.onCreate();
         NotificationHelper.ensureChannels(this);
+        AlarmSyncWorker.schedule(this);
+        AlarmSyncWorker.runNow(this);
     }
 }

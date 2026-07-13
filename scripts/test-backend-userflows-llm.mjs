@@ -257,7 +257,7 @@ function assertSecondOnboardingLoopReply(reply) {
 
 function assertDoneAsksProductiveDuration(reply) {
     assertProductionQuality(reply);
-    assert.match(reply, /productive duration|actually productive|how (?:many|much).*(?:productive|minutes)|minutes.*productive|literally (?:a|one) minute|less than a minute|sixty seconds|not closing|spend at least|5 minutes|five minutes|minutes left|real blocker|trying to escape/iu, `bare done did not ask productive duration or challenge an early stop: ${reply}`);
+    assert.match(reply, /productive duration|actually productive|how (?:many|much).*(?:productive|minutes)|minutes.*productive|literally (?:a|one) minute|less than (?:a|one|single|three|five) minutes?|under \d+ seconds|\b(?:60|180) seconds\b|sixty seconds|not (?:ending|closing)|spend at least|5 minutes|five minutes|minutes left|real blocker|roadblock|raw (?:proof|truth)|proof.*screen|trying to escape|quitting early|own it|prove it/iu, `bare done did not ask productive duration or challenge an early stop: ${reply}`);
     assert.doesNotMatch(reply, /\blogged\b|\bclosed\b|\bnext task\b|\bnext move\b/iu, `bare done looked closed before productive duration: ${reply}`);
 }
 
@@ -331,7 +331,7 @@ async function main() {
                 backend.baseUrl,
                 fixture.deviceToken,
                 "tasks",
-                "# Task Pipeline\n- [ ] Write backend userflow tests\n"
+                "# Planned Work\n- [ ] Write backend userflow tests\n"
             );
             await putMemory(
                 backend.baseUrl,
@@ -399,7 +399,7 @@ async function main() {
                 backend.baseUrl,
                 moviePleadingFixture.deviceToken,
                 "tasks",
-                "# Task Pipeline\n- [ ] Write userflow tests\n"
+                "# Planned Work\n- [ ] Write userflow tests\n"
             );
         }
 

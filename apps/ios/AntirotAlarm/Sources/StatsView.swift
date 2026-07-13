@@ -13,7 +13,7 @@ struct StatsView: View {
     @State private var selectedPeriod: StatsScope = .day
 
     private var client: APIClient {
-        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken, userId: settings.userId)
+        APIClient(baseURL: settings.baseURL, apiToken: settings.apiToken)
     }
 
     var body: some View {

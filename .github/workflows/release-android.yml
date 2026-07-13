@@ -1,0 +1,77 @@
+name: Release Signed Android APK
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    env:
+      ANTIROT_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+      ANDROID_SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/antirot-release.jks
+      ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+      ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+      ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+        with:
+          gradle-version: "9.1.0"
+
+      - name: Install signing keystore
+        env:
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_SIGNING_KEYSTORE_BASE64}"
+          test -n "${ANDROID_SIGNING_KEY_ALIAS}"
+          test -n "${ANDROID_SIGNING_STORE_PASSWORD}"
+          test -n "${ANDROID_SIGNING_KEY_PASSWORD}"
+          printf '%s' "${ANDROID_SIGNING_KEYSTORE_BASE64}" | base64 --decode > "${ANDROID_SIGNING_KEYSTORE_PATH}"
+          chmod 600 "${ANDROID_SIGNING_KEYSTORE_PATH}"
+
+      - name: Build signed release
+        run: gradle :app:assembleRelease --dependency-verification=strict
+
+      - name: Verify signature and prepare metadata
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "${APK}"
+          apksigner verify --verbose --print-certs "${APK}"
+          cp "${APK}" antirot.apk
+          sha256sum antirot.apk > antirot.apk.sha256
+          printf '{"version":"%s","commit":"%s","workflowRun":"%s","artifact":"antirot.apk"}\n' \
+            "${GITHUB_REF_NAME}" "${GITHUB_SHA}" "${GITHUB_RUN_ID}" > release-metadata.json
+
+      - name: Publish immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            antirot.apk antirot.apk.sha256 release-metadata.json \
+            --verify-tag \
+            --generate-notes \
+            --title "Antirot ${GITHUB_REF_NAME}"

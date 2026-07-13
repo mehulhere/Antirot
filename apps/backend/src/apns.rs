@@ -1,4 +1,5 @@
 use std::fs;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -19,9 +20,9 @@ pub async fn send_alarm_wake(config: &Config, push_token: &str, alarm_id: &str) 
     let Some(apns) = config.apns.as_ref() else {
         warn!(
             alarm_id,
-            "🔴 FALLBACK: APNs wake skipped - Reason: APNs env is not configured - Impact: iOS app must poll/open before the alarm is scheduled"
+            "🔴 FALLBACK: APNs wake deferred - Reason: APNs env is not configured - Impact: iOS app must poll and the wake remains retryable"
         );
-        return Ok(());
+        anyhow::bail!("APNs is not configured");
     };
 
     let jwt = build_provider_token(apns)?;
@@ -34,7 +35,11 @@ pub async fn send_alarm_wake(config: &Config, push_token: &str, alarm_id: &str) 
         "alarmId": alarm_id
     });
 
-    let response = reqwest::Client::new()
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .context("failed to build bounded APNs client")?;
+    let response = client
         .post(url)
         .bearer_auth(jwt)
         .header("apns-topic", &apns.topic)
@@ -51,17 +56,12 @@ pub async fn send_alarm_wake(config: &Config, push_token: &str, alarm_id: &str) 
         return Ok(());
     }
 
-    let body = response
-        .text()
-        .await
-        .unwrap_or_else(|_| "<unreadable>".to_string());
     warn!(
         alarm_id,
         status = %status,
-        body = %body,
         "🔴 FALLBACK: APNs wake failed - Reason: Apple rejected or failed the push - Impact: iOS app must poll/open before the alarm is scheduled"
     );
-    Ok(())
+    anyhow::bail!("Apple rejected APNs wake with HTTP {}", status.as_u16())
 }
 
 fn build_provider_token(config: &ApnsConfig) -> Result<String> {

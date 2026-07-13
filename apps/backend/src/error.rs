@@ -11,6 +11,12 @@ pub enum AppError {
     NotFound,
     #[error("bad request: {0}")]
     BadRequest(String),
+    #[error("too many requests")]
+    TooManyRequests,
+    #[error("conflict: {0}")]
+    Conflict(String),
+    #[error("upstream service unavailable: {0}")]
+    Upstream(String),
     #[error("database error")]
     Database(#[from] tokio_postgres::Error),
     #[error("pool error")]
@@ -37,6 +43,9 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
+            AppError::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
+            AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::Upstream(_) => StatusCode::BAD_GATEWAY,
             AppError::Database(err) => {
                 tracing::error!(error = %err, "Internal database error");
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -62,8 +71,22 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };
+        let client_message = match &self {
+            AppError::Unauthorized => "unauthorized".to_string(),
+            AppError::NotFound => "not found".to_string(),
+            AppError::BadRequest(message) => message.clone(),
+            AppError::TooManyRequests => "too many requests".to_string(),
+            AppError::Conflict(message) => message.clone(),
+            AppError::Upstream(_) => "upstream service temporarily unavailable".to_string(),
+            AppError::Database(_)
+            | AppError::Pool(_)
+            | AppError::Reqwest(_)
+            | AppError::Io(_)
+            | AppError::Json(_)
+            | AppError::InvalidHeaderValue(_) => "internal server error".to_string(),
+        };
         let body = Json(ErrorBody {
-            error: self.to_string(),
+            error: client_message,
         });
         (status, body).into_response()
     }

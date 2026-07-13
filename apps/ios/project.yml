@@ -61,7 +61,7 @@ targets:
     entitlements:
       path: AntirotAlarm/Resources/AntirotAlarm.entitlements
       properties:
-        aps-environment: development
+        aps-environment: production
         com.apple.security.application-groups:
           - group.com.mehulhere.antirot
   AntirotDeviceActivityReport:

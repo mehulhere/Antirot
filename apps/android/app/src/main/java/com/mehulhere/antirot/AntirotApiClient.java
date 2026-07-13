@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AntirotApiClient {
+    static final int CHAT_READ_TIMEOUT_MS = 60_000;
+    static final long MAX_AUDIO_UPLOAD_BYTES = 25L * 1024L * 1024L;
     private final SettingsStore settings;
 
     public AntirotApiClient(Context context) {
@@ -31,9 +33,34 @@ public class AntirotApiClient {
             body.put("appVersion", "0.1.0");
             body.put("notificationCapability", "foreground_alarm");
             body.put("usageCapability", "recent_summary");
-            request("POST", "/devices/register", body);
+            String text = request("POST", "/v1/devices/register", body);
+            String deviceToken = new JSONObject(text).optString("deviceToken", "");
+            if (!deviceToken.isEmpty()) {
+                settings.setApiToken(deviceToken);
+            }
             settings.setRegistered(true);
             callback.onResult("Registered device");
+        }, callback);
+    }
+
+    public void signInWithGoogle(String idToken, Callback callback) {
+        runAsync(() -> {
+            JSONObject body = new JSONObject();
+            body.put("idToken", idToken);
+            body.put("deviceId", settings.getDeviceId());
+            body.put("platform", "android");
+            body.put("appVersion", BuildConfig.VERSION_NAME);
+            body.put("notificationCapability", "background_poll");
+            body.put("usageCapability", "recent_summary");
+            String text = request("POST", "/v1/auth/google", body);
+            JSONObject response = new JSONObject(text);
+            String deviceToken = response.optString("deviceToken", "");
+            if (deviceToken.isEmpty()) {
+                throw new IllegalStateException("Google sign-in returned no device credential");
+            }
+            settings.setApiToken(deviceToken);
+            settings.setRegistered(true);
+            callback.onResult("Signed in with Google");
         }, callback);
     }
 
@@ -46,40 +73,89 @@ public class AntirotApiClient {
             if (minutes > 0) {
                 body.put("minutes", minutes);
             }
-            request("POST", "/alarms/" + alarmId + "/" + action, body);
+            request("POST", "/v1/alarms/" + alarmId + "/" + action, body);
             callback.onResult("Alarm " + action + " sent");
         }, callback);
     }
 
     public void fetchPendingAlarms(AlarmCallback callback) {
         runAsync(() -> {
-            String path = "/alarms/pending?deviceId=" + settings.getDeviceId();
+            String path = "/v1/alarms/pending?deviceId=" + settings.getDeviceId() + "&reconcile=true&limit=200";
             String text = request("GET", path, null);
-            JSONArray array = new JSONArray(text);
+            JSONObject response = new JSONObject(text);
+            JSONArray array = response.optJSONArray("alarms");
+            if (array == null) {
+                array = new JSONArray();
+            }
             List<AlarmJob> alarms = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
                 alarms.add(AlarmJob.fromJson(array.getJSONObject(i)));
             }
-            callback.onAlarms(alarms);
+            callback.onAlarms(
+                    alarms,
+                    stringList(response.optJSONArray("cancelledSeriesIds")),
+                    stringList(response.optJSONArray("cancelledAlarmIds"))
+            );
+        }, callback);
+    }
+
+    public void reconcileAlarms(
+            List<AlarmJob> scheduled,
+            List<String> cancelledSeriesIds,
+            Callback callback
+    ) {
+        runAsync(() -> {
+            JSONObject body = new JSONObject();
+            body.put("deviceId", settings.getDeviceId());
+            JSONArray confirmations = new JSONArray();
+            for (AlarmJob alarm : scheduled) {
+                if (alarm.deliveryToken == null || alarm.deliveryToken.isEmpty()) {
+                    continue;
+                }
+                JSONObject confirmation = new JSONObject();
+                confirmation.put("alarmId", alarm.id);
+                confirmation.put("deliveryToken", alarm.deliveryToken);
+                confirmation.put("localAlarmId", alarm.id);
+                confirmations.put(confirmation);
+            }
+            body.put("scheduled", confirmations);
+            body.put("cancelledSeriesIds", new JSONArray(cancelledSeriesIds));
+            request("POST", "/v1/alarms/reconcile", body);
+            callback.onResult("Alarm reconciliation confirmed");
         }, callback);
     }
 
     public void fetchRuntimeState(RuntimeStateCallback callback) {
         runAsync(() -> {
-            String text = request("GET", "/v1/test/state?userId=admin&deviceId=" + settings.getDeviceId(), null);
+            String text = request("GET", "/v1/state", null);
             JSONObject body = new JSONObject(text);
             JSONObject runtimeState = body.optJSONObject("runtimeState");
             callback.onRuntimeState(runtimeState == null ? "unknown" : runtimeState.optString("state", "unknown"));
         }, callback);
     }
 
-    public void chat(String message, Callback callback) {
+    public void saveOnboardingProfile(String name, Callback callback) {
+        runAsync(() -> {
+            JSONObject body = new JSONObject();
+            body.put("name", name);
+            body.put("timezone", java.time.ZoneId.systemDefault().getId());
+            String text = request("POST", "/v1/profile/onboarding", body);
+            callback.onResult(new JSONObject(text).optString("reply", text));
+        }, callback);
+    }
+
+    public void chat(String message, String requestId, ChatCallback callback) {
         runAsync(() -> {
             JSONObject body = new JSONObject();
             body.put("message", message);
-            String text = request("POST", "/v1/chat", body);
+            body.put("requestId", requestId);
+            String text = request("POST", "/v1/chat", body, CHAT_READ_TIMEOUT_MS);
             JSONObject response = new JSONObject(text);
-            callback.onResult(response.optString("reply", text));
+            JSONObject runtimeState = response.optJSONObject("runtimeState");
+            callback.onChat(
+                    response.optString("reply", text),
+                    runtimeState == null ? null : runtimeState.optString("state", null)
+            );
         }, callback);
     }
 
@@ -92,6 +168,10 @@ public class AntirotApiClient {
     }
 
     private String request(String method, String path, JSONObject body) throws Exception {
+        return request(method, path, body, 15_000);
+    }
+
+    private String request(String method, String path, JSONObject body, int readTimeoutMs) throws Exception {
         String serverUrl = settings.getServerUrl();
         if (serverUrl.isEmpty()) {
             serverUrl = SettingsStore.DEFAULT_SERVER_URL;
@@ -100,7 +180,7 @@ public class AntirotApiClient {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod(method);
         connection.setConnectTimeout(10_000);
-        connection.setReadTimeout(15_000);
+        connection.setReadTimeout(readTimeoutMs);
         String token = settings.getApiToken();
         if (!token.isEmpty()) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
@@ -129,6 +209,9 @@ public class AntirotApiClient {
     }
 
     private String multipartAudioRequest(String path, File file) throws Exception {
+        if (file.length() > MAX_AUDIO_UPLOAD_BYTES) {
+            throw new IllegalArgumentException("Voice note exceeds the 25 MB upload limit");
+        }
         String serverUrl = settings.getServerUrl();
         if (serverUrl.isEmpty()) {
             serverUrl = SettingsStore.DEFAULT_SERVER_URL;
@@ -184,7 +267,7 @@ public class AntirotApiClient {
             try {
                 runnable.run();
             } catch (Exception error) {
-                callback.onResult("Failed: " + error.getMessage());
+                callback.onResult("🔴 FALLBACK: Android API request failed - Reason: " + error.getMessage() + " - Impact: action remains retryable");
             }
         }).start();
     }
@@ -194,7 +277,11 @@ public class AntirotApiClient {
     }
 
     public interface AlarmCallback extends Callback {
-        void onAlarms(List<AlarmJob> alarms);
+        void onAlarms(List<AlarmJob> alarms, List<String> cancelledSeriesIds, List<String> cancelledAlarmIds);
+    }
+
+    public interface ChatCallback extends Callback {
+        void onChat(String reply, String runtimeState);
     }
 
     public interface RuntimeStateCallback extends Callback {
@@ -203,5 +290,19 @@ public class AntirotApiClient {
 
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    private static List<String> stringList(JSONArray array) {
+        List<String> values = new ArrayList<>();
+        if (array == null) {
+            return values;
+        }
+        for (int index = 0; index < array.length(); index++) {
+            String value = array.optString(index, "");
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return values;
     }
 }

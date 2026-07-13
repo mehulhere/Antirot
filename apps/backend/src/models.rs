@@ -2,6 +2,54 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlarmKind {
+    NormalWake,
+    LoudWake,
+    RoutineOverdue,
+    SessionOverdue,
+    NonResponse,
+    SessionAlarm,
+    BreakAlarm,
+    WakeAlarm,
+    IdleAlarm,
+    Test,
+}
+
+impl AlarmKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NormalWake => "normal_wake",
+            Self::LoudWake => "loud_wake",
+            Self::RoutineOverdue => "routine_overdue",
+            Self::SessionOverdue => "session_overdue",
+            Self::NonResponse => "non_response",
+            Self::SessionAlarm => "session_alarm",
+            Self::BreakAlarm => "break_alarm",
+            Self::WakeAlarm => "wake_alarm",
+            Self::IdleAlarm => "idle_alarm",
+            Self::Test => "test",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "normal_wake" => Some(Self::NormalWake),
+            "loud_wake" => Some(Self::LoudWake),
+            "routine_overdue" => Some(Self::RoutineOverdue),
+            "session_overdue" => Some(Self::SessionOverdue),
+            "non_response" => Some(Self::NonResponse),
+            "session_alarm" => Some(Self::SessionAlarm),
+            "break_alarm" => Some(Self::BreakAlarm),
+            "wake_alarm" => Some(Self::WakeAlarm),
+            "idle_alarm" => Some(Self::IdleAlarm),
+            "test" => Some(Self::Test),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceRegistrationRequest {
@@ -19,6 +67,7 @@ pub struct DeviceRegistrationRequest {
 pub struct DeviceRegistrationResponse {
     pub ok: bool,
     pub device_id: String,
+    pub device_token: Option<String>,
     pub message: Option<String>,
 }
 
@@ -74,6 +123,22 @@ pub struct AuthMeResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OnboardingProfileRequest {
+    pub name: String,
+    pub timezone: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingProfileResponse {
+    pub ok: bool,
+    pub name: String,
+    pub timezone: String,
+    pub reply: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PairingClaimRequest {
     pub code: String,
     pub device_id: String,
@@ -113,7 +178,7 @@ pub struct WorkspaceDevicesResponse {
 pub struct CreateAlarmRequest {
     pub id: Option<String>,
     pub device_id: String,
-    pub kind: Option<String>,
+    pub kind: Option<AlarmKind>,
     pub severity: Option<String>,
     pub title: String,
     pub message: String,
@@ -127,7 +192,10 @@ pub struct CreateAlarmRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AlarmJob {
     pub id: String,
-    pub kind: String,
+    pub kind: AlarmKind,
+    pub series_id: String,
+    pub generation: i64,
+    pub delivery_token: Option<String>,
     pub severity: String,
     pub title: String,
     pub message: String,
@@ -152,6 +220,48 @@ pub struct AlarmActionResponse {
     pub ok: bool,
     pub alarm_id: String,
     pub status: String,
+    pub cancelled_series_ids: Vec<String>,
+    pub replacement_alarm: Option<AlarmJob>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlarmCancellationTombstone {
+    pub series_id: String,
+    pub local_alarm_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingAlarmsResponse {
+    pub alarms: Vec<AlarmJob>,
+    pub cancelled_series_ids: Vec<String>,
+    pub cancelled_alarm_ids: Vec<String>,
+    pub cancellations: Vec<AlarmCancellationTombstone>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduledAlarmConfirmation {
+    pub alarm_id: String,
+    pub delivery_token: String,
+    pub local_alarm_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlarmReconcileRequest {
+    pub device_id: String,
+    pub scheduled: Vec<ScheduledAlarmConfirmation>,
+    pub cancelled_series_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlarmReconcileResponse {
+    pub ok: bool,
+    pub scheduled_count: i64,
+    pub cancellation_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -169,6 +279,35 @@ pub struct DeliveryState {
     pub status: String,
 }
 
+#[cfg(test)]
+mod alarm_contract_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_alarm_kinds_serialize_to_mobile_contract_values() {
+        let cases = [
+            (AlarmKind::NormalWake, "normal_wake"),
+            (AlarmKind::LoudWake, "loud_wake"),
+            (AlarmKind::RoutineOverdue, "routine_overdue"),
+            (AlarmKind::SessionOverdue, "session_overdue"),
+            (AlarmKind::NonResponse, "non_response"),
+            (AlarmKind::SessionAlarm, "session_alarm"),
+            (AlarmKind::BreakAlarm, "break_alarm"),
+            (AlarmKind::WakeAlarm, "wake_alarm"),
+            (AlarmKind::IdleAlarm, "idle_alarm"),
+            (AlarmKind::Test, "test"),
+        ];
+
+        for (kind, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&kind).unwrap(),
+                format!("\"{expected}\"")
+            );
+            assert_eq!(kind.as_str(), expected);
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthResponse {
@@ -184,8 +323,8 @@ impl CreateAlarmRequest {
             .unwrap_or_else(|| Uuid::new_v4().to_string())
     }
 
-    pub fn normalized_kind(&self) -> String {
-        self.kind.clone().unwrap_or_else(|| "test".to_string())
+    pub fn normalized_kind(&self) -> AlarmKind {
+        self.kind.unwrap_or(AlarmKind::Test)
     }
 
     pub fn normalized_severity(&self) -> String {
@@ -199,6 +338,7 @@ impl CreateAlarmRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionUpdateRequest {
+    pub user_id: Option<String>,
     pub tier: String,
     pub status: Option<String>,
     pub byok_api_key: Option<String>,
@@ -287,6 +427,7 @@ pub struct RestoreMemorySnapshotResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ChatRequest {
     pub message: String,
+    pub request_id: String,
 }
 
 #[derive(Debug, Serialize)]
