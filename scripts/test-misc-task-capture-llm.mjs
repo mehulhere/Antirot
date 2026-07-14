@@ -129,13 +129,13 @@ async function main() {
         const midMisc = await getMemory(backend.baseUrl, midSessionFixture.deviceToken, "miscellaneous_todo");
         assertPlannedTaskWithEstimate(
             midTasks.content,
-            /draft the onboarding qa notes/iu,
+            /draft (?:the )?onboarding qa notes/iu,
             /\b(?:2\s*h(?:ours?)?|120\s*min(?:ute)?s?)\b/iu,
             `mid-session task add\nReply: ${midReply}`
         );
         assert.doesNotMatch(
             midMisc.content,
-            /draft the onboarding qa notes/iu,
+            /draft (?:the )?onboarding qa notes/iu,
             `Expected planned task with estimate to avoid miscellaneous_todo.md.\nReply: ${midReply}\nMisc content:\n${midMisc.content}`
         );
         pass("planned task with estimate can be added during a session", midReply.replace(/\s+/gu, " ").slice(0, 220));

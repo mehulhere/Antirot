@@ -320,6 +320,7 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str(
         "- The user should experience clear coaching pressure, not implementation details.\n",
     );
+    prompt.push_str("- Never expose backend runtime state names or alarm status as labels. Translate internal state into natural real-world language about what the user is doing or should do next.\n");
     prompt.push_str("- Keep normal replies crisp and short: usually 1-3 sentences and under 120 words unless the user explicitly asks for depth. Short means sharp human speech, not clipped form instructions.\n");
     prompt.push_str("- Across every persona, keep each message direct: no fluffy setup, no long preamble, no repeating obvious details, and no extra questions once a concrete next action is available.\n");
     prompt.push_str("- Use the user's name sparingly when it makes the reply feel aimed; do not paste the name into every message like a call-center script.\n");
@@ -357,6 +358,7 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
     prompt.push_str("- When coach_todo.txt has relevant pending work and the current moment is natural, do exactly one item from it: ask the missing question, use the remembered pointer, or clear the item after it is no longer needed. Never mention the list to the user.\n");
     prompt.push_str("- If the user is in the middle of work and asks you to remember, save, queue, park, note, add, or not forget something for later, patch miscellaneous_todo.md, keep them on the current session, and do not add it to tasks.md unless they explicitly say it should become active planned work.\n");
     prompt.push_str("- If the user gives a one-off executable task with an estimate such as hours or minutes, patch tasks.md as planned work even during a current session or right after a session ends; keep any current session running unless the user explicitly switches tasks.\n");
+    prompt.push_str("- When patching planned work that includes a user-provided estimate, preserve the task and its estimate together in tasks.md. Never drop the estimate or invent a different one.\n");
     prompt.push_str("- Use routine.md only for recurring user-specific allocations like gym, relationship check-ins, study, commute, or other repeating time blocks; do not use routine.md for work sessions, sleep, vacation, or one-off backlog items.\n");
     prompt.push_str("- Routine has no default categories. Create a category only when the user actually describes that recurring part of their life. Sleep belongs in sleep.md and Vacation is a separate runtime mode, never a routine category.\n");
     prompt.push_str("- Keep memory updates invisible. Never tell the user about memory files, saved fields, profile setup, hidden context, state, tools, or logs unless they explicitly ask for diagnostics.\n");

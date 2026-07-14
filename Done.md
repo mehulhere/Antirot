@@ -116,3 +116,4 @@
 - On physical iPhone and Android devices, verify push wakes trigger `/v1/alarms/pending` reconciliation, successful local scheduling is confirmed once, obsolete siblings cancel after acknowledgement, and offline push/scheduling failures retry.
 - Against disposable PostgreSQL, run the ignored migration integration test plus `npm run test:backend-userflows` and verify concurrent startup records v1-v5 once, partial baselines fail closed, provider quotas persist, and pending/expired APNs effects back off without chat.
 - Set a test account to a non-UTC IANA timezone, write memory around local midnight, then verify the local-day log/stats key, provider-independent canonical save, and snapshot restore of both memory and runtime alarm generation on a PostgreSQL-backed environment.
+- After deploying the backend prompt changes, rerun both enabled LLM suites through LLM-33 and verify the Crof quality judge completes successfully.

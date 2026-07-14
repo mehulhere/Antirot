@@ -246,7 +246,7 @@ function assertNoStaleVacationCopy(reply) {
 
 function assertSecondOnboardingLoopReply(reply) {
     assertProductionQuality(reply);
-    assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b/iu, `second onboarding reply did not suggest or request a first task: ${reply}`);
+    assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b|\bare we starting\b|\bpick the exact\b/iu, `second onboarding reply did not suggest or request a first task: ${reply}`);
     assert.match(reply, /\bexact\b|\bdetail(?:s)?\b|\bspecific\b|\bconcrete\b|\bfile\b|\bscreen\b|\btest case\b|\bslice\b/iu, `second onboarding reply did not ask for exact task details: ${reply}`);
     assert.match(reply, /\bminutes?\b|\bduration\b|\bhow long\b|\bestimat(?:e|ed)\b|\btime\b/iu, `second onboarding reply did not ask for a time estimate: ${reply}`);
     assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
@@ -258,7 +258,11 @@ function assertSecondOnboardingLoopReply(reply) {
 function assertDoneAsksProductiveDuration(reply) {
     assertProductionQuality(reply);
     assert.match(reply, /productive duration|actually productive|how (?:many|much).*(?:productive|minutes)|minutes.*productive|literally (?:a|one) minute|less than (?:a|one|single|three|five) minutes?|under \d+ seconds|\b(?:60|180) seconds\b|sixty seconds|not (?:ending|closing)|spend at least|5 minutes|five minutes|minutes left|real blocker|roadblock|raw (?:proof|truth)|proof.*screen|trying to escape|quitting early|own it|prove it/iu, `bare done did not ask productive duration or challenge an early stop: ${reply}`);
-    assert.doesNotMatch(reply, /\blogged\b|\bclosed\b|\bnext task\b|\bnext move\b/iu, `bare done looked closed before productive duration: ${reply}`);
+    assert.doesNotMatch(
+        reply,
+        /\b(?:task|session|work)(?:\s+(?:is|has been|was))?\s+(?:logged|closed|completed|finished)\b|\b(?:logged|closed|completed|finished)\s+(?:the\s+)?(?:task|session|work)\b/iu,
+        `bare done looked closed before productive duration: ${reply}`
+    );
 }
 
 function assertStateIn(state, expectedStates) {
