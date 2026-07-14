@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod};
+use deadpool_postgres::{Manager, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use rustls::{ClientConfig, RootCertStore};
 use tokio_postgres::config::Host;
 use tokio_postgres::{Config as PgConfig, NoTls};
@@ -102,6 +102,7 @@ pub async fn create_pool(database_url: &str) -> Result<Pool> {
     };
     Pool::builder(manager)
         .max_size(16)
+        .runtime(Runtime::Tokio1)
         .wait_timeout(Some(std::time::Duration::from_secs(5)))
         .build()
         .context("failed to create Postgres pool")
