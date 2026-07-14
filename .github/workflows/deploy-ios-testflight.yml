@@ -52,7 +52,7 @@ jobs:
           git -C "${RUNNER_TEMP}/XcodeGen" checkout --detach 21ac9944b0ab546a07422dbed86f33dd2ebd76f8
           swift build -c release --package-path "${RUNNER_TEMP}/XcodeGen"
           sudo install -m 755 "${RUNNER_TEMP}/XcodeGen/.build/release/xcodegen" /usr/local/bin/xcodegen
-          test "$(xcodegen --version)" = "2.44.1"
+          xcodegen --version | grep -Eq '(^|[^0-9])2\.44\.1([^0-9]|$)'
 
       - name: Calculate Build Version
         run: |

@@ -16,7 +16,7 @@ jobs:
         working-directory: apps/android
     env:
       ANTIROT_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-      ANDROID_SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/antirot-release.jks
+      ANDROID_SIGNING_KEYSTORE_PATH: ${{ github.workspace }}/apps/android/antirot-release.jks
       ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
       ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
       ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
