@@ -19,14 +19,32 @@ import {
 } from "./backend-userflow-test-lib.mjs";
 
 const runEnabled = process.env.ANTIROT_RUN_LLM_USERFLOW_TESTS === "1";
+const retryDelaysMs = [2_000, 5_000, 10_000];
 
 async function chat(baseUrl, token, message) {
-    const body = await api(baseUrl, "/v1/chat", {
-        method: "POST",
-        signal: AbortSignal.timeout(90_000),
-        headers: authHeaders(token),
-        body: JSON.stringify({ requestId: crypto.randomUUID(), message })
-    });
+    const requestId = crypto.randomUUID();
+    let body;
+    for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+        try {
+            body = await api(baseUrl, "/v1/chat", {
+                method: "POST",
+                signal: AbortSignal.timeout(90_000),
+                headers: authHeaders(token),
+                body: JSON.stringify({ requestId, message })
+            });
+            break;
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            const canRetry = /502 Bad Gateway|503 Service Unavailable|upstream service temporarily unavailable|429 Too Many Requests|UNAVAILABLE|TimedOut|timeout|RESOURCE_EXHAUSTED|quota exceeded|LLM API request failed|Connection reset|Token request failed/iu.test(text);
+            if (!canRetry || attempt >= retryDelaysMs.length) {
+                throw error;
+            }
+            const delayMs = retryDelaysMs[attempt];
+            console.log(`LLM unavailable; retrying misc chat after ${Math.round(delayMs / 1000)}s: ${text}`);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+    }
+    assert.ok(body, "LLM chat retry loop completed without a response");
     assert.equal(body.ok, true);
     assert.equal(typeof body.reply, "string");
     assertProductionQuality(body.reply);

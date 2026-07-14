@@ -187,18 +187,19 @@ function skipPassed(progress, index, name) {
 async function chat(baseUrl, token, message) {
     let body;
     let lastError;
+    const requestId = crypto.randomUUID();
     for (let attempt = 1; attempt <= quotaBackoffMs.length + 1; attempt += 1) {
         try {
             body = await api(baseUrl, "/v1/chat", {
                 method: "POST",
                 headers: authHeaders(token),
-                body: JSON.stringify({ requestId: crypto.randomUUID(), message })
+                body: JSON.stringify({ requestId, message })
             });
             break;
         } catch (error) {
             lastError = error;
             const text = error instanceof Error ? error.message : String(error);
-            const canRetry = /503 Service Unavailable|high demand|UNAVAILABLE|TimedOut|timeout|429 Too Many Requests|RESOURCE_EXHAUSTED|quota exceeded|LLM API request failed|Connection reset|connection reset|Token request failed|oauth2\.googleapis\.com\/token/iu.test(text);
+            const canRetry = /502 Bad Gateway|503 Service Unavailable|upstream service temporarily unavailable|high demand|UNAVAILABLE|TimedOut|timeout|429 Too Many Requests|RESOURCE_EXHAUSTED|quota exceeded|LLM API request failed|Connection reset|connection reset|Token request failed|oauth2\.googleapis\.com\/token/iu.test(text);
             if (!canRetry || attempt > quotaBackoffMs.length) {
                 throw error;
             }
