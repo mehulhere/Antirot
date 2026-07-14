@@ -2592,10 +2592,7 @@ where
         ));
     }
 
-    Ok(format!(
-        "State: {}. Alarms scheduled: {}.",
-        state, alarms_created
-    ))
+    Ok(format!("Alarms scheduled: {}.", alarms_created))
 }
 
 async fn cancel_state_alarms<C>(client: &C, user_id: &str) -> Result<u64, tokio_postgres::Error>
@@ -3451,7 +3448,7 @@ where
                 Ok(result) => result,
                 Err(err) => return ToolOutcome::failure(err),
             };
-            ToolOutcome::success(format!("Vacation mode started. {}", state_result))
+            ToolOutcome::success(format!("Time away started. {}", state_result))
         }
         "end_vacation" => {
             let ToolInput::EndVacation(_) = decoded else {
@@ -3463,7 +3460,7 @@ where
                     Ok(result) => result,
                     Err(err) => return ToolOutcome::failure(err),
                 };
-            ToolOutcome::success(format!("Vacation mode ended. {}", state_result))
+            ToolOutcome::success(format!("Time away ended. {}", state_result))
         }
         "wake_up_alarm" => {
             let ToolInput::WakeUpAlarm(input) = decoded else {

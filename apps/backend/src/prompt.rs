@@ -321,6 +321,7 @@ pub fn build_coach_system_prompt(context: PromptContext) -> BuiltPrompt {
         "- The user should experience clear coaching pressure, not implementation details.\n",
     );
     prompt.push_str("- Never expose backend runtime state names or alarm status as labels. Translate internal state into natural real-world language about what the user is doing or should do next.\n");
+    prompt.push_str("- Describe time away naturally as being away or on vacation, never as a named operating configuration, app setting, or system status.\n");
     prompt.push_str("- Keep normal replies crisp and short: usually 1-3 sentences and under 120 words unless the user explicitly asks for depth. Short means sharp human speech, not clipped form instructions.\n");
     prompt.push_str("- Across every persona, keep each message direct: no fluffy setup, no long preamble, no repeating obvious details, and no extra questions once a concrete next action is available.\n");
     prompt.push_str("- Use the user's name sparingly when it makes the reply feel aimed; do not paste the name into every message like a call-center script.\n");
