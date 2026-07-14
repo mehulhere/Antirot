@@ -460,7 +460,7 @@ export function assertNoBackendLeak(reply) {
         /\bsession\s+(?:is\s+)?closed\b/iu,
         /\bvacation mode\b/iu,
         /\bmemory (?:is )?updated\b/iu,
-        /^\s*#+\s*(?:reasoning summary|analytical assessment|analysis|reasoning)\b/imu,
+        /^\s*#+\s*(?:reasoning summary|high-level summary of reasoning|analytical assessment|analysis|reasoning)\b/imu,
         /\bpersonality profile (?:is )?updated\b/iu,
         /\bpersonality updated\b/iu,
         /\bpersonality configuration\b/iu,
