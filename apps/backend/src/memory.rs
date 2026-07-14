@@ -1390,9 +1390,9 @@ pub(crate) async fn run_memory_activation_race_probe(
             ))
         })??;
 
-    process_memory_index_jobs(&activation_client, config, user_id).await?;
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
     let (final_canonical_version, final_active_version) = loop {
+        process_memory_index_jobs(&activation_client, config, user_id).await?;
         let final_row = activation_client
             .query_one(
                 "SELECT canonical.content_version AS canonical_version,
