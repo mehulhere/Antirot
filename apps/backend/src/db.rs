@@ -142,7 +142,7 @@ pub async fn migrate(pool: &Pool) -> Result<()> {
         for object in required_schema_objects() {
             let exists: bool = transaction
                 .query_one(
-                    "SELECT to_regclass(format('%I.%I',current_schema(),$1)) IS NOT NULL AS exists",
+                    "SELECT to_regclass(format('%I.%I', current_schema(), $1::text)) IS NOT NULL AS exists",
                     &[object],
                 )
                 .await?
