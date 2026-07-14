@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import crypto from "node:crypto";
 
 const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
 
@@ -151,6 +152,7 @@ async function checkLlmChat() {
         const body = await requestJson("/v1/chat", {
             method: "POST",
             body: {
+                requestId: crypto.randomUUID(),
                 message: "Integration smoke test. Reply in one short sentence confirming the coach LLM path is online."
             }
         });

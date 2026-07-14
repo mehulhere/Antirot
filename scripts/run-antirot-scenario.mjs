@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 
 import {
     api,
@@ -262,7 +263,7 @@ async function sendChat(baseUrl, token, message) {
     const body = await api(baseUrl, "/v1/chat", {
         method: "POST",
         headers: authHeaders(token),
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ requestId: crypto.randomUUID(), message })
     });
     return {
         reply: body.reply,

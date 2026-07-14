@@ -192,7 +192,7 @@ async function chat(baseUrl, token, message) {
             body = await api(baseUrl, "/v1/chat", {
                 method: "POST",
                 headers: authHeaders(token),
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ requestId: crypto.randomUUID(), message })
             });
             break;
         } catch (error) {

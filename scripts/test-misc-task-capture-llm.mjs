@@ -1,6 +1,7 @@
 /* global AbortSignal */
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
     api,
@@ -24,7 +25,7 @@ async function chat(baseUrl, token, message) {
         method: "POST",
         signal: AbortSignal.timeout(90_000),
         headers: authHeaders(token),
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ requestId: crypto.randomUUID(), message })
     });
     assert.equal(body.ok, true);
     assert.equal(typeof body.reply, "string");

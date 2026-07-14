@@ -1391,19 +1391,28 @@ pub(crate) async fn run_memory_activation_race_probe(
         })??;
 
     process_memory_index_jobs(&activation_client, config, user_id).await?;
-    let final_row = activation_client
-        .query_one(
-            "SELECT canonical.content_version AS canonical_version,
-                    state.content_version AS active_version
-             FROM user_memories canonical
-             JOIN memory_index_states state
-               ON state.user_id=canonical.user_id AND state.memory_key=canonical.memory_key
-             WHERE canonical.user_id=$1 AND canonical.memory_key=$2",
-            &[&user_id, &key],
-        )
-        .await?;
-    let final_canonical_version: String = final_row.get("canonical_version");
-    let final_active_version: String = final_row.get("active_version");
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let (final_canonical_version, final_active_version) = loop {
+        let final_row = activation_client
+            .query_one(
+                "SELECT canonical.content_version AS canonical_version,
+                        state.content_version AS active_version
+                 FROM user_memories canonical
+                 JOIN memory_index_states state
+                   ON state.user_id=canonical.user_id AND state.memory_key=canonical.memory_key
+                 WHERE canonical.user_id=$1 AND canonical.memory_key=$2",
+                &[&user_id, &key],
+            )
+            .await?;
+        let canonical_version: String = final_row.get("canonical_version");
+        let active_version: String = final_row.get("active_version");
+        if (canonical_version == version_v2 && active_version == version_v2)
+            || tokio::time::Instant::now() >= deadline
+        {
+            break (canonical_version, active_version);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    };
     activation_client
         .execute(
             "WITH jobs AS (DELETE FROM memory_index_jobs WHERE user_id=$1 AND memory_key=$2),
