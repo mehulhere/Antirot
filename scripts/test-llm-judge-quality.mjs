@@ -9,7 +9,7 @@ dns.setDefaultResultOrder("ipv4first");
 
 const judgeBaseUrl = (process.env.CROF_BASE_URL || process.env.ANTIROT_JUDGE_BASE_URL || "https://crof.ai/v2").replace(/\/+$/u, "");
 const judgeApiKey = process.env.CROF_API_KEY || process.env.ANTIROT_JUDGE_API_KEY || "";
-const judgeModel = process.env.ANTIROT_JUDGE_MODEL || "qwen3.5-9b";
+const judgeModel = process.env.ANTIROT_JUDGE_MODEL || "qwen3.5-397b-a17b";
 const judgeEffortLevel = process.env.ANTIROT_JUDGE_EFFORT_LEVEL || "none";
 const minOverall = Number(process.env.ANTIROT_JUDGE_MIN_OVERALL || 8);
 const minDimension = Number(process.env.ANTIROT_JUDGE_MIN_DIMENSION || 7);

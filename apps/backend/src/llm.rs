@@ -1825,32 +1825,33 @@ fn user_facing_tool_result(
     }
 
     match tool_name {
-        "patch_file" if patched_file_from_arguments(tool_arguments).as_deref() == Some("sleep.md") => "Sleep target noted. Useful constraint, not a hiding place. First concrete slice now: file, screen, or test case, plus minutes.".to_string(),
+        "patch_file" if patched_file_from_arguments(tool_arguments).as_deref() == Some("sleep.md") => "Got it. Which concrete task are you starting first—file, screen, or test case—and how many minutes?".to_string(),
         "patch_file" if patched_file_from_arguments(tool_arguments).as_deref() == Some("miscellaneous_todo.md") => "Parked for later. Do not chase the shiny side quest; finish what is already open.".to_string(),
         "patch_file" if patched_file_from_arguments(tool_arguments).as_deref() == Some("coach_todo.txt") => "I will carry that forward. Stay with the question in front of you.".to_string(),
         "patch_file" => "First task now: name the exact concrete slice: file, screen, or test case, then give it 10 clean minutes.".to_string(),
         "start_session" => start_session_reply(tool_arguments, user_message),
         "extend_session" => "Extra time granted. Spend it cleanly; check-in still wants evidence.".to_string(),
         "end_session" if actual_minutes_from_tool_arguments(tool_arguments).unwrap_or(0) <= 0 => "How many minutes were actually productive? I am not ending this on a zero-minute shrug; give me the raw proof.".to_string(),
-        "end_session" => "Round finished. Choose the next move now: another focused run, a real break, sleep, or a plan update.".to_string(),
+        "end_session" => "That round is done. Choose the next move now: another focused run, a real break, sleep, or a plan update.".to_string(),
         "start_break" => {
             let duration_minutes = serde_json::from_str::<Value>(tool_arguments)
                 .ok()
                 .and_then(|value| value["duration_minutes"].as_i64())
                 .unwrap_or(15);
-            format!(
-                "Break approved: {} minutes. Reset for real; scrolling in disguise does not count.",
-                duration_minutes
-            )
+            if duration_minutes >= 30 {
+                format!("Take {} minutes and be fully off. When you are back, choose the next move before drift does.", duration_minutes)
+            } else {
+                format!("Break approved: {} minutes. Reset for real; scrolling in disguise does not count.", duration_minutes)
+            }
         }
         "start_sleep" => "Sleep starts now. Phone down; the late-night strategy committee is adjourned.".to_string(),
         "wake_up_alarm" => "Wake plan set. When it fires, check in before the bargaining committee wakes up.".to_string(),
-        "log_wake" => "You're awake. Pick one concrete task and run 20 minutes before your brain starts negotiating.".to_string(),
+        "log_wake" => "You're up. No heroics: pick one concrete task and run 20 minutes before your brain starts negotiating.".to_string(),
         "start_vacation" => "Vacation approved. Real off-duty time. Before 8pm, write tomorrow's first 20-minute re-entry task.".to_string(),
         "end_vacation" => "Vacation is over. Gentle ramp, not heroic montage: choose one 20-minute task and begin.".to_string(),
         "log_override" => "Override accepted. The standard stays: no fake positivity, no excuse protection. Move deliberately.".to_string(),
         "memory_search" => "I checked the relevant history. Use the evidence; no mythology required. Choose the next move.".to_string(),
-        "set_routine_categories" => "Routine shape is clear. Start with the first concrete task: name the exact file, screen, or test case, and give me the minutes.".to_string(),
+        "set_routine_categories" => "That structure works. Now choose the first concrete task—file, screen, or test case—and give me the minutes.".to_string(),
         _ => "Handled. Next move.".to_string(),
     }
 }
@@ -1924,13 +1925,28 @@ fn start_session_reply(tool_arguments: &str, user_message: &str) -> String {
         .trim()
         .trim_matches(|ch: char| matches!(ch, '.' | '!' | '?' | '"' | '\''))
         .to_string();
+    let is_resume = ["resume", "continue", "back to", "return to"]
+        .iter()
+        .any(|marker| lower.contains(marker));
 
     if minutes > 0 {
+        if is_resume {
+            return format!(
+                "Back in. {} minutes on {}. Reopen the exact point you left and bring back proof.",
+                minutes, task
+            );
+        }
         format!(
             "Good. {} minutes on {}. Open the work, hit the smallest real piece, and come back with proof. Side quests can complain later.",
             minutes, task
         )
     } else {
+        if is_resume {
+            return format!(
+                "Back in. {} is the target. Reopen the exact point you left and bring back proof.",
+                task
+            );
+        }
         format!(
             "Good. {} is the target. Open the work, hit the smallest real piece, and come back with proof. Side quests can complain later.",
             task
@@ -4349,6 +4365,21 @@ mod tests {
     }
 
     #[test]
+    fn start_session_reply_acknowledges_resuming_work() {
+        let reply = user_facing_tool_result(
+            "start_session",
+            &ToolOutcome::success("Work session started."),
+            "Resume the onboarding scenario JSON cases for 20 minutes.",
+            r#"{"task_id":"onboarding scenario JSON cases","estimated_minutes":20}"#,
+        );
+
+        assert_eq!(
+            reply,
+            "Back in. 20 minutes on onboarding scenario JSON cases. Reopen the exact point you left and bring back proof."
+        );
+    }
+
+    #[test]
     fn start_session_reply_uses_tool_duration_not_sleep_clock_time() {
         let reply = user_facing_tool_result(
             "start_session",
@@ -4413,7 +4444,7 @@ mod tests {
         );
         assert_eq!(
             user_facing_tool_result("set_routine_categories", &ToolOutcome::success("Routine updated."), "", "{}"),
-            "Routine shape is clear. Start with the first concrete task: name the exact file, screen, or test case, and give me the minutes."
+            "That structure works. Now choose the first concrete task—file, screen, or test case—and give me the minutes."
         );
         assert_eq!(
             user_facing_tool_result("log_override", &ToolOutcome::success("Override logged."), "", "{}"),
@@ -4425,7 +4456,7 @@ mod tests {
         );
         assert_eq!(
             user_facing_tool_result("patch_file", &ToolOutcome::success("File sleep.md patched successfully."), "", r#"{"file_path":"sleep.md"}"#),
-            "Sleep target noted. Useful constraint, not a hiding place. First concrete slice now: file, screen, or test case, plus minutes."
+            "Got it. Which concrete task are you starting first—file, screen, or test case—and how many minutes?"
         );
         assert_eq!(
             user_facing_tool_result(
