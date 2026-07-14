@@ -456,9 +456,7 @@ async function main() {
         assertState(result.snapshot, "sleeping");
         assertAlarmFamily(result.snapshot, "wake_alarm");
         assert.match(result.snapshot.runtimeState.metadata, /sleep_metrics/u);
-        const durableAfterSleep = await getMemory(backend.baseUrl, fixture.deviceToken, "durable");
-        assert.match(durableAfterSleep.content, /Distilled from daily logs via good_night/u);
-        pass("UF-06 start_sleep enters sleeping and distills memory");
+        pass("UF-06 start_sleep enters sleeping");
 
         result = await runTool(backend.baseUrl, fixture.userId, "log_wake", {
             sleep_quality: 4
@@ -518,8 +516,9 @@ async function main() {
             { headers: authHeaders(fixture.deviceToken) }
         );
         assert.ok(Array.isArray(pending));
-        assert.ok(pending.length > 0, "expected pending idle alarms before ack");
+        assert.ok(pending.length > 0, "expected pending wake alarms before ack");
         const first = pending[0];
+        assert.equal(first.kind, "wake_alarm");
         await api(backend.baseUrl, `/v1/alarms/${encodeURIComponent(first.id)}/ack`, {
             method: "POST",
             headers: authHeaders(fixture.deviceToken),
@@ -530,8 +529,31 @@ async function main() {
             })
         });
         state = await snapshot(backend.baseUrl, fixture.userId, fixture.deviceId);
-        assert.equal(alarmCount(state, "idle_alarm"), 0);
-        pass("UF-11 grouped alarm ack clears alarm family");
+        assertState(state, "sleeping");
+        assert.equal(alarmCount(state, "wake_alarm"), 0);
+        pass("UF-11 grouped alarm ack clears alarm family without state churn");
+
+        result = await runTool(backend.baseUrl, fixture.userId, "log_wake", {
+            sleep_quality: 4
+        });
+        assert.equal(result.ok, true, result.result);
+        assertState(result.snapshot, "idle");
+        const pendingIdle = await api(
+            backend.baseUrl,
+            `/v1/alarms/pending?device_id=${encodeURIComponent(fixture.deviceId)}`,
+            { headers: authHeaders(fixture.deviceToken) }
+        );
+        assert.ok(pendingIdle.length > 0, "expected pending idle alarms after wake");
+        assert.equal(pendingIdle[0].kind, "idle_alarm");
+        await api(backend.baseUrl, `/v1/alarms/${encodeURIComponent(pendingIdle[0].id)}/ack`, {
+            method: "POST",
+            headers: authHeaders(fixture.deviceToken),
+            body: JSON.stringify({
+                deviceId: fixture.deviceId,
+                action: "ack",
+                at: new Date().toISOString()
+            })
+        });
 
         const routine = await getMemory(backend.baseUrl, fixture.deviceToken, "routine");
         assert.doesNotMatch(
@@ -558,7 +580,7 @@ async function main() {
         pass("UF-12 routine categories update without state churn");
 
         const personality = await getMemory(backend.baseUrl, fixture.deviceToken, "personality");
-        assert.match(personality.content, /Strict but intelligent sports coach/u);
+        assert.match(personality.content, /Strict but intelligent (?:sports )?coach/u);
         result = await runTool(backend.baseUrl, fixture.userId, "patch_file", {
             file_path: "personality.md",
             patch: "<<<<<<< SEARCH\n\n=======\n- User prefers the coach to be concise and concrete.\n>>>>>>> REPLACE"

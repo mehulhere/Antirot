@@ -3663,6 +3663,11 @@ pub async fn run_tool_for_test(
         Ok(client) => client,
         Err(error) => return (false, format!("Database pool error: {error}")),
     };
+    if let ToolInput::MemorySearch(input) = &decoded {
+        let outcome =
+            execute_memory_search(&client, config, user_id, &input.query, input.limit).await;
+        return (outcome.is_success(), outcome.message().to_string());
+    }
     let transaction = match client.transaction().await {
         Ok(transaction) => transaction,
         Err(error) => return (false, format!("Database transaction error: {error}")),
