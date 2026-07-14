@@ -2251,17 +2251,24 @@ where
     match row {
         Some(row) => Ok(row.get("content")),
         None => {
+            let version = crate::memory::content_hash(default);
             client
                 .execute(
                     "
-                    INSERT INTO user_memories (user_id, memory_key, content)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO user_memories (user_id, memory_key, content, content_version)
+                    VALUES ($1, $2, $3, $4)
                     ON CONFLICT DO NOTHING
                     ",
-                    &[&user_id, &key, &default],
+                    &[&user_id, &key, &default, &version],
                 )
                 .await?;
-            Ok(default.to_string())
+            Ok(client
+                .query_one(
+                    "SELECT content FROM user_memories WHERE user_id = $1 AND memory_key = $2",
+                    &[&user_id, &key],
+                )
+                .await?
+                .get("content"))
         }
     }
 }

@@ -1804,7 +1804,7 @@ fn cosine_similarity(left: &[f32], right: &[f32]) -> f64 {
     }
 }
 
-fn content_hash(content: &str) -> String {
+pub(crate) fn content_hash(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     hex::encode(hasher.finalize())
