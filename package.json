@@ -20,6 +20,7 @@
         "test:backend-userflows-llm": "node scripts/test-backend-userflows-llm.mjs",
         "test:misc-task-capture-llm": "node scripts/test-misc-task-capture-llm.mjs",
         "test:llm-judge-quality": "node scripts/test-llm-judge-quality.mjs",
+        "test:llm-judge-rubric": "node scripts/test-llm-judge-rubric.mjs",
         "test:action-buttons": "node scripts/test-action-button-maps.mjs",
         "test:memory-timezone-contracts": "node scripts/test-memory-timezone-contracts.mjs",
         "test:production-contracts": "node scripts/test-production-contracts.mjs",

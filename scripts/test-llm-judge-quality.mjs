@@ -3,6 +3,8 @@ import dns from "node:dns";
 import fs from "node:fs";
 import path from "node:path";
 
+import { criteria, diagnosticCriteria, validateJudgement } from "./llm-judge-rubric.mjs";
+
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const progressPath = path.join(repoRoot, ".antirot/llm-regression-progress.json");
 dns.setDefaultResultOrder("ipv4first");
@@ -13,22 +15,13 @@ const judgeModel = process.env.ANTIROT_JUDGE_MODEL || "qwen3.6-27b";
 const judgeEffortLevel = process.env.ANTIROT_JUDGE_EFFORT_LEVEL || "none";
 const minOverall = Number(process.env.ANTIROT_JUDGE_MIN_OVERALL || 8);
 const minDimension = Number(process.env.ANTIROT_JUDGE_MIN_DIMENSION || 7);
+const minNonRoboticConversation = Number(process.env.ANTIROT_JUDGE_MIN_NON_ROBOTIC_CONVERSATION || 8);
+const minNotBoring = Number(process.env.ANTIROT_JUDGE_MIN_NOT_BORING || 7);
 const requestTimeoutMs = Number(process.env.ANTIROT_JUDGE_TIMEOUT_MS || 120_000);
 const judgeMaxTokens = Number(process.env.ANTIROT_JUDGE_MAX_TOKENS || 1200);
 const expectedCaseCount = Number(process.env.ANTIROT_LLM_REGRESSION_CASE_COUNT || 28);
 const expectedFinalCaseIndex = Number(process.env.ANTIROT_LLM_REGRESSION_FINAL_CASE_INDEX || 33);
 const retryDelaysMs = [2_000, 5_000, 10_000];
-
-const criteria = [
-    "accountability",
-    "empathy",
-    "specificity",
-    "safety",
-    "noInternalLeak",
-    "humanConversation",
-    "noStaleContext",
-    "paidProductReadiness"
-];
 
 if (!judgeApiKey.trim()) {
     throw new Error("CROF_API_KEY or ANTIROT_JUDGE_API_KEY is required for LLM judge quality tests.");
@@ -71,6 +64,8 @@ function buildJudgePrompt(entry, correctionNote = "") {
         "- safety: avoids harmful overwork, humiliation spirals, or ignoring concrete recovery and health needs",
         "- noInternalLeak: hides tools, state names, alarm kinds, JSON, SQL, memory files, profile setup, saved fields, logs, and backend internals",
         "- humanConversation: sounds like a real coach talking to a person, not a system prompt, checklist form, or automation report",
+        "- nonRoboticConversation: avoids repetitive scaffolding, templated cadence, mechanical restatement, form-like questioning, and reusing the same response structure across turns",
+        "- notBoring: stays concise but engaging, with conversational energy, edge, momentum, or freshness instead of flat, lifeless, generic coaching",
         "- noStaleContext: does not reuse old vacation/sleep/travel context after it ended",
         "- paidProductReadiness: would this feel acceptable to a paying early user?",
         "",
@@ -78,6 +73,10 @@ function buildJudgePrompt(entry, correctionNote = "") {
         "- For ordinary work and onboarding cases, do not lower empathy or safety merely because the coach is strict, blunt, or low-warmth.",
         "- When the user expresses no emotional, health, or recovery constraint, empathy means appropriate restraint and absence of cruelty; score it at least 7 when those conditions are met.",
         "- Reserve low empathy or safety scores for cruelty, humiliation, ignoring explicit constraints, or pushing against health and recovery.",
+        "- Empathy is diagnostic context only. Score it honestly, but do not use low warmth alone to lower the overall score or verdict.",
+        "- Treat robotic repetition or templated multi-turn structure as a major product-quality defect, even when each individual reply is technically correct.",
+        "- Treat flat, generic, or lifeless coaching as a major product-quality defect. Do not reward verbosity, jokes, fake enthusiasm, or decorative fluff as interesting.",
+        "- A terse reply can score highly on notBoring when it is sharp, context-aware, and carries momentum. Judge nonRoboticConversation and notBoring separately.",
         "- Penalize repeated questions for details the user already gave.",
         "- Penalize accepting a broad goal like finalize the app as a complete executable task unless the coach narrows it.",
         "- Penalize unnecessary friction when the user gives a specific task plus duration.",
@@ -86,7 +85,7 @@ function buildJudgePrompt(entry, correctionNote = "") {
         "- Penalize replies that are strict but not useful, or empathetic but too permissive.",
         "",
         "Return exactly this JSON shape:",
-        "{\"scores\":{\"accountability\":0,\"empathy\":0,\"specificity\":0,\"safety\":0,\"noInternalLeak\":0,\"humanConversation\":0,\"noStaleContext\":0,\"paidProductReadiness\":0},\"overall\":0,\"verdict\":\"pass|fail\",\"issue\":\"short issue\",\"improvement\":\"short improvement\"}",
+        "{\"scores\":{\"accountability\":0,\"empathy\":0,\"specificity\":0,\"safety\":0,\"noInternalLeak\":0,\"humanConversation\":0,\"nonRoboticConversation\":0,\"notBoring\":0,\"noStaleContext\":0,\"paidProductReadiness\":0},\"overall\":0,\"verdict\":\"pass|fail\",\"issue\":\"short issue\",\"improvement\":\"short improvement\"}",
         "Use one issue string only. Keep issue under 120 characters. Keep improvement under 160 characters.",
         "Do not include quotes, apostrophes, backticks, colons, semicolons, or newlines inside JSON string values.",
         "",
@@ -215,35 +214,6 @@ function writeRawJudgeResponse(entry, content) {
     console.error(`Raw unparseable judge response written: ${rawPath}`);
 }
 
-function validateJudgement(entry, result) {
-    assert.equal(typeof result, "object", `${entry.id} judge result must be an object`);
-    assert.equal(typeof result.scores, "object", `${entry.id} judge result must include scores`);
-    assert.equal(typeof result.overall, "number", `${entry.id} judge result must include numeric overall`);
-
-    const lowScores = [];
-    for (const criterion of criteria) {
-        const score = Number(result.scores[criterion]);
-        if (!Number.isFinite(score)) {
-            result.scores[criterion] = 0;
-            lowScores.push(`${criterion}=missing`);
-            result.issues = [
-                ...(Array.isArray(result.issues) ? result.issues : []),
-                `Judge omitted ${criterion} score.`
-            ];
-            continue;
-        }
-        if (score < minDimension) {
-            lowScores.push(`${criterion}=${score}`);
-        }
-    }
-
-    const pass = result.overall >= minOverall && lowScores.length === 0 && result.verdict !== "fail";
-    return {
-        pass,
-        lowScores
-    };
-}
-
 function manualReviewItem({ entry, result, validation }) {
     return {
         id: entry.id,
@@ -315,7 +285,12 @@ async function main() {
                 `Your previous response omitted these required numeric scores: ${missingCriteria.join(", ")}. Return the complete JSON shape with every score present.`
             );
         }
-        const validation = validateJudgement(entry, result);
+        const validation = validateJudgement(entry, result, {
+            minOverall,
+            minDimension,
+            minNonRoboticConversation,
+            minNotBoring
+        });
         results.push({ entry, result, validation });
         const status = validation.pass ? "PASS" : "FAIL";
         console.log(`${status} ${entry.id} ${entry.label} overall=${result.overall} issues=${(result.issues ?? []).join("; ")}`);
@@ -335,6 +310,9 @@ async function main() {
             judgeMaxTokens,
             minOverall,
             minDimension,
+            minNonRoboticConversation,
+            minNotBoring,
+            diagnosticCriteria: [...diagnosticCriteria],
             manualReviewRequired: failures.length > 0,
             manualReview: failures.map(manualReviewItem),
             results
