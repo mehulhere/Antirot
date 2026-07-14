@@ -45,7 +45,7 @@ function loadTranscript() {
     return progress.transcript;
 }
 
-function buildJudgePrompt(entry) {
+function buildJudgePrompt(entry, correctionNote = "") {
     const messages = Array.isArray(entry.messages) && entry.messages.length > 0
         ? entry.messages.map((message, index) => `User turn ${index + 1}: ${message}`).join("\n")
         : "No user-turn context was recorded for this legacy case.";
@@ -98,11 +98,12 @@ function buildJudgePrompt(entry) {
         messages,
         "",
         "Assistant reply or transcript:",
-        entry.reply
+        entry.reply,
+        correctionNote
     ].join("\n");
 }
 
-async function judge(entry) {
+async function judge(entry, correctionNote = "") {
     const payload = {
         model: judgeModel,
         temperature: 0,
@@ -112,7 +113,7 @@ async function judge(entry) {
         messages: [
             {
                 role: "user",
-                content: buildJudgePrompt(entry)
+                content: buildJudgePrompt(entry, correctionNote)
             }
         ]
     };
@@ -168,6 +169,13 @@ async function judge(entry) {
     }
 
     return normalizeJudgeResult(parseJudgeContent(content, entry));
+}
+
+function missingScoreCriteria(result) {
+    if (!result || typeof result.scores !== "object" || result.scores === null) {
+        return [...criteria];
+    }
+    return criteria.filter((criterion) => !Number.isFinite(Number(result.scores[criterion])));
 }
 
 function normalizeJudgeResult(result) {
@@ -298,7 +306,15 @@ async function main() {
     console.log(`LLM judge: model=${judgeModel} effort=${judgeEffortLevel} baseUrl=${judgeBaseUrl} cases=${transcript.length}`);
 
     for (const entry of transcript) {
-        const result = await judge(entry);
+        let result = await judge(entry);
+        const missingCriteria = missingScoreCriteria(result);
+        if (missingCriteria.length > 0) {
+            console.log(`Judge omitted ${missingCriteria.join(", ")} for ${entry.id}; requesting one schema correction.`);
+            result = await judge(
+                entry,
+                `Your previous response omitted these required numeric scores: ${missingCriteria.join(", ")}. Return the complete JSON shape with every score present.`
+            );
+        }
         const validation = validateJudgement(entry, result);
         results.push({ entry, result, validation });
         const status = validation.pass ? "PASS" : "FAIL";
