@@ -3195,12 +3195,18 @@ where
             let now = Utc::now().to_rfc3339();
             let db_key = match user_day_for(client, user_id, Utc::now()).await {
                 Ok(day) => day.work_log_key(),
-                Err(err) => return ToolOutcome::failure(err.to_string()),
+                Err(err) => {
+                    error!(user_id, error = ?err, "🔴 FALLBACK: session start could not resolve user day - Reason: database lookup failed - Impact: work session was not started");
+                    return ToolOutcome::failure(err.to_string());
+                }
             };
             let mut work = match get_memory_or_init(client, user_id, &db_key, "# Work Log\n").await
             {
                 Ok(c) => c,
-                Err(err) => return ToolOutcome::failure(err.to_string()),
+                Err(err) => {
+                    error!(user_id, memory_key = %db_key, error = ?err, "🔴 FALLBACK: session start could not load work log - Reason: database lookup failed - Impact: work session was not started");
+                    return ToolOutcome::failure(err.to_string());
+                }
             };
 
             work.push_str(&format!(
@@ -3208,6 +3214,7 @@ where
                 task_id, est_mins, now
             ));
             if let Err(err) = save_memory(client, config, user_id, &db_key, &work).await {
+                error!(user_id, memory_key = %db_key, error = ?err, "🔴 FALLBACK: session start could not save work log - Reason: canonical memory write failed - Impact: work session was not started");
                 return ToolOutcome::failure(err.to_string());
             }
             let state_result = match apply_runtime_event(
