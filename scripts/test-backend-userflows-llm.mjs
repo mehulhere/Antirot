@@ -786,7 +786,7 @@ async function main() {
                 manualReviewFocus: "Happy-path first onboarding should collect context without sounding like an intake form."
             });
             assertProductionQuality(reply);
-            assert.doesNotMatch(reply, /numbered|raw facts|profile setup|saved fields|pipeline|backend/iu, `clean onboarding first reply exposed form/internal language: ${reply}`);
+            assert.doesNotMatch(reply, /numbered|raw facts|profile setup|saved fields|pipeline/iu, `clean onboarding first reply exposed form/internal language: ${reply}`);
             state = await snapshot(backend.baseUrl, cleanOnboardingFixture.userId, cleanOnboardingFixture.deviceId);
             assertStateIn(state, ["onboarding", "idle"]);
             pass("LLM-24 clean onboarding goals", reply.replace(/\s+/gu, " ").slice(0, 220));

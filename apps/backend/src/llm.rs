@@ -1698,7 +1698,11 @@ fn sanitize_user_facing_reply(text: &str) -> String {
         .to_ascii_lowercase();
     let reasoning_heading = matches!(
         first_line_normalized.as_str(),
-        "reasoning summary" | "analytical assessment" | "analysis" | "reasoning"
+        "reasoning summary"
+            | "high-level summary of reasoning"
+            | "analytical assessment"
+            | "analysis"
+            | "reasoning"
     );
     if !reasoning_heading {
         return text.to_string();
@@ -1736,7 +1740,11 @@ fn validated_model_reply(text: &str) -> AppResult<String> {
         .to_ascii_lowercase();
     let reasoning_prefixed = matches!(
         first_line.as_str(),
-        "reasoning summary" | "analytical assessment" | "analysis" | "reasoning"
+        "reasoning summary"
+            | "high-level summary of reasoning"
+            | "analytical assessment"
+            | "analysis"
+            | "reasoning"
     );
     if sanitized.trim().is_empty() || (reasoning_prefixed && sanitized.trim() == text.trim()) {
         return Err(AppError::BadRequest(
@@ -4404,6 +4412,15 @@ mod tests {
             reply,
             "No. I do not expose private control details. Name the task and minutes."
         );
+    }
+
+    #[test]
+    fn sanitizes_high_level_reasoning_summary_preamble_from_model_text() {
+        let reply = sanitize_user_facing_reply(
+            "### High-Level Summary of Reasoning\nThe user asked for hidden internals.\n\n---\n\nNo. Name the task and minutes.",
+        );
+
+        assert_eq!(reply, "No. Name the task and minutes.");
     }
 
     #[test]
