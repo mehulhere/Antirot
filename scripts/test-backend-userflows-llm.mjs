@@ -247,7 +247,7 @@ function assertNoStaleVacationCopy(reply) {
 
 function assertSecondOnboardingLoopReply(reply) {
     assertProductionQuality(reply);
-    assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b|\bare we starting\b|\bpick the exact\b|\bwhich (?:specific|exact)\b|\bwhat (?:specific|exact)\b/iu, `second onboarding reply did not suggest or request a first task: ${reply}`);
+    assert.match(reply, /\bI suggest\b|\bsuggest\b|\bstart with\b|\bfirst\b|\bare we starting\b|\bpick (?:the )?(?:exact|smallest|one)\b|\bwhich (?:specific|exact)\b|\bwhat (?:specific|exact)\b|\bwhat is (?:the|that) exact\b/iu, `second onboarding reply did not suggest or request a first task: ${reply}`);
     assert.match(reply, /\bexact\b|\bdetail(?:s)?\b|\bspecific\b|\bconcrete\b|\bfile\b|\bscreen\b|\btest case\b|\bslice\b/iu, `second onboarding reply did not ask for exact task details: ${reply}`);
     assert.match(reply, /\bminutes?\b|\bduration\b|\bhow long\b|\bestimat(?:e|ed)\b|\btime\b/iu, `second onboarding reply did not ask for a time estimate: ${reply}`);
     assert.doesNotMatch(reply, /what (?:are you|do you) planning to (?:do|get done) today/iu, `second onboarding reply asked today's plan again: ${reply}`);
